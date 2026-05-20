@@ -1,0 +1,33 @@
+// backend/src/db/db.js
+
+import { drizzle as drizzleNeon } from "drizzle-orm/neon-http";
+import { drizzle as drizzleLocal } from "drizzle-orm/node-postgres";
+import { neon } from "@neondatabase/serverless";
+import pkg from "pg";
+import * as schema from "./schema.js";
+import dotenv from "dotenv";
+dotenv.config();
+
+const { Pool } = pkg;
+
+const USE_LOCAL = process.env.USE_LOCAL_DB === "true";
+
+let db;
+
+if (USE_LOCAL) {
+  const pool = new Pool({
+    host: process.env.DB_HOST || "localhost",
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DB_NAME || "PERN-Auth_template-DB",
+    user: process.env.DB_USER || "postgres",
+    password: process.env.DB_PASSWORD || "ratul",
+  });
+  db = drizzleLocal(pool, { schema });
+  console.log("🟢 Connected to LOCAL PostgreSQL");
+} else {
+  const sql = neon(process.env.DATABASE_URL);
+  db = drizzleNeon(sql, { schema });
+  console.log("🔵 Connected to NEON (cloud) PostgreSQL");
+}
+
+export { db };
