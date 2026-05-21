@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: "HKD Outdoor Innovations",
-  description: "HKD Outdoor Innovations Ltd. - Authentication System",
+  description: "HKD Outdoor Innovations Ltd. is a leading provider of outdoor solutions, specializing in innovative products and services for outdoor enthusiasts. With a commitment to quality and customer satisfaction, HKD Outdoor Innovations offers a wide range of outdoor gear, equipment, and accessories designed to enhance the outdoor experience. Whether you're an avid hiker, camper, or adventurer, HKD Outdoor Innovations has the perfect solutions to meet your outdoor needs.",
   icons: {
     icon: "/HKD_LOGO.png",
   },
