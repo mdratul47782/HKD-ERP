@@ -1,4 +1,5 @@
 // backend/src/controllers/cutting_entries.controllers.js
+
 // Line-based cutting entries: per date, per line, size-wise quantities
 // Multiple entries per line (same or different sizes/styles), fully editable
 
