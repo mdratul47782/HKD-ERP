@@ -23,11 +23,11 @@ if (USE_LOCAL) {
     password: process.env.DB_PASSWORD || "ratul",
   });
   db = drizzleLocal(pool, { schema });
-  console.log("🟢 Connected to LOCAL PostgreSQL");
+  console.log("🟢 Connected to LOCAL PostgreSQL ");
 } else {
   const sql = neon(process.env.DATABASE_URL);
   db = drizzleNeon(sql, { schema });
-  console.log("🔵 Connected to NEON (cloud) PostgreSQL");
+  console.log("🔵 Connected to NEON (Cloud) PostgreSQL");
 }
 
 export { db };
