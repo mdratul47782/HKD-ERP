@@ -23,7 +23,7 @@ const ALL_SIZES = [
   "6M","12M","18M","24M","ONE SIZE","ADULT",
 ];
 
-const LINES = Array.from({ length: 20 }, (_, i) => `Line ${i + 1}`);
+const LINES = Array.from({ length: 19 }, (_, i) => `Line-${i + 1}`);
 const fmt   = (n) => Number(n || 0).toLocaleString();
 const emptyForm = () => ({
   style: "", color: "", model: "", buyer: "", item: "",
