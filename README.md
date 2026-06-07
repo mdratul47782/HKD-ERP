@@ -141,5 +141,5 @@ npm run db:studio # Open Drizzle Studio
 npm run dev       # Start Next.js dev server
 npm run build     # Build for production
 npm run start     # Start production server
-npm run lint      # Run ESLint
+npm run lint      # Run ESLint 
 ```

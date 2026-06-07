@@ -16,6 +16,7 @@ function nowBD() {
 // size_quantities: { "S": 120, "M": 200 }  (only the sizes user entered)
 export async function createEntry(req, res) {
   try {
+    
     const {
       factory, assigned_building,
       work_date, line,
