@@ -8,7 +8,7 @@ A full-stack authentication system built with **PostgreSQL**, **Express**, **Rea
 |-------|------------|
 | **Frontend** | Next.js 16, React 19, Tailwind CSS 4 |
 | **Backend** | Express 5, Node.js |
-| **Database** | PostgreSQL (via Neon serverless) |
+| **Database** | PostgreSQL (via Neon serverless and with Localhost) |
 | **ORM** | Drizzle ORM |
 
 ## Project Structure
@@ -142,4 +142,5 @@ npm run dev       # Start Next.js dev server
 npm run build     # Build for production
 npm run start     # Start production server
 npm run lint      # Run ESLint 
+
 ```
