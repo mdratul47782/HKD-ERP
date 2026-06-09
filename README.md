@@ -1,6 +1,6 @@
 # PERN Auth Template
 
-A full-stack authentication system built with **PostgreSQL**, **Express**, **React/Next.js**, and **Node.js**.
+A full-stack authentication system built with **PostgreSQL/Neon**, **Express**, **React/Next.js**, and **Node.js**.
 
 ## Tech Stack
 
