@@ -38,7 +38,7 @@ PERN-Auth_template/
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 
 - PostgreSQL database (Neon recommended)
 
 ### Backend Setup
