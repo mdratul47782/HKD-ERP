@@ -1,11 +1,11 @@
 // backend/src/db/db.js
 
+import { neon } from "@neondatabase/serverless";
+import dotenv from "dotenv";
 import { drizzle as drizzleNeon } from "drizzle-orm/neon-http";
 import { drizzle as drizzleLocal } from "drizzle-orm/node-postgres";
-import { neon } from "@neondatabase/serverless";
 import pkg from "pg";
 import * as schema from "./schema.js";
-import dotenv from "dotenv";
 dotenv.config();
 
 const { Pool } = pkg;

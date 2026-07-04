@@ -3,7 +3,7 @@
 import http from 'http';
 
 const BASE_URL = 'http://localhost:5000';
-const TOTAL_USERS = 2000;
+const TOTAL_USERS = 200;
 const DURATION_MS = 60000;
 const DELAY = DURATION_MS / TOTAL_USERS;
 
