@@ -1,33 +1,43 @@
-// backend/src/db/db.js
-
-import { neon } from "@neondatabase/serverless";
 import dotenv from "dotenv";
-import { drizzle as drizzleNeon } from "drizzle-orm/neon-http";
-import { drizzle as drizzleLocal } from "drizzle-orm/node-postgres";
-import pkg from "pg";
-import * as schema from "./schema.js";
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
+import { eq } from "drizzle-orm";
+import * as schema from "./schema.mysql.js";
+
 dotenv.config();
 
-const { Pool } = pkg;
+const pool = mysql.createPool({
+  host: process.env.MYSQL_HOST || "localhost",
+  port: Number(process.env.MYSQL_PORT) || 3306,
+  database: process.env.MYSQL_DATABASE || "PERN-Auth_template-DB",
+  user: process.env.MYSQL_USER || "root",
+  password: process.env.MYSQL_PASSWORD || "",
+});
 
-const USE_LOCAL = process.env.USE_LOCAL_DB === "true";
+const db = drizzle(pool, { schema, mode: "default" });
 
-let db;
+console.log("🟠 Connected to MySQL");
 
-if (USE_LOCAL) {
-  const pool = new Pool({
-    host: process.env.DB_HOST || "localhost",
-    port: process.env.DB_PORT || 5432,
-    database: process.env.DB_NAME || "PERN-Auth_template-DB",
-    user: process.env.DB_USER || "postgres",
-    password: process.env.DB_PASSWORD || "ratul",
-  });
-  db = drizzleLocal(pool, { schema });
-  console.log("🟢 Connected to LOCAL PostgreSQL ");
-} else {
-  const sql = neon(process.env.DATABASE_URL);
-  db = drizzleNeon(sql, { schema });
-  console.log("🔵 Connected to NEON (Cloud) PostgreSQL");
+// Insert a row, then fetch and return it by its new id
+export async function insertAndReturn(table, values) {
+  const [result] = await db.insert(table).values(values);
+  const [row] = await db.select().from(table).where(eq(table.id, result.insertId));
+  return row;
 }
 
-export { db };
+// Update row(s) matching whereClause, then fetch and return the (first) updated row
+export async function updateAndReturn(table, values, whereClause) {
+  await db.update(table).set(values).where(whereClause);
+  const [row] = await db.select().from(table).where(whereClause);
+  return row;
+}
+
+// Fetch the row first (so we still have it after deleting), then delete it
+export async function deleteAndReturn(table, whereClause) {
+  const [row] = await db.select().from(table).where(whereClause);
+  if (!row) return null;
+  await db.delete(table).where(whereClause);
+  return row;
+}
+
+export { db, schema };

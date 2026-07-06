@@ -1,7 +1,8 @@
-import { db } from "../db/db.js";
-import { users } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
+import { db, schema, insertAndReturn, updateAndReturn } from "../db/db.js";
+
+const { users } = schema;
 
 const isBase64Image = (str) =>
   typeof str === "string" && str.startsWith("data:image/");
@@ -20,7 +21,6 @@ export const register = async (req, res) => {
       return res.status(400).json({ message: "Username already taken" });
     }
 
-    // Upload profile picture to Cloudinary if provided
     let pictureUrl = null;
     let pictureId = null;
     if (profile_picture && isBase64Image(profile_picture)) {
@@ -29,24 +29,23 @@ export const register = async (req, res) => {
       pictureId = uploaded.public_id;
     }
 
-    const [newUser] = await db
-      .insert(users)
-      .values({
-        user_name, password, role, assigned_building, factory,
-        profile_picture: pictureUrl,
-        profile_picture_id: pictureId,
-      })
-      .returning({
-        id: users.id,
-        user_name: users.user_name,
-        role: users.role,
-        assigned_building: users.assigned_building,
-        factory: users.factory,
-        profile_picture: users.profile_picture,
-        createdAt: users.createdAt,
-      });
+    const newUser = await insertAndReturn(users, {
+      user_name, password, role, assigned_building, factory,
+      profile_picture: pictureUrl,
+      profile_picture_id: pictureId,
+    });
 
-    return res.status(201).json({ user: newUser });
+    return res.status(201).json({
+      user: {
+        id: newUser.id,
+        user_name: newUser.user_name,
+        role: newUser.role,
+        assigned_building: newUser.assigned_building,
+        factory: newUser.factory,
+        profile_picture: newUser.profile_picture,
+        createdAt: newUser.createdAt,
+      },
+    });
   } catch (error) {
     console.error("Register error:", error);
     return res.status(500).json({ message: "Server error" });
@@ -126,46 +125,44 @@ export const updateUser = async (req, res) => {
       if (duplicate) return res.status(400).json({ message: "Username already taken" });
     }
 
-    // Handle profile picture update
     let pictureUrl = existing.profile_picture;
     let pictureId = existing.profile_picture_id;
 
     if (profile_picture === null) {
-      // User cleared the picture — delete from Cloudinary
       await deleteFromCloudinary(existing.profile_picture_id);
       pictureUrl = null;
       pictureId = null;
     } else if (profile_picture && isBase64Image(profile_picture)) {
-      // New image uploaded — delete old from Cloudinary, upload new
       await deleteFromCloudinary(existing.profile_picture_id);
       const uploaded = await uploadToCloudinary(profile_picture);
       pictureUrl = uploaded.url;
       pictureId = uploaded.public_id;
     }
-    // If profile_picture is a Cloudinary URL (unchanged), keep existing values
 
-    const [updatedUser] = await db
-      .update(users)
-      .set({
+    const updatedUser = await updateAndReturn(
+      users,
+      {
         user_name: user_name || existing.user_name,
         role: role || existing.role,
         assigned_building: assigned_building || existing.assigned_building,
         factory: factory || existing.factory,
         profile_picture: pictureUrl,
         profile_picture_id: pictureId,
-      })
-      .where(eq(users.user_name, old_user_name))
-      .returning({
-        id: users.id,
-        user_name: users.user_name,
-        role: users.role,
-        assigned_building: users.assigned_building,
-        factory: users.factory,
-        profile_picture: users.profile_picture,
-        createdAt: users.createdAt,
-      });
+      },
+      eq(users.user_name, old_user_name)
+    );
 
-    return res.status(200).json({ user: updatedUser });
+    return res.status(200).json({
+      user: {
+        id: updatedUser.id,
+        user_name: updatedUser.user_name,
+        role: updatedUser.role,
+        assigned_building: updatedUser.assigned_building,
+        factory: updatedUser.factory,
+        profile_picture: updatedUser.profile_picture,
+        createdAt: updatedUser.createdAt,
+      },
+    });
   } catch (error) {
     console.error("Update error:", error);
     return res.status(500).json({ message: "Server error" });
