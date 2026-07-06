@@ -1,12 +1,12 @@
 import {
+  date,
+  int,
+  json,
   mysqlTable,
   serial,
-  varchar,
   text,
   timestamp,
-  date,
-  json,
-  int,
+  varchar,
 } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
@@ -37,4 +37,12 @@ export const cutting_entries = mysqlTable("cutting_entries", {
   created_by: varchar("created_by", { length: 100 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const json_payload_tests = mysqlTable("json_payload_tests", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 150 }).notNull(),
+  payload: json("payload").notNull(),
+  item_count: int("item_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
 });
