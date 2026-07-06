@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
-import { db, schema, insertAndReturn, updateAndReturn } from "../db/db.js";
+import { db, schema } from "../db/db.js";
 
 const { users } = schema;
 
@@ -29,11 +29,15 @@ export const register = async (req, res) => {
       pictureId = uploaded.public_id;
     }
 
-    const newUser = await insertAndReturn(users, {
+    // Insert
+    const [result] = await db.insert(users).values({
       user_name, password, role, assigned_building, factory,
       profile_picture: pictureUrl,
       profile_picture_id: pictureId,
     });
+
+    // Fetch the row we just created
+    const [newUser] = await db.select().from(users).where(eq(users.id, result.insertId));
 
     return res.status(201).json({
       user: {
@@ -139,18 +143,19 @@ export const updateUser = async (req, res) => {
       pictureId = uploaded.public_id;
     }
 
-    const updatedUser = await updateAndReturn(
-      users,
-      {
-        user_name: user_name || existing.user_name,
-        role: role || existing.role,
-        assigned_building: assigned_building || existing.assigned_building,
-        factory: factory || existing.factory,
-        profile_picture: pictureUrl,
-        profile_picture_id: pictureId,
-      },
-      eq(users.user_name, old_user_name)
-    );
+    // Update
+    await db.update(users).set({
+      user_name: user_name || existing.user_name,
+      role: role || existing.role,
+      assigned_building: assigned_building || existing.assigned_building,
+      factory: factory || existing.factory,
+      profile_picture: pictureUrl,
+      profile_picture_id: pictureId,
+    }).where(eq(users.user_name, old_user_name));
+
+    // Fetch the updated row (note: use the NEW user_name since it may have changed)
+    const [updatedUser] = await db.select().from(users)
+      .where(eq(users.user_name, user_name || existing.user_name));
 
     return res.status(200).json({
       user: {

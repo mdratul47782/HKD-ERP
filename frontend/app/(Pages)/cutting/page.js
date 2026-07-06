@@ -1,4 +1,4 @@
-// frontend/app/(Pages)/cutting/page.js
+// c:\Users\mis\Downloads\HKD FULL ERP - TEST\frontend\app\(Pages)\cutting\page.js
 
 "use client";
 
@@ -56,7 +56,6 @@ export default function CuttingEntriesPage() {
       const res  = await fetch(
         `${API_URL}/cutting/entries?factory=${encodeURIComponent(user.factory)}&building=${encodeURIComponent(user.assigned_building)}&date=${workDate}`
       );
-      console.log("fetchEntries response:", res);
       const data = await res.json();
       if (res.ok) setEntries(data.entries || []);
     } catch { /**/ } finally { setLoading(false); }
@@ -73,7 +72,6 @@ export default function CuttingEntriesPage() {
         const res  = await fetch(
           `${API_URL}/cutting/entries?factory=${encodeURIComponent(user.factory)}&building=${encodeURIComponent(user.assigned_building)}&date=${ds}`
         );
-        console.log("fetchPrevEntries response:", res);
         const data = await res.json();
         if (res.ok && (data.entries || []).length > 0) {
           setPrevEntries(data.entries); break;

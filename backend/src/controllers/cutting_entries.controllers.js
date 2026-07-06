@@ -1,7 +1,7 @@
 // backend/src/controllers/cutting_entries.controllers.js
 
 import { eq, and } from "drizzle-orm";
-import { db, schema, insertAndReturn, updateAndReturn, deleteAndReturn } from "../db/db.js";
+import { db, schema } from "../db/db.js";
 
 const { cutting_entries } = schema;
 
@@ -32,7 +32,8 @@ export async function createEntry(req, res) {
 
     const bd = nowBD();
 
-    const record = await insertAndReturn(cutting_entries, {
+    // Insert
+    const [result] = await db.insert(cutting_entries).values({
       factory, assigned_building,
       work_date, line,
       style, color, model, buyer,
@@ -43,6 +44,10 @@ export async function createEntry(req, res) {
       createdAt: bd,
       updatedAt: bd,
     });
+
+    // Fetch the row we just created
+    const [record] = await db.select().from(cutting_entries)
+      .where(eq(cutting_entries.id, result.insertId));
 
     return res.status(201).json({ message: "Entry created.", entry: record });
   } catch (err) {
@@ -97,19 +102,23 @@ export async function updateEntry(req, res) {
       eq(cutting_entries.assigned_building, assigned_building)
     );
 
-    const updated = await updateAndReturn(
-      cutting_entries,
-      {
-        style, color, model, buyer,
-        item: item || null,
-        size_quantities,
-        total_pcs,
-        updatedAt: nowBD(),
-      },
-      whereClause
-    );
+    // Check existence first
+    const [existing] = await db.select().from(cutting_entries).where(whereClause);
+    if (!existing) return res.status(404).json({ message: "Entry not found." });
 
-    if (!updated) return res.status(404).json({ message: "Entry not found." });
+    // Update
+    await db.update(cutting_entries).set({
+      style, color, model, buyer,
+      item: item || null,
+      size_quantities,
+      total_pcs,
+      updatedAt: nowBD(),
+    }).where(whereClause);
+
+    // Fetch updated row
+    const [updated] = await db.select().from(cutting_entries)
+      .where(eq(cutting_entries.id, Number(id)));
+
     return res.status(200).json({ message: "Entry updated.", entry: updated });
   } catch (err) {
     console.error("updateEntry error:", err);
@@ -132,9 +141,12 @@ export async function deleteEntry(req, res) {
       eq(cutting_entries.assigned_building, assigned_building)
     );
 
-    const deleted = await deleteAndReturn(cutting_entries, whereClause);
+    // Fetch before deleting
+    const [existing] = await db.select().from(cutting_entries).where(whereClause);
+    if (!existing) return res.status(404).json({ message: "Entry not found." });
 
-    if (!deleted) return res.status(404).json({ message: "Entry not found." });
+    await db.delete(cutting_entries).where(whereClause);
+
     return res.status(200).json({ message: "Entry deleted." });
   } catch (err) {
     console.error("deleteEntry error:", err);
