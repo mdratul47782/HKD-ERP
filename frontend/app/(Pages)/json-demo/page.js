@@ -13,9 +13,84 @@ import { useEffect, useMemo, useState } from "react";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 const samplePayload = [
-    { sku: "TSH-001", item: "T-Shirt", color: "Olive", qty: 24 },
-    { sku: "TRS-014", item: "Trouser", color: "Black", qty: 18 },
-    { sku: "JKT-208", item: "Jacket", color: "Sand", qty: 6 },
+    {
+  "nodeId": "urn:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+  "status": "OPERATIONAL",
+  "metadata": {
+    "firmwareVersion": "v4.12.8-build902",
+    "hardwareRevision": "Rev-E2",
+    "deploymentDate": "2025-11-14T08:32:00Z",
+    "location": {
+      "type": "Point",
+      "coordinates": [22.3419, 91.8146],
+      "elevationMeters": 14.5,
+      "address": {
+        "sector": "Ward-39",
+        "city": "Chattogram",
+        "country": "Bangladesh"
+      }
+    }
+  },
+  "security": {
+    "encryption": "AES-256-GCM",
+    "allowedRoles": ["admin", "operator", "analytics_engine"],
+    "activeSession": {
+      "tokenId": "tok_99182x7f3",
+      "expiresAt": "2026-07-09T22:00:00Z"
+    }
+  },
+  "telemetry": {
+    "timestamp": "2026-07-09T16:00:00Z",
+    "metrics": {
+      "environmental": {
+        "temperatureCelsius": 31.4,
+        "humidityPercentage": 82.5,
+        "airQualityIndex": 64
+      },
+      "powerGrid": {
+        "inputVoltage": 230.2,
+        "currentAmperes": 4.15,
+        "batteryBackup": {
+          "capacityPercentage": 98.0,
+          "health": "EXCELLENT",
+          "temperatureCelsius": 29.8
+        }
+      }
+    },
+    "connectedDevices": [
+      {
+        "id": "cam-01",
+        "type": "TRAFFIC_CAMERA",
+        "active": true,
+        "streamUrl": "rtsp://10.240.12.5/live/stream1"
+      },
+      {
+        "id": "aqi-04",
+        "type": "PARTICULATE_SENSOR",
+        "active": true,
+        "calibrationOffset": -0.02
+      },
+      {
+        "id": "light-12",
+        "type": "STREET_ILLUMINATION",
+        "active": false,
+        "faultCode": "ERR_LAMP_FAILURE"
+      }
+    ]
+  },
+  "historicalLogsSummary": {
+    "totalAlerts24h": 2,
+    "recentIncidents": [
+      {
+        "incidentId": "inc-4402",
+        "severity": "WARNING",
+        "message": "Voltage spike detected on phase A",
+        "resolved": true
+      }
+    ]
+  }
+}
+
 ];
 
 const sampleText = JSON.stringify(samplePayload, null, 2);
