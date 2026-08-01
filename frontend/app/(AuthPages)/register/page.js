@@ -1,4 +1,4 @@
-// frontend/app/register/page.js
+// frontend/app/(AuthPages)/register/page.js
 
 "use client";
 
@@ -14,10 +14,23 @@ const IconUser = (props) => (
     <path d="M4.5 20.25a7.5 7.5 0 0 1 15 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
   </svg>
 );
+const IconMail = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3.5" y="5.5" width="17" height="13" rx="2" stroke="currentColor" strokeWidth="1.7" />
+    <path d="m4.5 7 7.5 6 7.5-6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 const IconLock = (props) => (
   <svg {...props} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <rect x="5" y="10.5" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.7" />
     <path d="M8 10.5V7.5a4 4 0 1 1 8 0v3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+const IconLockCheck = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="5" y="10.5" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M8 10.5V7.5a4 4 0 1 1 8 0v3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    <path d="m9.5 15 1.6 1.6L14.5 13" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 const IconBadge = (props) => (
@@ -47,6 +60,64 @@ const IconCamera = (props) => (
   </svg>
 );
 
+const ROLE_OPTIONS = [
+  // Data Entry
+  "Production-Data-Tracker",
+  "Quality-Data-Tracker",
+  "Cutting-Data-Tracker",
+  "Finishing-Data-Tracker",
+  "IE-Data-Tracker",
+  "Maintenance-Data-Tracker",
+
+  // Entry Level
+  "MTO",
+
+  // Executive Level
+  "Jr-Executive",
+  "Executive",
+  "ERP-Executive",
+  "Senior-Executive",
+
+  // Mid Management
+  "Assistant Manager",
+  "Deputy Manager",
+  "Manager",
+  "Senior Manager",
+
+  // Senior Management
+  "AGM",
+  "DGM",
+  "GM",
+  "MD",
+  "COO",
+  "Chairman",
+  "President",
+
+  // Generic (Optional)
+  "Management",
+];
+
+const DEPARTMENT_OPTIONS = [
+  "SALES",
+  "CAD",
+  "MC",
+  "PLANNING",
+  "COMMERCIAL-IMPORT",
+  "COMMERCIAL-EXPORT",
+  "STORE",
+  "CUTTING",
+  "PRODUCTION",
+  "QUALITY",
+  "FINISHING",
+  "IE",
+  "MAINTENANCE",
+  "INSPECTION",
+  "ACCOUNTS",
+  "COMPLIANCE",
+  "MIS",
+  "HR",
+];
+
 export default function RegisterPage() {
   const { register } = useAuth();
   const router = useRouter();
@@ -63,7 +134,7 @@ export default function RegisterPage() {
         : "border-gray-200 focus-within:ring-2 focus-within:ring-indigo-200 focus-within:border-indigo-400"
     }`;
   const inputBareClass =
-    "w-full bg-transparent py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none";
+    "w-full bg-transparent py-1.5 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none";
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -84,15 +155,25 @@ export default function RegisterPage() {
 
   async function onSubmit(e) {
     e.preventDefault();
-    setIsLoading(true);
     setError("");
     setFieldErrors({});
 
+    const formData = new FormData(e.currentTarget);
+    const password = formData.get("password");
+    const confirmPassword = formData.get("confirm_password");
+
+    if (password !== confirmPassword) {
+      setFieldErrors({ confirm_password: true });
+      setError("Passwords do not match");
+      return;
+    }
+
+    setIsLoading(true);
     try {
-      const formData = new FormData(e.currentTarget);
       const payload = {
         user_name: formData.get("user_name"),
-        password: formData.get("password"),
+        email: formData.get("email"),
+        password,
         role: formData.get("role"),
         department: formData.get("department"),
         assigned_building: formData.get("assigned_building"),
@@ -105,6 +186,8 @@ export default function RegisterPage() {
     } catch (err) {
       if (err.message === "Username already taken") {
         setFieldErrors({ user_name: true });
+      } else if (err.message === "Email already registered") {
+        setFieldErrors({ email: true });
       }
       setError(err.message);
     } finally {
@@ -113,34 +196,34 @@ export default function RegisterPage() {
   }
 
   return (
-    <section className="h-screen overflow-hidden flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-indigo-100 px-4 py-3">
-      <div className="bg-white shadow-2xl rounded-2xl w-full max-w-4xl h-full max-h-[720px] border border-gray-100 flex flex-col md:flex-row overflow-hidden">
+    <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-indigo-100 px-4 py-4">
+      <div className="bg-white shadow-2xl rounded-2xl w-full max-w-4xl border border-gray-100 flex flex-col md:flex-row overflow-hidden">
 
         {/* LEFT: Illustration */}
-        <div className="hidden md:flex w-1/2 items-center justify-center bg-indigo-50 p-8">
+        <div className="hidden md:flex w-1/2 items-center justify-center bg-indigo-50 p-6">
           <Image
             src="/Sign up-rafiki.svg"
             alt="Sign up illustration"
-            width={420}
-            height={420}
-            className="w-full h-auto max-w-sm"
+            width={380}
+            height={380}
+            className="w-full h-auto max-w-xs"
             priority
           />
         </div>
 
         {/* RIGHT: Form */}
-        <div className="w-full md:w-1/2 flex flex-col min-h-0">
-          <div className="px-8 pt-6 pb-2 shrink-0 flex items-center gap-3">
+        <div className="w-full md:w-1/2 flex flex-col">
+          <div className="px-8 pt-6 pb-2 flex items-center gap-3">
             <Image
               src="/HKD_LOGO.png"
               alt="HKD Outdoor Innovations Ltd. logo"
-              width={52}
-              height={52}
-              className="w-12 h-12 object-contain shrink-0"
+              width={48}
+              height={48}
+              className="w-11 h-11 object-contain shrink-0"
               priority
             />
             <div className="min-w-0">
-              <h1 className="text-xl font-extrabold text-gray-800 leading-tight">
+              <h1 className="text-lg font-extrabold text-gray-800 leading-tight">
                 Create Your Account
               </h1>
               <p className="text-xs text-gray-500 mt-0.5 truncate">
@@ -150,52 +233,97 @@ export default function RegisterPage() {
           </div>
 
           {error && (
-            <div className="mx-8 mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700 shrink-0">
+            <div className="mx-8 mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700">
               {error}
             </div>
           )}
 
-          <form onSubmit={onSubmit} className="flex-1 min-h-0 overflow-y-auto px-8 pb-6 space-y-3">
-            {/* User Name */}
-            <div>
-              <label htmlFor="user_name" className="block text-xs font-medium text-gray-700 mb-1">
-                User Name
-              </label>
-              <div className={fieldWrapClass("user_name")}>
-                <IconUser className="w-4 h-4 text-gray-400 shrink-0" />
-                <input
-                  type="text"
-                  id="user_name"
-                  name="user_name"
-                  disabled={isLoading}
-                  className={inputBareClass}
-                  placeholder="Enter your name"
-                  minLength={3}
-                  required
-                />
+          <form onSubmit={onSubmit} className="px-8 pb-6 space-y-2.5">
+            {/* User Name + Email */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="user_name" className="block text-xs font-medium text-gray-700 mb-1">
+                  User Name
+                </label>
+                <div className={fieldWrapClass("user_name")}>
+                  <IconUser className="w-4 h-4 text-gray-400 shrink-0" />
+                  <input
+                    type="text"
+                    id="user_name"
+                    name="user_name"
+                    disabled={isLoading}
+                    className={inputBareClass}
+                    placeholder="Your name"
+                    minLength={3}
+                    required
+                  />
+                </div>
+                {fe.user_name && (
+                  <p className="mt-1 text-[11px] text-red-600">User Name আগে থেকেই আছে।</p>
+                )}
               </div>
-              {fe.user_name && (
-                <p className="mt-1 text-xs text-red-600">এই User Name আগে থেকেই আছে।</p>
-              )}
+              <div>
+                <label htmlFor="email" className="block text-xs font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <div className={fieldWrapClass("email")}>
+                  <IconMail className="w-4 h-4 text-gray-400 shrink-0" />
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    disabled={isLoading}
+                    className={inputBareClass}
+                    placeholder="you@example.com"
+                    required
+                  />
+                </div>
+                {fe.email && (
+                  <p className="mt-1 text-[11px] text-red-600">Email আগে থেকেই ব্যবহৃত।</p>
+                )}
+              </div>
             </div>
 
-            {/* Password */}
-            <div>
-              <label htmlFor="password" className="block text-xs font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <div className={fieldWrapClass("password")}>
-                <IconLock className="w-4 h-4 text-gray-400 shrink-0" />
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  disabled={isLoading}
-                  className={inputBareClass}
-                  placeholder="••••••••"
-                  required
-                  minLength={6}
-                />
+            {/* Password + Confirm Password */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="password" className="block text-xs font-medium text-gray-700 mb-1">
+                  Password
+                </label>
+                <div className={fieldWrapClass("password")}>
+                  <IconLock className="w-4 h-4 text-gray-400 shrink-0" />
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    disabled={isLoading}
+                    className={inputBareClass}
+                    placeholder="••••••••"
+                    required
+                    minLength={6}
+                  />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="confirm_password" className="block text-xs font-medium text-gray-700 mb-1">
+                  Confirm Password
+                </label>
+                <div className={fieldWrapClass("confirm_password")}>
+                  <IconLockCheck className="w-4 h-4 text-gray-400 shrink-0" />
+                  <input
+                    type="password"
+                    id="confirm_password"
+                    name="confirm_password"
+                    disabled={isLoading}
+                    className={inputBareClass}
+                    placeholder="••••••••"
+                    required
+                    minLength={6}
+                  />
+                </div>
+                {fe.confirm_password && (
+                  <p className="mt-1 text-[11px] text-red-600">Password মিলছে না।</p>
+                )}
               </div>
             </div>
 
@@ -207,15 +335,19 @@ export default function RegisterPage() {
                 </label>
                 <div className={fieldWrapClass("role")}>
                   <IconBadge className="w-4 h-4 text-gray-400 shrink-0" />
-                  <input
-                    type="text"
+                  <select
                     id="role"
                     name="role"
                     disabled={isLoading}
-                    className={inputBareClass}
-                    placeholder="Your role"
+                    className={`${inputBareClass} appearance-none`}
                     required
-                  />
+                    defaultValue=""
+                  >
+                    <option value="" disabled>Select role</option>
+                    {ROLE_OPTIONS.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div>
@@ -224,14 +356,18 @@ export default function RegisterPage() {
                 </label>
                 <div className={fieldWrapClass("department")}>
                   <IconLayers className="w-4 h-4 text-gray-400 shrink-0" />
-                  <input
-                    type="text"
+                  <select
                     id="department"
                     name="department"
                     disabled={isLoading}
-                    className={inputBareClass}
-                    placeholder="Your department"
-                  />
+                    className={`${inputBareClass} appearance-none`}
+                    defaultValue=""
+                  >
+                    <option value="">Select department</option>
+                    {DEPARTMENT_OPTIONS.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
@@ -250,8 +386,9 @@ export default function RegisterPage() {
                     disabled={isLoading}
                     className={`${inputBareClass} appearance-none`}
                     required
+                    defaultValue=""
                   >
-                    <option value="">Select</option>
+                    <option value="" disabled>Select</option>
                     <option value="A-2">A-2</option>
                     <option value="B-2">B-2</option>
                     <option value="A-3">A-3</option>
@@ -275,8 +412,9 @@ export default function RegisterPage() {
                     disabled={isLoading}
                     className={`${inputBareClass} appearance-none`}
                     required
+                    defaultValue=""
                   >
-                    <option value="">Select</option>
+                    <option value="" disabled>Select</option>
                     <option value="K-1">K-1</option>
                     <option value="K-2">K-2</option>
                     <option value="K-3">K-3</option>
@@ -293,7 +431,7 @@ export default function RegisterPage() {
               <div className="flex items-center gap-3">
                 <label
                   htmlFor="profile_picture"
-                  className={`flex-1 flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 cursor-pointer transition-all ${
+                  className={`flex-1 flex items-center gap-2 rounded-xl border border-dashed px-3 py-1.5 cursor-pointer transition-all ${
                     isLoading
                       ? "border-gray-200 bg-gray-50 cursor-not-allowed"
                       : "border-gray-300 bg-gray-50/70 hover:bg-indigo-50 hover:border-indigo-300"
@@ -314,7 +452,7 @@ export default function RegisterPage() {
                   className="hidden"
                 />
                 {filePreview && (
-                  <div className="relative w-10 h-10 rounded-lg overflow-hidden border-2 border-gray-200 shrink-0">
+                  <div className="relative w-9 h-9 rounded-lg overflow-hidden border-2 border-gray-200 shrink-0">
                     <Image src={filePreview} alt="Preview" fill className="object-cover" />
                   </div>
                 )}

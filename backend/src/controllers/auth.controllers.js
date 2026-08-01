@@ -1,4 +1,5 @@
 // backend/src/controllers/auth.controllers.js
+
 import { eq } from "drizzle-orm";
 import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 import { db, schema } from "../db/db.js";
@@ -8,18 +9,33 @@ const { users } = schema;
 const isBase64Image = (str) =>
   typeof str === "string" && str.startsWith("data:image/");
 
+const isValidEmail = (str) =>
+  typeof str === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
+
+// Roles allowed to manage (view + edit) other users
+const USER_MANAGER_ROLES = ["Developer", "ERP-Executive"];
+
 // POST /auth/register
 export const register = async (req, res) => {
   try {
-    const { user_name, password, role, department, assigned_building, factory, profile_picture } = req.body;
+    const { user_name, email, password, role, department, assigned_building, factory, profile_picture } = req.body;
 
-    if (!user_name || !password || !role || !assigned_building || !factory) {
+    if (!user_name || !email || !password || !role || !assigned_building || !factory) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    const existing = await db.select().from(users).where(eq(users.user_name, user_name));
-    if (existing.length > 0) {
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: "Invalid email address" });
+    }
+
+    const existingName = await db.select().from(users).where(eq(users.user_name, user_name));
+    if (existingName.length > 0) {
       return res.status(400).json({ message: "Username already taken" });
+    }
+
+    const existingEmail = await db.select().from(users).where(eq(users.email, email));
+    if (existingEmail.length > 0) {
+      return res.status(400).json({ message: "Email already registered" });
     }
 
     let pictureUrl = null;
@@ -31,7 +47,7 @@ export const register = async (req, res) => {
     }
 
     const [result] = await db.insert(users).values({
-      user_name, password, role, department: department || null, assigned_building, factory,
+      user_name, email, password, role, department: department || null, assigned_building, factory,
       profile_picture: pictureUrl,
       profile_picture_id: pictureId,
     });
@@ -42,6 +58,7 @@ export const register = async (req, res) => {
       user: {
         id: newUser.id,
         user_name: newUser.user_name,
+        email: newUser.email,
         role: newUser.role,
         department: newUser.department,
         assigned_building: newUser.assigned_building,
@@ -75,6 +92,7 @@ export const login = async (req, res) => {
       user: {
         id: user.id,
         user_name: user.user_name,
+        email: user.email,
         role: user.role,
         department: user.department,
         assigned_building: user.assigned_building,
@@ -102,6 +120,7 @@ export const refresh = async (req, res) => {
       user: {
         id: user.id,
         user_name: user.user_name,
+        email: user.email,
         role: user.role,
         department: user.department,
         assigned_building: user.assigned_building,
@@ -117,11 +136,33 @@ export const refresh = async (req, res) => {
 };
 
 // PUT /auth/update
+// If `requester_role` is provided and does NOT belong to USER_MANAGER_ROLES,
+// the caller may only update their own account (old_user_name must match).
+// This keeps self-service profile edits (e.g. from a settings page) working,
+// while blocking a random user from editing someone else's account.
 export const updateUser = async (req, res) => {
   try {
-    const { old_user_name, user_name, role, department, assigned_building, factory, profile_picture } = req.body;
+    const {
+      old_user_name,
+      user_name,
+      email,
+      role,
+      department,
+      assigned_building,
+      factory,
+      profile_picture,
+      requester_user_name,
+      requester_role,
+    } = req.body;
 
     if (!user_name) return res.status(400).json({ message: "Username required" });
+
+    const isManager = USER_MANAGER_ROLES.includes(requester_role);
+    const isSelf = requester_user_name && requester_user_name === old_user_name;
+
+    if (requester_role !== undefined && !isManager && !isSelf) {
+      return res.status(403).json({ message: "Not authorized to update this user" });
+    }
 
     const [existing] = await db.select().from(users).where(eq(users.user_name, old_user_name));
     if (!existing) return res.status(404).json({ message: "User not found" });
@@ -129,6 +170,14 @@ export const updateUser = async (req, res) => {
     if (user_name !== old_user_name) {
       const [duplicate] = await db.select().from(users).where(eq(users.user_name, user_name));
       if (duplicate) return res.status(400).json({ message: "Username already taken" });
+    }
+
+    if (email && email !== existing.email) {
+      if (!isValidEmail(email)) {
+        return res.status(400).json({ message: "Invalid email address" });
+      }
+      const [duplicateEmail] = await db.select().from(users).where(eq(users.email, email));
+      if (duplicateEmail) return res.status(400).json({ message: "Email already registered" });
     }
 
     let pictureUrl = existing.profile_picture;
@@ -147,6 +196,7 @@ export const updateUser = async (req, res) => {
 
     await db.update(users).set({
       user_name: user_name || existing.user_name,
+      email: email || existing.email,
       role: role || existing.role,
       department: department !== undefined ? department : existing.department,
       assigned_building: assigned_building || existing.assigned_building,
@@ -162,6 +212,7 @@ export const updateUser = async (req, res) => {
       user: {
         id: updatedUser.id,
         user_name: updatedUser.user_name,
+        email: updatedUser.email,
         role: updatedUser.role,
         department: updatedUser.department,
         assigned_building: updatedUser.assigned_building,
@@ -203,17 +254,18 @@ export const changePassword = async (req, res) => {
   }
 };
 
-// GET /auth/users  — Developer-only listing for the admin page
+// GET /auth/users  — Developer / ERP-Executive listing for the admin page
 export const getAllUsers = async (req, res) => {
   try {
     const { requester_role } = req.query;
-    if (requester_role !== "Developer") {
+    if (!USER_MANAGER_ROLES.includes(requester_role)) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
     const allUsers = await db.select({
       id: users.id,
       user_name: users.user_name,
+      email: users.email,
       role: users.role,
       department: users.department,
       assigned_building: users.assigned_building,

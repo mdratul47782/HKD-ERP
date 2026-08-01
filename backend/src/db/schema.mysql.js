@@ -1,3 +1,5 @@
+// backend/src/db/schema.mysql.js
+
 import {
   date,
   int,
@@ -12,6 +14,7 @@ import {
 export const users = mysqlTable("users", {
   id: serial("id").primaryKey(),
   user_name: varchar("user_name", { length: 100 }).notNull().unique(),
+  email: varchar("email", { length: 150 }).notNull().unique(),
   password: text("password").notNull(),
   role: varchar("role", { length: 100 }).notNull(),
   department: varchar("department", { length: 100 }),

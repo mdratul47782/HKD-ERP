@@ -1,4 +1,5 @@
-// frontend/app/admin/users/page.js
+// frontend/app/(AuthPages)/admin/users/page.js
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -8,8 +9,12 @@ import { useAuth } from "@/hooks/useAuth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
+// Roles allowed on this page
+const USER_MANAGER_ROLES = ["Developer", "ERP-Executive"];
+
 const FIELDS = [
   { name: "user_name", label: "User Name" },
+  { name: "email", label: "Email" },
   { name: "role", label: "Role" },
   { name: "department", label: "Department" },
   { name: "assigned_building", label: "Assigned Floor" },
@@ -26,14 +31,17 @@ export default function ManageUsersPage() {
   const [editingUser, setEditingUser] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (!loading && (!user || user.role !== "Developer")) {
-      router.replace("/dashboard");
-    }
-  }, [loading, user, router]);
+  const canManageUsers = user && USER_MANAGER_ROLES.includes(user.role);
 
   useEffect(() => {
-    if (!loading && user?.role === "Developer") fetchUsers();
+    if (!loading && !canManageUsers) {
+      router.replace("/dashboard");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, user]);
+
+  useEffect(() => {
+    if (!loading && canManageUsers) fetchUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user]);
 
@@ -58,6 +66,7 @@ export default function ManageUsersPage() {
     setEditingUser({
       old_user_name: u.user_name,
       user_name: u.user_name,
+      email: u.email || "",
       role: u.role,
       department: u.department || "",
       assigned_building: u.assigned_building,
@@ -77,7 +86,11 @@ export default function ManageUsersPage() {
       const res = await fetch(`${API_URL}/auth/update`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingUser),
+        body: JSON.stringify({
+          ...editingUser,
+          requester_user_name: user.user_name,
+          requester_role: user.role,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Update failed");
@@ -90,7 +103,7 @@ export default function ManageUsersPage() {
     }
   }
 
-  if (loading || !user || user.role !== "Developer") return null;
+  if (loading || !canManageUsers) return null;
 
   return (
     <section className="min-h-screen bg-gray-50 px-4 py-10">

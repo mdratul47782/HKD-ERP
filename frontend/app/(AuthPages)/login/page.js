@@ -1,4 +1,4 @@
-// frontend/app/login/page.js
+// frontend/app/(AuthPages)/login/page.js
 
 "use client";
 
@@ -8,11 +8,29 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/provider/AuthProvider";
 
+const IconUser = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M4.5 20.25a7.5 7.5 0 0 1 15 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+const IconLock = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="5" y="10.5" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M8 10.5V7.5a4 4 0 1 1 8 0v3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const fieldWrapClass =
+    "flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/70 px-3 transition-all focus-within:bg-white focus-within:shadow-sm focus-within:ring-2 focus-within:ring-indigo-200 focus-within:border-indigo-400";
+  const inputBareClass =
+    "w-full bg-transparent py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed";
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -30,11 +48,11 @@ export default function LoginPage() {
   }
 
   return (
-    <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-100 to-indigo-100 px-4">
-      <div className="bg-white shadow-2xl rounded-2xl w-full max-w-4xl overflow-hidden flex flex-col md:flex-row">
+    <section className="h-screen overflow-hidden flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-indigo-100 px-4 py-3">
+      <div className="bg-white shadow-2xl rounded-2xl w-full max-w-4xl h-full max-h-[640px] border border-gray-100 flex flex-col md:flex-row overflow-hidden">
 
         {/* LEFT: Illustration */}
-        <div className="w-full md:w-1/2 bg-indigo-50 flex items-center justify-center p-8">
+        <div className="hidden md:flex w-1/2 items-center justify-center bg-indigo-50 p-8">
           <Image
             src="/Computer login-amico.svg"
             alt="Login illustration"
@@ -46,24 +64,23 @@ export default function LoginPage() {
         </div>
 
         {/* RIGHT: Form */}
-        <div className="w-full md:w-1/2 p-8 flex flex-col justify-center">
-          <div className="flex flex-col items-center mb-6">
+        <div className="w-full md:w-1/2 flex flex-col justify-center min-h-0 px-6 py-6">
+          <div className="flex items-center gap-3 mb-6">
             <Image
               src="/HKD_LOGO.png"
-              alt="HKD Logo"
-              width={80}
-              height={80}
-              className="rounded-3xl mb-3 shadow-md"
+              alt="HKD Outdoor Innovations Ltd. logo"
+              width={52}
+              height={52}
+              className="w-12 h-12 object-contain shrink-0"
               priority
             />
-            <h1 className="text-xl text-indigo-600 font-extrabold text-center">
-              HKD Outdoor Innovations Ltd.
-            </h1>
+            <div className="min-w-0">
+              <h1 className="text-lg font-extrabold text-gray-800 leading-tight tracking-tight">
+                HKD OUTDOOR INNOVATIONS LTD.
+              </h1>
+              <p className="text-xs text-gray-500 mt-0.5">Sign in to your account</p>
+            </div>
           </div>
-
-          <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">
-            Sign In
-          </h2>
 
           {error && (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -71,41 +88,47 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={onSubmit} className="space-y-5">
+          <form onSubmit={onSubmit} className="space-y-4">
             <div>
-              <label htmlFor="user_name" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="user_name" className="block text-xs font-medium text-gray-700 mb-1">
                 User Name
               </label>
-              <input
-                type="text"
-                id="user_name"
-                name="user_name"
-                disabled={isLoading}
-                className="w-full border text-black border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:outline-none rounded-lg px-3 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                placeholder="Enter your username"
-                required
-              />
+              <div className={fieldWrapClass}>
+                <IconUser className="w-4 h-4 text-gray-400 shrink-0" />
+                <input
+                  type="text"
+                  id="user_name"
+                  name="user_name"
+                  disabled={isLoading}
+                  className={inputBareClass}
+                  placeholder="Enter your username"
+                  required
+                />
+              </div>
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-xs font-medium text-gray-700 mb-1">
                 Password
               </label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                disabled={isLoading}
-                className="w-full border border-gray-300 focus:ring-2 focus:ring-indigo-500 text-black focus:outline-none rounded-lg px-3 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                placeholder="••••••••"
-                required
-              />
+              <div className={fieldWrapClass}>
+                <IconLock className="w-4 h-4 text-gray-400 shrink-0" />
+                <input
+                  type="password"
+                  id="password"
+                  name="password"
+                  disabled={isLoading}
+                  className={inputBareClass}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2 transition-all duration-200 flex items-center justify-center gap-2"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-2.5 transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>
@@ -119,8 +142,8 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-500 mt-6">
-            Don't have an account?{" "}
+          <p className="text-center text-xs text-gray-500 mt-5">
+            Don&apos;t have an account?{" "}
             <Link href="/register" className="text-indigo-600 hover:text-indigo-800 font-medium">
               Register
             </Link>

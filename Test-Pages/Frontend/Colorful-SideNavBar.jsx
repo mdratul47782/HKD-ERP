@@ -1,3 +1,5 @@
+// Test-Pages/Frontend/Colorful-SideNavBar.jsx
+
 // frontend/app/SideNavBarComponent/SideNavbar.jsx
 
 "use client";
@@ -20,7 +22,6 @@ import {
   Sun,
   X,
   ShieldUser
-  
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -47,12 +48,43 @@ export default function SideNavbar() {
   const isActive = (href) =>
     pathname === href || (href !== "/" && pathname?.startsWith(`${href}/`));
 
+  // Each nav item now carries its own accent color for a bold, colorful badge look
   const navItems = [
-    { href: "/", label: "Home", icon: Home },
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/cutting", label: "Cutting", icon: Scissors },
-    { href: "/json-demo", label: "JSON Demo", icon: Database },
-    { href: "/admin/users", label: "Manage Users", icon: ShieldUser }
+    {
+      href: "/",
+      label: "Home",
+      icon: Home,
+      color: "text-sky-600 dark:text-sky-400",
+      bg: "bg-sky-100 dark:bg-sky-500/15",
+    },
+    {
+      href: "/dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+      color: "text-violet-600 dark:text-violet-400",
+      bg: "bg-violet-100 dark:bg-violet-500/15",
+    },
+    {
+      href: "/cutting",
+      label: "Cutting",
+      icon: Scissors,
+      color: "text-rose-600 dark:text-rose-400",
+      bg: "bg-rose-100 dark:bg-rose-500/15",
+    },
+    {
+      href: "/json-demo",
+      label: "JSON Demo",
+      icon: Database,
+      color: "text-emerald-600 dark:text-emerald-400",
+      bg: "bg-emerald-100 dark:bg-emerald-500/15",
+    },
+    {
+      href: "/admin/users",
+      label: "Manage Users",
+      icon: ShieldUser,
+      color: "text-amber-600 dark:text-amber-400",
+      bg: "bg-amber-100 dark:bg-amber-500/15",
+    },
   ];
 
   return (
@@ -93,29 +125,35 @@ export default function SideNavbar() {
         </div>
 
         {/* NAV ITEMS */}
-        <div className="flex-1 flex flex-col gap-0.5 px-2 py-1 overflow-hidden">
-          {navItems.map(({ href, icon: Icon, label }) => {
+        <div className="flex-1 flex flex-col gap-1 px-2 py-1 overflow-hidden">
+          {navItems.map(({ href, icon: Icon, label, color, bg }) => {
             const active = isActive(href);
             return (
               <Link
                 key={href}
                 href={href}
                 title={!expanded ? label : undefined}
-                className={`group flex items-center gap-3 h-8 rounded-md px-2 transition-all duration-150
+                className={`group flex items-center gap-2.5 h-9 rounded-lg px-1.5 transition-all duration-150
                   ${
                     active
-                      ? "bg-black/[0.08] dark:bg-white/[0.09] text-slate-900 dark:text-[#ececec]"
-                      : "text-slate-600 dark:text-[#8a8a8a] hover:bg-black/5 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-[#ececec]"
+                      ? "bg-black/[0.06] dark:bg-white/[0.07]"
+                      : "hover:bg-black/[0.04] dark:hover:bg-white/[0.05]"
                   }
                   ${expanded ? "" : "justify-center"}`}
               >
-                <Icon
-                  size={15}
-                  strokeWidth={active ? 2 : 1.75}
-                  className="flex-shrink-0"
-                />
+                <div
+                  className={`flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0 transition-all ${bg}`}
+                >
+                  <Icon size={16} strokeWidth={2.5} className={color} />
+                </div>
                 {expanded && (
-                  <span className="text-[13px] font-medium truncate leading-none">
+                  <span
+                    className={`text-[13px] font-semibold truncate leading-none ${
+                      active
+                        ? "text-slate-900 dark:text-[#ececec]"
+                        : "text-slate-600 dark:text-[#a3a3a3]"
+                    }`}
+                  >
                     {label}
                   </span>
                 )}
@@ -129,17 +167,19 @@ export default function SideNavbar() {
           <button
             onClick={toggleDark}
             title={!expanded ? (dark ? "Light mode" : "Dark mode") : undefined}
-            className={`group flex items-center gap-3 h-8 rounded-md px-2 transition-all duration-150
-              text-slate-600 dark:text-[#8a8a8a] hover:bg-black/5 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-[#ececec]
+            className={`group flex items-center gap-2.5 h-9 rounded-lg px-1.5 transition-all duration-150
+              hover:bg-black/[0.04] dark:hover:bg-white/[0.05]
               ${expanded ? "" : "justify-center"}`}
           >
-            {dark ? (
-              <Sun size={15} strokeWidth={1.75} className="flex-shrink-0" />
-            ) : (
-              <Moon size={15} strokeWidth={1.75} className="flex-shrink-0" />
-            )}
+            <div className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0 bg-orange-100 dark:bg-orange-500/15">
+              {dark ? (
+                <Sun size={16} strokeWidth={2.5} className="text-orange-500 dark:text-orange-400" />
+              ) : (
+                <Moon size={16} strokeWidth={2.5} className="text-orange-500 dark:text-orange-400" />
+              )}
+            </div>
             {expanded && (
-              <span className="text-[13px] font-medium">
+              <span className="text-[13px] font-semibold text-slate-600 dark:text-[#a3a3a3]">
                 {dark ? "Light mode" : "Dark mode"}
               </span>
             )}
@@ -151,19 +191,19 @@ export default function SideNavbar() {
             <button
               onClick={() => setPanelOpen((p) => !p)}
               title={!expanded ? userName || "Profile" : undefined}
-              className={`group flex items-center gap-3 h-9 rounded-md px-2 transition-all duration-150 w-full
+              className={`group flex items-center gap-2.5 h-9 rounded-lg px-1.5 transition-all duration-150 w-full
                 ${
                   panelOpen
-                    ? "bg-black/[0.08] dark:bg-white/[0.09] text-slate-900 dark:text-[#ececec]"
-                    : "text-slate-600 dark:text-[#8a8a8a] hover:bg-black/5 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-[#ececec]"
+                    ? "bg-black/[0.06] dark:bg-white/[0.07]"
+                    : "hover:bg-black/[0.04] dark:hover:bg-white/[0.05]"
                 }
                 ${expanded ? "" : "justify-center"}`}
             >
-              <div className="h-6 w-6 rounded-full bg-amber-100 dark:bg-[#3d2f1a] flex items-center justify-center text-amber-700 dark:text-[#d4a45a] text-[10px] font-bold flex-shrink-0 ring-1 ring-amber-200 dark:ring-[#5a3e1e]">
+              <div className="h-7 w-7 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 shadow-sm">
                 {userName?.charAt(0)?.toUpperCase() || "U"}
               </div>
               {expanded && (
-                <span className="text-[13px] font-medium text-slate-800 dark:text-[#ececec] truncate flex-1 text-left">
+                <span className="text-[13px] font-semibold text-slate-800 dark:text-[#ececec] truncate flex-1 text-left">
                   {userName}
                 </span>
               )}
@@ -171,13 +211,15 @@ export default function SideNavbar() {
           ) : (
             <Link
               href="/login"
-              className={`group flex items-center gap-3 h-9 rounded-md px-2 transition-all duration-150
-                text-slate-600 dark:text-[#8a8a8a] hover:bg-black/5 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-[#ececec]
+              className={`group flex items-center gap-2.5 h-9 rounded-lg px-1.5 transition-all duration-150
+                hover:bg-black/[0.04] dark:hover:bg-white/[0.05]
                 ${expanded ? "" : "justify-center"}`}
             >
-              <LogIn size={15} strokeWidth={1.75} className="flex-shrink-0" />
+              <div className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0 bg-sky-100 dark:bg-sky-500/15">
+                <LogIn size={16} strokeWidth={2.5} className="text-sky-600 dark:text-sky-400" />
+              </div>
               {expanded && (
-                <span className="text-[13px] font-medium">Login</span>
+                <span className="text-[13px] font-semibold text-slate-600 dark:text-[#a3a3a3]">Login</span>
               )}
             </Link>
           )}
@@ -209,19 +251,19 @@ export default function SideNavbar() {
         <div className="flex items-center gap-1">
           <button
             onClick={toggleDark}
-            className="h-9 w-9 rounded-xl flex items-center justify-center text-slate-500 dark:text-[#8a8a8a] hover:bg-black/5 dark:hover:bg-white/[0.06] transition-all"
+            className="h-9 w-9 rounded-xl flex items-center justify-center bg-orange-100 dark:bg-orange-500/15 transition-all"
           >
             {dark ? (
-              <Sun size={17} strokeWidth={1.75} />
+              <Sun size={17} strokeWidth={2.5} className="text-orange-500 dark:text-orange-400" />
             ) : (
-              <Moon size={17} strokeWidth={1.75} />
+              <Moon size={17} strokeWidth={2.5} className="text-orange-500 dark:text-orange-400" />
             )}
           </button>
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="h-9 w-9 rounded-xl flex items-center justify-center text-slate-500 dark:text-[#8a8a8a] hover:bg-black/5 dark:hover:bg-white/[0.06] transition-all"
+            className="h-9 w-9 rounded-xl flex items-center justify-center text-slate-600 dark:text-[#ececec] hover:bg-black/5 dark:hover:bg-white/[0.06] transition-all"
           >
-            <Menu size={19} strokeWidth={1.75} />
+            <Menu size={19} strokeWidth={2.5} />
           </button>
         </div>
       </header>
@@ -233,24 +275,30 @@ export default function SideNavbar() {
         border-t border-black/5 dark:border-white/[0.07]"
       >
         <div className="flex items-center justify-around px-2 py-1">
-          {navItems.map(({ href, icon: Icon, label }) => {
+          {navItems.map(({ href, icon: Icon, label, color, bg }) => {
             const active = isActive(href);
             return (
               <Link
                 key={href}
                 href={href}
-                className={`flex flex-col items-center gap-1 px-4 py-2.5 min-w-0 flex-1 transition-all ${
-                  active
-                    ? "text-slate-900 dark:text-[#ececec]"
-                    : "text-slate-400 dark:text-[#555]"
-                }`}
+                className="flex flex-col items-center gap-1 px-4 py-2.5 min-w-0 flex-1 transition-all"
               >
                 <div
-                  className={`flex items-center justify-center w-8 h-8 rounded-xl transition-all ${active ? "bg-black/[0.08] dark:bg-white/[0.09]" : ""}`}
+                  className={`flex items-center justify-center w-8 h-8 rounded-xl transition-all ${
+                    active ? bg : "bg-transparent"
+                  }`}
                 >
-                  <Icon size={18} strokeWidth={active ? 2 : 1.75} />
+                  <Icon
+                    size={18}
+                    strokeWidth={2.5}
+                    className={active ? color : "text-slate-400 dark:text-[#555]"}
+                  />
                 </div>
-                <span className="text-[10px] font-medium leading-none">
+                <span
+                  className={`text-[10px] font-semibold leading-none ${
+                    active ? "text-slate-900 dark:text-[#ececec]" : "text-slate-400 dark:text-[#555]"
+                  }`}
+                >
                   {label}
                 </span>
               </Link>
@@ -263,23 +311,21 @@ export default function SideNavbar() {
               className="flex flex-col items-center gap-1 px-4 py-2.5 min-w-0 flex-1 text-slate-400 dark:text-[#555] transition-all"
             >
               <div className="w-8 h-8 rounded-xl flex items-center justify-center">
-                <div className="h-6 w-6 rounded-full bg-amber-100 dark:bg-[#3d2f1a] flex items-center justify-center text-amber-700 dark:text-[#d4a45a] text-[10px] font-bold ring-1 ring-amber-200 dark:ring-[#5a3e1e]">
+                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
                   {userName?.charAt(0)?.toUpperCase() || "U"}
                 </div>
               </div>
-              <span className="text-[10px] font-medium leading-none">Me</span>
+              <span className="text-[10px] font-semibold leading-none">Me</span>
             </button>
           ) : (
             <Link
               href="/login"
               className="flex flex-col items-center gap-1 px-4 py-2.5 min-w-0 flex-1 text-slate-400 dark:text-[#555]"
             >
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center">
-                <LogIn size={18} strokeWidth={1.75} />
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-sky-100 dark:bg-sky-500/15">
+                <LogIn size={18} strokeWidth={2.5} className="text-sky-600 dark:text-sky-400" />
               </div>
-              <span className="text-[10px] font-medium leading-none">
-                Login
-              </span>
+              <span className="text-[10px] font-semibold leading-none">Login</span>
             </Link>
           )}
         </div>
@@ -306,7 +352,7 @@ export default function SideNavbar() {
             {/* User header */}
             {user && (
               <div className="flex items-center gap-3 px-5 py-3 mb-1">
-                <div className="h-10 w-10 rounded-2xl bg-amber-100 dark:bg-[#3d2f1a] flex items-center justify-center text-amber-700 dark:text-[#d4a45a] font-bold text-sm ring-1 ring-amber-200 dark:ring-[#5a3e1e] flex-shrink-0">
+                <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
                   {userName?.charAt(0)?.toUpperCase() || "U"}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -330,21 +376,23 @@ export default function SideNavbar() {
 
             {/* Nav links */}
             <div className="px-3 space-y-0.5">
-              {navItems.map(({ href, icon: Icon, label }) => {
+              {navItems.map(({ href, icon: Icon, label, color, bg }) => {
                 const active = isActive(href);
                 return (
                   <Link
                     key={href}
                     href={href}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 h-11 px-3 rounded-xl text-[14px] font-medium transition-all
+                    className={`flex items-center gap-3 h-11 px-2.5 rounded-xl text-[14px] font-semibold transition-all
                       ${
                         active
-                          ? "bg-black/[0.07] dark:bg-white/[0.08] text-slate-900 dark:text-[#ececec]"
-                          : "text-slate-600 dark:text-[#aaa] hover:bg-black/5 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-[#ececec]"
+                          ? "bg-black/[0.06] dark:bg-white/[0.07] text-slate-900 dark:text-[#ececec]"
+                          : "text-slate-600 dark:text-[#aaa] hover:bg-black/5 dark:hover:bg-white/[0.05]"
                       }`}
                   >
-                    <Icon size={17} strokeWidth={active ? 2 : 1.75} />
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0 ${bg}`}>
+                      <Icon size={16} strokeWidth={2.5} className={color} />
+                    </div>
                     {label}
                   </Link>
                 );
@@ -353,14 +401,16 @@ export default function SideNavbar() {
                 <Link
                   href="/dashboard"
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 h-11 px-3 rounded-xl text-[14px] font-medium transition-all
+                  className={`flex items-center gap-3 h-11 px-2.5 rounded-xl text-[14px] font-semibold transition-all
                     ${
                       isActive("/dashboard")
-                        ? "bg-black/[0.07] dark:bg-white/[0.08] text-slate-900 dark:text-[#ececec]"
-                        : "text-slate-600 dark:text-[#aaa] hover:bg-black/5 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-[#ececec]"
+                        ? "bg-black/[0.06] dark:bg-white/[0.07] text-slate-900 dark:text-[#ececec]"
+                        : "text-slate-600 dark:text-[#aaa] hover:bg-black/5 dark:hover:bg-white/[0.05]"
                     }`}
                 >
-                  <Settings size={17} strokeWidth={1.75} />
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0 bg-indigo-100 dark:bg-indigo-500/15">
+                    <Settings size={16} strokeWidth={2.5} className="text-indigo-600 dark:text-indigo-400" />
+                  </div>
                   Profile settings
                 </Link>
               )}
@@ -372,32 +422,38 @@ export default function SideNavbar() {
             <div className="px-3 pb-8 space-y-0.5">
               <button
                 onClick={toggleDark}
-                className="w-full flex items-center gap-3 h-11 px-3 rounded-xl text-[14px] font-medium
-                  text-slate-600 dark:text-[#aaa] hover:bg-black/5 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-[#ececec] transition-all"
+                className="w-full flex items-center gap-3 h-11 px-2.5 rounded-xl text-[14px] font-semibold
+                  text-slate-600 dark:text-[#aaa] hover:bg-black/5 dark:hover:bg-white/[0.05] transition-all"
               >
-                {dark ? (
-                  <Sun size={17} strokeWidth={1.75} />
-                ) : (
-                  <Moon size={17} strokeWidth={1.75} />
-                )}
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0 bg-orange-100 dark:bg-orange-500/15">
+                  {dark ? (
+                    <Sun size={16} strokeWidth={2.5} className="text-orange-500 dark:text-orange-400" />
+                  ) : (
+                    <Moon size={16} strokeWidth={2.5} className="text-orange-500 dark:text-orange-400" />
+                  )}
+                </div>
                 {dark ? "Switch to Light" : "Switch to Dark"}
               </button>
 
               {user ? (
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-3 h-11 px-3 rounded-xl text-[14px] font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all"
+                  className="w-full flex items-center gap-3 h-11 px-2.5 rounded-xl text-[14px] font-semibold text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all"
                 >
-                  <LogOut size={17} strokeWidth={1.75} />
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0 bg-red-100 dark:bg-red-500/15">
+                    <LogOut size={16} strokeWidth={2.5} className="text-red-500 dark:text-red-400" />
+                  </div>
                   Sign out
                 </button>
               ) : (
                 <Link
                   href="/login"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="w-full flex items-center gap-3 h-11 px-3 rounded-xl text-[14px] font-medium text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/20 transition-all"
+                  className="w-full flex items-center gap-3 h-11 px-2.5 rounded-xl text-[14px] font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/20 transition-all"
                 >
-                  <LogIn size={17} strokeWidth={1.75} />
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0 bg-sky-100 dark:bg-sky-500/15">
+                    <LogIn size={16} strokeWidth={2.5} className="text-sky-600 dark:text-sky-400" />
+                  </div>
                   Login
                 </Link>
               )}

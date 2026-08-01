@@ -1,4 +1,4 @@
-// frontend/app/dashboard/page.js
+// frontend/app/(Pages)/dashboard/page.js
 
 "use client";
 
