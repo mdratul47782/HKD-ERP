@@ -12,7 +12,16 @@ const nextConfig = {
   turbopack: {
     root: path.join(__dirname, '../'),
   },
-  allowedDevOrigins: ['192.169.10.220'], // ← এটা যোগ করো
+  allowedDevOrigins: ['192.169.11.38'], // ← এটা যোগ করো
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+        pathname: '/**',
+      },
+    ],
+  },
 }
 
 export default nextConfig

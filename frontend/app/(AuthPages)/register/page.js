@@ -8,6 +8,45 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 
+const IconUser = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M4.5 20.25a7.5 7.5 0 0 1 15 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+const IconLock = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="5" y="10.5" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M8 10.5V7.5a4 4 0 1 1 8 0v3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+const IconBadge = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="5" width="16" height="15" rx="2.2" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M9 3.5h6M9.5 12.5h5M9.5 15.5h5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    <circle cx="12" cy="9" r="1.4" fill="currentColor" />
+  </svg>
+);
+const IconLayers = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 3.5 3.5 8 12 12.5 20.5 8 12 3.5Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    <path d="m3.5 12 8.5 4.5 8.5-4.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="m3.5 16 8.5 4.5 8.5-4.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const IconFactory = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 20V10.5l4.5 3V10.5l4.5 3V10.5l4.5 3V6h2.5v14H4Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    <path d="M4 20h16" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+const IconCamera = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.1l.9-1.5h7l.9 1.5h2.1A1.5 1.5 0 0 1 20 8.5V18a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18V8.5Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    <circle cx="12" cy="13" r="3.2" stroke="currentColor" strokeWidth="1.7" />
+  </svg>
+);
+
 export default function RegisterPage() {
   const { register } = useAuth();
   const router = useRouter();
@@ -17,26 +56,26 @@ export default function RegisterPage() {
   const [filePreview, setFilePreview] = useState(null);
 
   const fe = fieldErrors;
-  const inputClass = (name) =>
-    `w-full border px-3 py-2 rounded-lg transition-all focus:outline-none ${
+  const fieldWrapClass = (name) =>
+    `flex items-center gap-2 rounded-xl border bg-gray-50/70 px-3 transition-all focus-within:bg-white focus-within:shadow-sm ${
       fe[name]
-        ? "border-red-400 focus:ring-2 focus:ring-red-300 focus:border-red-400"
-        : "border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-    } text-gray-800`;
+        ? "border-red-300 focus-within:ring-2 focus-within:ring-red-200 focus-within:border-red-400"
+        : "border-gray-200 focus-within:ring-2 focus-within:ring-indigo-200 focus-within:border-indigo-400"
+    }`;
+  const inputBareClass =
+    "w-full bg-transparent py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none";
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) { setFilePreview(null); return; }
 
     const validTypes = ["image/jpeg", "image/png", "image/webp"];
-   
 
     if (!validTypes.includes(file.type)) {
       alert("শুধু JPG, PNG, বা WEBP image দিন।");
       e.target.value = "";
       return;
     }
-    
 
     const reader = new FileReader();
     reader.onloadend = () => setFilePreview(reader.result);
@@ -55,6 +94,7 @@ export default function RegisterPage() {
         user_name: formData.get("user_name"),
         password: formData.get("password"),
         role: formData.get("role"),
+        department: formData.get("department"),
         assigned_building: formData.get("assigned_building"),
         factory: formData.get("factory"),
         profile_picture: filePreview || null,
@@ -73,8 +113,8 @@ export default function RegisterPage() {
   }
 
   return (
-    <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-indigo-100 px-4">
-      <div className="bg-white shadow-2xl rounded-2xl w-full max-w-4xl border border-gray-100 flex flex-col md:flex-row overflow-hidden">
+    <section className="h-screen overflow-hidden flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-indigo-100 px-4 py-3">
+      <div className="bg-white shadow-2xl rounded-2xl w-full max-w-4xl h-full max-h-[720px] border border-gray-100 flex flex-col md:flex-row overflow-hidden">
 
         {/* LEFT: Illustration */}
         <div className="hidden md:flex w-1/2 items-center justify-center bg-indigo-50 p-8">
@@ -89,34 +129,51 @@ export default function RegisterPage() {
         </div>
 
         {/* RIGHT: Form */}
-        <div className="w-full md:w-1/2 p-8 flex flex-col justify-center">
-          <div className="text-center mb-6">
-            <h1 className="text-3xl font-extrabold text-gray-800">Create Your Account</h1>
-            <p className="text-sm text-gray-500 mt-2">Join HKD Outdoor Innovations Ltd.</p>
+        <div className="w-full md:w-1/2 flex flex-col min-h-0">
+          <div className="px-8 pt-6 pb-2 shrink-0 flex items-center gap-3">
+            <Image
+              src="/HKD_LOGO.png"
+              alt="HKD Outdoor Innovations Ltd. logo"
+              width={52}
+              height={52}
+              className="w-12 h-12 object-contain shrink-0"
+              priority
+            />
+            <div className="min-w-0">
+              <h1 className="text-xl font-extrabold text-gray-800 leading-tight">
+                Create Your Account
+              </h1>
+              <p className="text-xs text-gray-500 mt-0.5 truncate">
+                Join HKD Outdoor Innovations Ltd.
+              </p>
+            </div>
           </div>
 
           {error && (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="mx-8 mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700 shrink-0">
               {error}
             </div>
           )}
 
-          <form onSubmit={onSubmit} className="space-y-5">
+          <form onSubmit={onSubmit} className="flex-1 min-h-0 overflow-y-auto px-8 pb-6 space-y-3">
             {/* User Name */}
             <div>
-              <label htmlFor="user_name" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="user_name" className="block text-xs font-medium text-gray-700 mb-1">
                 User Name
               </label>
-              <input
-                type="text"
-                id="user_name"
-                name="user_name"
-                disabled={isLoading}
-                className={inputClass("user_name")}
-                placeholder="Enter your name"
-                minLength={3}
-                required
-              />
+              <div className={fieldWrapClass("user_name")}>
+                <IconUser className="w-4 h-4 text-gray-400 shrink-0" />
+                <input
+                  type="text"
+                  id="user_name"
+                  name="user_name"
+                  disabled={isLoading}
+                  className={inputBareClass}
+                  placeholder="Enter your name"
+                  minLength={3}
+                  required
+                />
+              </div>
               {fe.user_name && (
                 <p className="mt-1 text-xs text-red-600">এই User Name আগে থেকেই আছে।</p>
               )}
@@ -124,108 +181,150 @@ export default function RegisterPage() {
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-xs font-medium text-gray-700 mb-1">
                 Password
               </label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                disabled={isLoading}
-                className={inputClass("password")}
-                placeholder="••••••••"
-                required
-                minLength={6}
-              />
+              <div className={fieldWrapClass("password")}>
+                <IconLock className="w-4 h-4 text-gray-400 shrink-0" />
+                <input
+                  type="password"
+                  id="password"
+                  name="password"
+                  disabled={isLoading}
+                  className={inputBareClass}
+                  placeholder="••••••••"
+                  required
+                  minLength={6}
+                />
+              </div>
             </div>
 
-            {/* Role */}
-            <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
-                Role
-              </label>
-              <input
-                type="text"
-                id="role"
-                name="role"
-                disabled={isLoading}
-                className={inputClass("role")}
-                placeholder="Enter your role"
-                required
-              />
+            {/* Role + Department */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="role" className="block text-xs font-medium text-gray-700 mb-1">
+                  Role
+                </label>
+                <div className={fieldWrapClass("role")}>
+                  <IconBadge className="w-4 h-4 text-gray-400 shrink-0" />
+                  <input
+                    type="text"
+                    id="role"
+                    name="role"
+                    disabled={isLoading}
+                    className={inputBareClass}
+                    placeholder="Your role"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="department" className="block text-xs font-medium text-gray-700 mb-1">
+                  Department
+                </label>
+                <div className={fieldWrapClass("department")}>
+                  <IconLayers className="w-4 h-4 text-gray-400 shrink-0" />
+                  <input
+                    type="text"
+                    id="department"
+                    name="department"
+                    disabled={isLoading}
+                    className={inputBareClass}
+                    placeholder="Your department"
+                  />
+                </div>
+              </div>
             </div>
 
-            {/* Assigned Building */}
-            <div>
-              <label htmlFor="assigned_building" className="block text-sm font-medium text-gray-700 mb-1">
-                Assigned Floor
-              </label>
-              <select
-                id="assigned_building"
-                name="assigned_building"
-                disabled={isLoading}
-                className={inputClass("assigned_building")}
-                required
-              >
-                <option value="">Select a building</option>
-                <option value="A-2">A-2</option>
-                <option value="B-2">B-2</option>
-                <option value="A-3">A-3</option>
-                <option value="B-3">B-3</option>
-                <option value="A-4">A-4</option>
-                <option value="B-4">B-4</option>
-                <option value="A-5">A-5</option>
-                <option value="B-5">B-5</option>
-              </select>
-            </div>
-
-            {/* Factory */}
-            <div>
-              <label htmlFor="factory" className="block text-sm font-medium text-gray-700 mb-1">
-                Factory
-              </label>
-              <select
-                id="factory"
-                name="factory"
-                disabled={isLoading}
-                className={inputClass("factory")}
-                required
-              >
-                <option value="">Select a factory</option>
-                <option value="K-1">K-1</option>
-                <option value="K-2">K-2</option>
-                <option value="K-3">K-3</option>
-              </select>
+            {/* Assigned Building + Factory */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="assigned_building" className="block text-xs font-medium text-gray-700 mb-1">
+                  Assigned Floor
+                </label>
+                <div className={fieldWrapClass("assigned_building")}>
+                  <IconLayers className="w-4 h-4 text-gray-400 shrink-0" />
+                  <select
+                    id="assigned_building"
+                    name="assigned_building"
+                    disabled={isLoading}
+                    className={`${inputBareClass} appearance-none`}
+                    required
+                  >
+                    <option value="">Select</option>
+                    <option value="A-2">A-2</option>
+                    <option value="B-2">B-2</option>
+                    <option value="A-3">A-3</option>
+                    <option value="B-3">B-3</option>
+                    <option value="A-4">A-4</option>
+                    <option value="B-4">B-4</option>
+                    <option value="A-5">A-5</option>
+                    <option value="B-5">B-5</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label htmlFor="factory" className="block text-xs font-medium text-gray-700 mb-1">
+                  Factory
+                </label>
+                <div className={fieldWrapClass("factory")}>
+                  <IconFactory className="w-4 h-4 text-gray-400 shrink-0" />
+                  <select
+                    id="factory"
+                    name="factory"
+                    disabled={isLoading}
+                    className={`${inputBareClass} appearance-none`}
+                    required
+                  >
+                    <option value="">Select</option>
+                    <option value="K-1">K-1</option>
+                    <option value="K-2">K-2</option>
+                    <option value="K-3">K-3</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             {/* Profile Picture */}
             <div>
-              <label htmlFor="profile_picture" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="profile_picture" className="block text-xs font-medium text-gray-700 mb-1">
                 Profile Picture (Optional)
               </label>
-              <input
-                type="file"
-                id="profile_picture"
-                name="profile_picture"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleFileChange}
-                disabled={isLoading}
-                className={inputClass("profile_picture")}
-              />
-              {filePreview && (
-                <div className="mt-3">
-                  <p className="text-xs text-gray-600 mb-2">Preview:</p>
-                  <div className="relative w-24 h-24 rounded-lg overflow-hidden border-2 border-gray-200">
+              <div className="flex items-center gap-3">
+                <label
+                  htmlFor="profile_picture"
+                  className={`flex-1 flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 cursor-pointer transition-all ${
+                    isLoading
+                      ? "border-gray-200 bg-gray-50 cursor-not-allowed"
+                      : "border-gray-300 bg-gray-50/70 hover:bg-indigo-50 hover:border-indigo-300"
+                  }`}
+                >
+                  <IconCamera className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span className="text-sm text-gray-500 truncate">
+                    {filePreview ? "Change photo" : "Upload a photo"}
+                  </span>
+                </label>
+                <input
+                  type="file"
+                  id="profile_picture"
+                  name="profile_picture"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleFileChange}
+                  disabled={isLoading}
+                  className="hidden"
+                />
+                {filePreview && (
+                  <div className="relative w-10 h-10 rounded-lg overflow-hidden border-2 border-gray-200 shrink-0">
                     <Image src={filePreview} alt="Preview" fill className="object-cover" />
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2 transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-2.5 transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>
@@ -237,14 +336,14 @@ export default function RegisterPage() {
                 </>
               ) : "Create Account"}
             </button>
-          </form>
 
-          <div className="mt-6 text-center text-sm text-gray-600">
-            Already have an account?{" "}
-            <Link href="/login" className="text-indigo-600 font-medium hover:underline">
-              Login here
-            </Link>
-          </div>
+            <div className="text-center text-xs text-gray-600 pb-1">
+              Already have an account?{" "}
+              <Link href="/login" className="text-indigo-600 font-medium hover:underline">
+                Login here
+              </Link>
+            </div>
+          </form>
         </div>
       </div>
     </section>

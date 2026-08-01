@@ -1,3 +1,4 @@
+// backend/src/controllers/auth.controllers.js
 import { eq } from "drizzle-orm";
 import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 import { db, schema } from "../db/db.js";
@@ -10,7 +11,7 @@ const isBase64Image = (str) =>
 // POST /auth/register
 export const register = async (req, res) => {
   try {
-    const { user_name, password, role, assigned_building, factory, profile_picture } = req.body;
+    const { user_name, password, role, department, assigned_building, factory, profile_picture } = req.body;
 
     if (!user_name || !password || !role || !assigned_building || !factory) {
       return res.status(400).json({ message: "All fields are required" });
@@ -29,14 +30,12 @@ export const register = async (req, res) => {
       pictureId = uploaded.public_id;
     }
 
-    // Insert
     const [result] = await db.insert(users).values({
-      user_name, password, role, assigned_building, factory,
+      user_name, password, role, department: department || null, assigned_building, factory,
       profile_picture: pictureUrl,
       profile_picture_id: pictureId,
     });
 
-    // Fetch the row we just created
     const [newUser] = await db.select().from(users).where(eq(users.id, result.insertId));
 
     return res.status(201).json({
@@ -44,6 +43,7 @@ export const register = async (req, res) => {
         id: newUser.id,
         user_name: newUser.user_name,
         role: newUser.role,
+        department: newUser.department,
         assigned_building: newUser.assigned_building,
         factory: newUser.factory,
         profile_picture: newUser.profile_picture,
@@ -76,6 +76,7 @@ export const login = async (req, res) => {
         id: user.id,
         user_name: user.user_name,
         role: user.role,
+        department: user.department,
         assigned_building: user.assigned_building,
         factory: user.factory,
         profile_picture: user.profile_picture,
@@ -102,6 +103,7 @@ export const refresh = async (req, res) => {
         id: user.id,
         user_name: user.user_name,
         role: user.role,
+        department: user.department,
         assigned_building: user.assigned_building,
         factory: user.factory,
         profile_picture: user.profile_picture,
@@ -117,7 +119,7 @@ export const refresh = async (req, res) => {
 // PUT /auth/update
 export const updateUser = async (req, res) => {
   try {
-    const { old_user_name, user_name, role, assigned_building, factory, profile_picture } = req.body;
+    const { old_user_name, user_name, role, department, assigned_building, factory, profile_picture } = req.body;
 
     if (!user_name) return res.status(400).json({ message: "Username required" });
 
@@ -143,17 +145,16 @@ export const updateUser = async (req, res) => {
       pictureId = uploaded.public_id;
     }
 
-    // Update
     await db.update(users).set({
       user_name: user_name || existing.user_name,
       role: role || existing.role,
+      department: department !== undefined ? department : existing.department,
       assigned_building: assigned_building || existing.assigned_building,
       factory: factory || existing.factory,
       profile_picture: pictureUrl,
       profile_picture_id: pictureId,
     }).where(eq(users.user_name, old_user_name));
 
-    // Fetch the updated row (note: use the NEW user_name since it may have changed)
     const [updatedUser] = await db.select().from(users)
       .where(eq(users.user_name, user_name || existing.user_name));
 
@@ -162,6 +163,7 @@ export const updateUser = async (req, res) => {
         id: updatedUser.id,
         user_name: updatedUser.user_name,
         role: updatedUser.role,
+        department: updatedUser.department,
         assigned_building: updatedUser.assigned_building,
         factory: updatedUser.factory,
         profile_picture: updatedUser.profile_picture,
@@ -197,6 +199,32 @@ export const changePassword = async (req, res) => {
     return res.status(200).json({ message: "Password changed successfully" });
   } catch (error) {
     console.error("Change password error:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+// GET /auth/users  — Developer-only listing for the admin page
+export const getAllUsers = async (req, res) => {
+  try {
+    const { requester_role } = req.query;
+    if (requester_role !== "Developer") {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const allUsers = await db.select({
+      id: users.id,
+      user_name: users.user_name,
+      role: users.role,
+      department: users.department,
+      assigned_building: users.assigned_building,
+      factory: users.factory,
+      profile_picture: users.profile_picture,
+      createdAt: users.createdAt,
+    }).from(users);
+
+    return res.status(200).json({ users: allUsers });
+  } catch (error) {
+    console.error("Get all users error:", error);
     return res.status(500).json({ message: "Server error" });
   }
 };
