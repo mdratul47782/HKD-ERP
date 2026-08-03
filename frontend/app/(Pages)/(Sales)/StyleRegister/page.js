@@ -579,7 +579,7 @@ export default function StyleRegisterPage() {
                                   type="button"
                                   onClick={() => startEditRelease(r)}
                                   title="Edit qty"
-                                  className="text-gray-400 transition-colors hover:text-[#3B9ED4]"
+                                  className="text-gray-900 transition-colors hover:text-[#3B9ED4]"
                                 >
                                   <Pencil size={12} />
                                 </button>
