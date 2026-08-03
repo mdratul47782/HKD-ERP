@@ -49,9 +49,7 @@ export default function SideNavbar() {
 
   const navItems = [
     { href: "/", label: "Home", icon: Home },
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/cutting", label: "Cutting", icon: Scissors },
-    { href: "/json-demo", label: "JSON Demo", icon: Database },
+   
     { href: "/admin/users", label: "Manage Users", icon: ShieldUser }
   ];
 
