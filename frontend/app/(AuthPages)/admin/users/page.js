@@ -12,6 +12,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 // Roles allowed on this page
 const USER_MANAGER_ROLES = ["Developer", "ERP-Executive"];
 
+// Editable text/select fields shown in the edit modal, in order.
+// (profile_picture is handled separately below since it needs an
+// upload control + preview, not a plain text input.)
 const FIELDS = [
   { name: "user_name", label: "User Name" },
   { name: "email", label: "Email" },
@@ -20,6 +23,19 @@ const FIELDS = [
   { name: "assigned_building", label: "Assigned Floor" },
   { name: "factory", label: "Factory" },
 ];
+
+const fmt = (v) =>
+  v && !Number.isNaN(new Date(v).getTime())
+    ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+    : "—";
+
+const fileToDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 
 export default function ManageUsersPage() {
   const { user, loading } = useAuth();
@@ -71,11 +87,28 @@ export default function ManageUsersPage() {
       department: u.department || "",
       assigned_building: u.assigned_building,
       factory: u.factory,
+      // `profile_picture` here doubles as both "current preview" and the
+      // value actually sent to the server:
+      //  - unchanged  -> stays as the existing URL string (server keeps it)
+      //  - new upload -> becomes a base64 data URL (server re-uploads it)
+      //  - removed    -> becomes null (server deletes it)
+      profile_picture: u.profile_picture || null,
     });
   }
 
   function updateField(name, value) {
     setEditingUser((prev) => ({ ...prev, [name]: value }));
+  }
+
+  async function handlePictureChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const dataUrl = await fileToDataUrl(file);
+    updateField("profile_picture", dataUrl);
+  }
+
+  function removePicture() {
+    updateField("profile_picture", null);
   }
 
   async function saveEdit(e) {
@@ -107,7 +140,7 @@ export default function ManageUsersPage() {
 
   return (
     <section className="min-h-screen bg-gray-50 px-4 py-10">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-800 mb-6">Manage Users</h1>
 
         {error && (
@@ -119,33 +152,41 @@ export default function ManageUsersPage() {
         {fetching ? (
           <p className="text-gray-500">Loading users...</p>
         ) : (
-          <div className="bg-white rounded-xl shadow overflow-hidden">
+          <div className="bg-white rounded-xl shadow overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-100 text-gray-600 text-left">
                 <tr>
                   <th className="px-4 py-2">Name</th>
+                  <th className="px-4 py-2">Email</th>
                   <th className="px-4 py-2">Role</th>
                   <th className="px-4 py-2">Department</th>
                   <th className="px-4 py-2">Floor</th>
                   <th className="px-4 py-2">Factory</th>
+                  <th className="px-4 py-2">Joined</th>
                   <th className="px-4 py-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {users.map((u) => (
                   <tr key={u.id} className="border-t border-gray-100">
-                    <td className="px-4 py-2 flex items-center gap-2">
-                      {u.profile_picture && (
-                        <div className="relative w-8 h-8 rounded-full overflow-hidden">
+                    <td className="px-4 py-2 flex items-center gap-2 whitespace-nowrap">
+                      {u.profile_picture ? (
+                        <div className="relative w-8 h-8 rounded-full overflow-hidden shrink-0">
                           <Image src={u.profile_picture} alt={u.user_name} fill className="object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center text-xs font-semibold shrink-0">
+                          {u.user_name?.[0]?.toUpperCase() || "?"}
                         </div>
                       )}
                       {u.user_name}
                     </td>
+                    <td className="px-4 py-2">{u.email || "—"}</td>
                     <td className="px-4 py-2">{u.role}</td>
                     <td className="px-4 py-2">{u.department || "-"}</td>
                     <td className="px-4 py-2">{u.assigned_building}</td>
                     <td className="px-4 py-2">{u.factory}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-gray-500">{fmt(u.createdAt)}</td>
                     <td className="px-4 py-2 text-right">
                       <button onClick={() => startEdit(u)} className="text-indigo-600 hover:underline text-sm">
                         Edit
@@ -160,12 +201,44 @@ export default function ManageUsersPage() {
       </div>
 
       {editingUser && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50 overflow-y-auto py-8">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">
               Edit {editingUser.old_user_name}
             </h2>
             <form onSubmit={saveEdit} className="space-y-4">
+              {/* Profile picture — preview + upload + remove */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Profile Picture</label>
+                <div className="flex items-center gap-3">
+                  {editingUser.profile_picture ? (
+                    <div className="relative w-14 h-14 rounded-full overflow-hidden shrink-0 border border-gray-200">
+                      <Image src={editingUser.profile_picture} alt="" fill className="object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-14 h-14 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center text-xs shrink-0 border border-gray-200">
+                      None
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 cursor-pointer">
+                      Upload new
+                      <input type="file" accept="image/*" className="hidden" onChange={handlePictureChange} disabled={saving} />
+                    </label>
+                    {editingUser.profile_picture && (
+                      <button
+                        type="button"
+                        onClick={removePicture}
+                        disabled={saving}
+                        className="text-xs font-semibold text-rose-600 hover:text-rose-700 text-left"
+                      >
+                        Remove picture
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {FIELDS.map((f) => (
                 <div key={f.name}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>

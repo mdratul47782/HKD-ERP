@@ -1,14 +1,9 @@
-// frontend/app/layout.js
-
 import { Roboto_Condensed } from "next/font/google";
 import "./globals.css";
-import TopNavbar from "./SideNavBarComponent/TopNavbar";
-import DeptSidebar from "./SideNavBarComponent/DeptSidebar";
 import DarkModeProvider from "./provider/DarkModeProvider";
 import { AuthProvider } from "@/app/provider/AuthProvider";
 import { SidebarProvider } from "./provider/SidebarContext";
-import MainWrapper from "./provider/MainWrapper";
-// export { useAuth } from "@/app/provider/AuthProvider";
+import AppChrome from "./provider/AppChrome";
 
 const robotoCondensed = Roboto_Condensed({
   variable: "--font-roboto-condensed",
@@ -18,10 +13,8 @@ const robotoCondensed = Roboto_Condensed({
 
 export const metadata = {
   title: "HKD Outdoor Innovations",
-  description: "HKD Outdoor Innovations Ltd. is a leading provider of outdoor solutions, specializing in innovative products and services for outdoor enthusiasts. With a commitment to quality and customer satisfaction, HKD Outdoor Innovations offers a wide range of outdoor gear, equipment, and accessories designed to enhance the outdoor experience. Whether you're an avid hiker, camper, or adventurer, HKD Outdoor Innovations has the perfect solutions to meet your outdoor needs.",
-  icons: {
-    icon: "/HKD_LOGO.png",
-  },
+  description: "HKD Outdoor Innovations Ltd. is a leading provider of outdoor solutions...",
+  icons: { icon: "/HKD_LOGO.png" },
 };
 
 export default function RootLayout({ children }) {
@@ -31,9 +24,7 @@ export default function RootLayout({ children }) {
         <AuthProvider>
           <DarkModeProvider>
             <SidebarProvider>
-              <TopNavbar />
-              <DeptSidebar />
-              <MainWrapper>{children}</MainWrapper>
+              <AppChrome>{children}</AppChrome>
             </SidebarProvider>
           </DarkModeProvider>
         </AuthProvider>

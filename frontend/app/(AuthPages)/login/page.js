@@ -2,11 +2,11 @@
 
 "use client";
 
-import { useState } from "react";
+import { useAuth } from "@/app/provider/AuthProvider";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/app/provider/AuthProvider";
+import { useState } from "react";
 
 const IconUser = (props) => (
   <svg {...props} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -39,7 +39,7 @@ export default function LoginPage() {
     try {
       const formData = new FormData(e.currentTarget);
       await login(formData.get("user_name"), formData.get("password"));
-      router.push("/dashboard");
+      router.push("/");
     } catch (err) {
       setError(err.message);
     } finally {

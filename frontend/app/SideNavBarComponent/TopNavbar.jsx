@@ -77,7 +77,7 @@ export default function TopNavbar() {
               priority
             />
             <span className="text-[14px] font-semibold text-slate-800 dark:text-[#ececec]">
-              HKD Outdoor
+              HKD OUTDOOR INNOVATIONS LTD.
             </span>
           </Link>
 
@@ -127,8 +127,16 @@ export default function TopNavbar() {
                     : "hover:bg-black/5 dark:hover:bg-white/[0.06]"
                 }`}
             >
-              <div className="h-6 w-6 rounded-full bg-amber-100 dark:bg-[#3d2f1a] flex items-center justify-center text-amber-700 dark:text-[#d4a45a] text-[10px] font-bold flex-shrink-0 ring-1 ring-amber-200 dark:ring-[#5a3e1e]">
-                {userName?.charAt(0)?.toUpperCase() || "U"}
+              <div className="h-6 w-6 rounded-full overflow-hidden bg-amber-100 dark:bg-[#3d2f1a] flex items-center justify-center text-amber-700 dark:text-[#d4a45a] text-[10px] font-bold flex-shrink-0 ring-1 ring-amber-200 dark:ring-[#5a3e1e]">
+                {user?.profile_picture ? (
+                  <img
+                    src={user.profile_picture}
+                    alt="Profile"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  userName?.charAt(0)?.toUpperCase() || "U"
+                )}
               </div>
               <span className="text-[13px] font-medium text-slate-800 dark:text-[#ececec] max-w-[100px] truncate">
                 {userName}
@@ -225,8 +233,16 @@ export default function TopNavbar() {
               className="flex flex-col items-center gap-1 px-3 py-2.5 min-w-0 flex-1 text-slate-400 dark:text-[#555] transition-all"
             >
               <div className="w-8 h-8 rounded-xl flex items-center justify-center">
-                <div className="h-6 w-6 rounded-full bg-amber-100 dark:bg-[#3d2f1a] flex items-center justify-center text-amber-700 dark:text-[#d4a45a] text-[10px] font-bold ring-1 ring-amber-200 dark:ring-[#5a3e1e]">
-                  {userName?.charAt(0)?.toUpperCase() || "U"}
+                <div className="h-6 w-6 rounded-full overflow-hidden bg-amber-100 dark:bg-[#3d2f1a] flex items-center justify-center text-amber-700 dark:text-[#d4a45a] text-[10px] font-bold ring-1 ring-amber-200 dark:ring-[#5a3e1e]">
+                  {user?.profile_picture ? (
+                    <img
+                      src={user.profile_picture}
+                      alt="Profile"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    userName?.charAt(0)?.toUpperCase() || "U"
+                  )}
                 </div>
               </div>
               <span className="text-[10px] font-medium leading-none">Me</span>
@@ -268,8 +284,16 @@ export default function TopNavbar() {
             {/* User header */}
             {user && (
               <div className="flex items-center gap-3 px-5 py-3 mb-1">
-                <div className="h-10 w-10 rounded-2xl bg-amber-100 dark:bg-[#3d2f1a] flex items-center justify-center text-amber-700 dark:text-[#d4a45a] font-bold text-sm ring-1 ring-amber-200 dark:ring-[#5a3e1e] flex-shrink-0">
-                  {userName?.charAt(0)?.toUpperCase() || "U"}
+                <div className="h-10 w-10 rounded-2xl overflow-hidden bg-amber-100 dark:bg-[#3d2f1a] flex items-center justify-center text-amber-700 dark:text-[#d4a45a] font-bold text-sm ring-1 ring-amber-200 dark:ring-[#5a3e1e] flex-shrink-0">
+                  {user?.profile_picture ? (
+                    <img
+                      src={user.profile_picture}
+                      alt="Profile"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    userName?.charAt(0)?.toUpperCase() || "U"
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[14px] font-semibold text-slate-900 dark:text-[#ececec] truncate">
