@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import authRoutes from "./routes/auth.routes.js";
+import styleRoutes from "./routes/styles.routes.js";
 
 dotenv.config();
 
@@ -22,6 +23,9 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 //auth
 app.use("/auth", authRoutes);
+
+//style register
+app.use("/styles", styleRoutes);
 
 //test route
 app.get("/", (req, res) => {

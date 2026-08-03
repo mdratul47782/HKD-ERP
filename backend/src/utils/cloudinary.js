@@ -8,17 +8,28 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+const DEFAULT_TRANSFORMATION = [
+  { width: 400, height: 400, crop: "fill", gravity: "face" },
+];
+
 /**
  * Upload a base64 image string to Cloudinary
  * @param {string} base64Image - full data URI e.g. "data:image/png;base64,..."
  * @param {string} folder - Cloudinary folder name
+ * @param {object[]} [transformation] - Cloudinary transformation array. Defaults
+ *   to the 400x400 face-crop used for profile pictures; pass your own (e.g. a
+ *   plain resize/limit) for non-avatar images like product photos.
  * @returns {Promise<{url: string, public_id: string}>}
  */
-export async function uploadToCloudinary(base64Image, folder = "profile_pictures") {
+export async function uploadToCloudinary(
+  base64Image,
+  folder = "profile_pictures",
+  transformation = DEFAULT_TRANSFORMATION
+) {
   const result = await cloudinary.uploader.upload(base64Image, {
     folder,
     resource_type: "image",
-    transformation: [{ width: 400, height: 400, crop: "fill", gravity: "face" }],
+    transformation,
   });
   return { url: result.secure_url, public_id: result.public_id };
 }
