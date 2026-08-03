@@ -2,7 +2,8 @@
 
 import { Roboto_Condensed } from "next/font/google";
 import "./globals.css";
-import SideNavbar from "./SideNavBarComponent/SideNavbar";
+import TopNavbar from "./SideNavBarComponent/TopNavbar";
+import DeptSidebar from "./SideNavBarComponent/DeptSidebar";
 import DarkModeProvider from "./provider/DarkModeProvider";
 import { AuthProvider } from "@/app/provider/AuthProvider";
 import { SidebarProvider } from "./provider/SidebarContext";
@@ -30,7 +31,8 @@ export default function RootLayout({ children }) {
         <AuthProvider>
           <DarkModeProvider>
             <SidebarProvider>
-              <SideNavbar />
+              <TopNavbar />
+              <DeptSidebar />
               <MainWrapper>{children}</MainWrapper>
             </SidebarProvider>
           </DarkModeProvider>
