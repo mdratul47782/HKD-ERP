@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, X, Pencil, RotateCcw, Send, ImagePlus } from "lucide-react";
+import { Plus, Search, X, Pencil, RotateCcw, Send, ImagePlus, Copy, Trash2 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -29,6 +29,25 @@ const FIELDS = [
   { key: "status", label: "Status", type: "select", options: STATUSES },
   { key: "qty", label: "Order Qty", type: "number", createOnly: true },
   { key: "description", label: "Description", type: "textarea" },
+];
+
+// Table columns — `responsive` hides a column below md so the table shrinks
+// on smaller screens instead of forcing horizontal scroll.
+const COLUMNS = [
+  { key: "image", label: "Image" },
+  { key: "styleName", label: "Style Name" },
+  { key: "styleNumber", label: "Style Number" },
+  { key: "customerName", label: "Customer Name" },
+  { key: "brand", label: "Brand", responsive: true },
+  { key: "color", label: "Color", responsive: true },
+  { key: "season", label: "Season", responsive: true },
+  { key: "productType", label: "Product Type", responsive: true },
+  { key: "releases", label: "Order Releases" },
+  { key: "total", label: "Total" },
+  { key: "status", label: "Status" },
+  { key: "updated", label: "Updated", responsive: true },
+  { key: "active", label: "Active", responsive: true },
+  { key: "actions", label: "Actions" },
 ];
 
 const emptyForm = () => ({
@@ -61,6 +80,8 @@ const fileToDataUrl = (file) =>
   });
 
 const input = "w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-sm outline-none transition-colors focus:border-[#3B9ED4] focus:ring-2 focus:ring-[#3B9ED4]/20 placeholder:text-gray-400 placeholder:uppercase placeholder:text-xs";
+const td = "border-b border-gray-100 px-2 py-2 text-center text-[11px] sm:px-3 sm:py-3 sm:text-xs";
+const respCell = "hidden md:table-cell";
 
 export default function StyleRegisterPage() {
   const [styles, setStyles] = useState([]);
@@ -76,6 +97,10 @@ export default function StyleRegisterPage() {
   const [releases, setReleases] = useState([]);
   const [newReleaseQty, setNewReleaseQty] = useState("");
   const [addingRelease, setAddingRelease] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [editingReleaseId, setEditingReleaseId] = useState(null);
+  const [editReleaseQty, setEditReleaseQty] = useState("");
+  const [savingReleaseId, setSavingReleaseId] = useState(null);
 
   useEffect(() => {
     fetch(`${API_BASE}/styles`)
@@ -116,6 +141,21 @@ export default function StyleRegisterPage() {
     setForm(toFormShape(s));
     setReleases(s.releases || []);
     setNewReleaseQty("");
+    setEditingReleaseId(null);
+    setEditReleaseQty("");
+    setOpen(true);
+  };
+
+  // Starts a brand-new style pre-filled from an existing one — this is how
+  // the same style can be registered again as a fresh entry. Style Number
+  // is unique in the DB, so it's left blank and must be given a new value;
+  // everything else carries over as a starting point. editingId stays null
+  // so Submit creates a new row rather than overwriting the original.
+  const openDuplicate = (s) => {
+    setEditingId(null);
+    setForm({ ...toFormShape(s), styleNumber: "", qty: "" });
+    setReleases([]);
+    setNewReleaseQty("");
     setOpen(true);
   };
 
@@ -124,6 +164,8 @@ export default function StyleRegisterPage() {
     setEditingId(null);
     setReleases([]);
     setNewReleaseQty("");
+    setEditingReleaseId(null);
+    setEditReleaseQty("");
   };
 
   const submit = async (e) => {
@@ -196,6 +238,92 @@ export default function StyleRegisterPage() {
     }
   };
 
+  const startEditRelease = (r) => {
+    setEditingReleaseId(r.id);
+    setEditReleaseQty(String(r.qty));
+  };
+
+  const cancelEditRelease = () => {
+    setEditingReleaseId(null);
+    setEditReleaseQty("");
+  };
+
+  // Saves a corrected qty for a past release, hitting its own PUT endpoint.
+  const saveEditRelease = async (releaseId) => {
+    if (!editReleaseQty || Number(editReleaseQty) <= 0) return;
+    try {
+      setSavingReleaseId(releaseId);
+      setError(null);
+      const res = await fetch(`${API_BASE}/styles/${editingId}/release/${releaseId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ qty: Number(editReleaseQty) }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || "Failed to update release.");
+      const updated = await res.json();
+      setReleases((r) => r.map((rel) => (rel.id === releaseId ? updated : rel)));
+      setStyles((prev) =>
+        prev.map((s) =>
+          s.id === editingId
+            ? { ...s, releases: (s.releases || []).map((rel) => (rel.id === releaseId ? updated : rel)) }
+            : s
+        )
+      );
+      cancelEditRelease();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingReleaseId(null);
+    }
+  };
+
+  // Removes a single mistaken release entry.
+  const handleDeleteRelease = async (releaseId) => {
+    const ok = window.confirm("Delete this release entry?");
+    if (!ok) return;
+    const prevReleases = releases;
+    setReleases((r) => r.filter((rel) => rel.id !== releaseId));
+    try {
+      setError(null);
+      const res = await fetch(`${API_BASE}/styles/${editingId}/release/${releaseId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || "Failed to delete release.");
+      setStyles((prev) =>
+        prev.map((s) =>
+          s.id === editingId
+            ? { ...s, releases: (s.releases || []).filter((rel) => rel.id !== releaseId) }
+            : s
+        )
+      );
+    } catch (err) {
+      setReleases(prevReleases);
+      setError(err.message);
+    }
+  };
+
+  // Deletes a style permanently — confirms first since this also removes
+  // its releases and Cloudinary images on the backend (see deleteStyle).
+  const handleDelete = async (s) => {
+    const ok = window.confirm(
+      `Delete "${s.style_name}" (${s.style_number})? This also removes its logged order releases and cannot be undone.`
+    );
+    if (!ok) return;
+
+    const prevStyles = styles;
+    setDeletingId(s.id);
+    setStyles((prev) => prev.filter((x) => x.id !== s.id));
+
+    try {
+      setError(null);
+      const res = await fetch(`${API_BASE}/styles/${s.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || "Delete failed.");
+    } catch (err) {
+      setStyles(prevStyles); // roll back the optimistic removal
+      setError(err.message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F0F4F8] font-sans">
       {/* Top bar */}
@@ -220,42 +348,47 @@ export default function StyleRegisterPage() {
 
       {error && <div className="mx-4 mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">{error}</div>}
 
-      {/* Table */}
+      {/* Table — no min-width, so columns shrink with the viewport instead of scrolling */}
       <div className="p-4">
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-          <table className="w-full min-w-[1200px] border-collapse text-sm">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+          <table className="w-full table-fixed border-collapse text-sm">
             <thead>
               <tr className="bg-[#C8E3F5]">
-                {["Image", "Style Name", "Style Number", "Customer Name", "Season", "Product Type", "Order Releases", "Total", "Status", "Submitted", "Updated", "Active", "Actions"].map((h) => (
-                  <th key={h} className="border-b border-[#A8D3EC] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-gray-700">
-                    {h}
+                {COLUMNS.map((c) => (
+                  <th
+                    key={c.key}
+                    className={`border-b border-[#A8D3EC] px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-gray-700 sm:px-3 sm:py-3.5 sm:text-xs ${c.responsive ? respCell : ""}`}
+                  >
+                    {c.label}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={13} className="py-16 text-center text-sm text-gray-400">Loading styles…</td></tr>
+                <tr><td colSpan={COLUMNS.length} className="py-16 text-center text-sm text-gray-400">Loading styles…</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={13} className="py-16 text-center text-sm text-gray-400">No styles found.</td></tr>
+                <tr><td colSpan={COLUMNS.length} className="py-16 text-center text-sm text-gray-400">No styles found.</td></tr>
               ) : (
                 filtered.map((s, i) => (
                   <tr key={s.id} className={i % 2 === 0 ? "bg-white" : "bg-[#EEF6FC]"}>
-                    <td className="border-b border-gray-100 px-4 py-3">
-                      <div className="mx-auto flex h-8 w-10 items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50 text-gray-300">
-                        {s.image ? <img src={s.image} alt="" className="h-full w-full object-cover" /> : <ImagePlus size={14} />}
+                    <td className={td}>
+                      <div className="mx-auto flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50 text-gray-300 sm:h-12 sm:w-12">
+                        {s.image ? <img src={s.image} alt="" className="h-full w-full object-contain" /> : <ImagePlus size={14} />}
                       </div>
                     </td>
-                    <td className="border-b border-gray-100 px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-800">{s.style_name}</td>
-                    <td className="border-b border-gray-100 px-4 py-3 text-center text-xs uppercase tracking-wide text-gray-700">{s.style_number}</td>
-                    <td className="border-b border-gray-100 px-4 py-3 text-center text-xs uppercase tracking-wide text-gray-700">{s.customer_name}</td>
-                    <td className="border-b border-gray-100 px-4 py-3 text-center text-xs font-semibold uppercase text-gray-700">{s.season}</td>
-                    <td className="border-b border-gray-100 px-4 py-3 text-center text-xs uppercase tracking-wide text-gray-700">{s.product_type || "—"}</td>
-                    <td className="border-b border-gray-100 px-4 py-3">
+                    <td className={`${td} font-semibold uppercase tracking-wide text-gray-800 truncate`}>{s.style_name}</td>
+                    <td className={`${td} uppercase tracking-wide text-gray-700 truncate`}>{s.style_number}</td>
+                    <td className={`${td} uppercase tracking-wide text-gray-700 truncate`}>{s.customer_name}</td>
+                    <td className={`${td} ${respCell} uppercase tracking-wide text-gray-700 truncate`}>{s.brand || "—"}</td>
+                    <td className={`${td} ${respCell} uppercase tracking-wide text-gray-700 truncate`}>{s.color || "—"}</td>
+                    <td className={`${td} ${respCell} font-semibold uppercase text-gray-700`}>{s.season}</td>
+                    <td className={`${td} ${respCell} uppercase tracking-wide text-gray-700 truncate`}>{s.product_type || "—"}</td>
+                    <td className={td}>
                       {(s.releases || []).length > 0 ? (
                         <ul className="space-y-1">
                           {s.releases.map((r) => (
-                            <li key={r.id} className="flex items-center justify-center gap-2 whitespace-nowrap text-xs">
+                            <li key={r.id} className="flex flex-wrap items-center justify-center gap-1 text-[10px] sm:text-xs">
                               <span className="font-mono font-semibold text-gray-800">{Number(r.qty).toLocaleString()} pcs</span>
                               <span className="text-gray-400">·</span>
                               <span className="text-gray-500">{fmt(r.release_date)}</span>
@@ -263,33 +396,52 @@ export default function StyleRegisterPage() {
                           ))}
                         </ul>
                       ) : (
-                        <div className="text-center text-xs text-gray-400">—</div>
+                        <span className="text-gray-400">—</span>
                       )}
                     </td>
-                    <td className="border-b border-gray-100 px-4 py-3 text-center font-mono text-xs font-semibold text-gray-800">
+                    <td className={`${td} font-mono font-semibold text-gray-800`}>
                       {(s.releases || []).reduce((sum, r) => sum + (Number(r.qty) || 0), 0).toLocaleString()}
                     </td>
-                    <td className="border-b border-gray-100 px-4 py-3 text-center">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[s.status] || "bg-gray-100 text-gray-600"}`}>{s.status}</span>
+                    <td className={td}>
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-semibold sm:px-2.5 sm:text-xs ${STATUS_STYLES[s.status] || "bg-gray-100 text-gray-600"}`}>{s.status}</span>
                     </td>
-                    <td className="border-b border-gray-100 px-4 py-3 text-center text-xs text-gray-500">{fmt(s.submitted_at)}</td>
-                    <td className="border-b border-gray-100 px-4 py-3 text-center text-xs text-gray-500">{fmt(s.updated_at)}</td>
-                    <td className="border-b border-gray-100 px-4 py-3 text-center">
+                    <td className={`${td} ${respCell} text-gray-500`}>{fmt(s.updated_at)}</td>
+                    <td className={`${td} ${respCell}`}>
                       <button
                         onClick={() => toggleActive(s.id)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${s.is_active ? "bg-[#3B9ED4]" : "bg-gray-300"}`}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors sm:h-6 sm:w-11 ${s.is_active ? "bg-[#3B9ED4]" : "bg-gray-300"}`}
                       >
-                        <span className="inline-block h-[18px] w-[18px] rounded-full bg-white shadow transition-transform" style={{ transform: s.is_active ? "translateX(20px)" : "translateX(4px)" }} />
+                        <span
+                          className="inline-block h-[14px] w-[14px] rounded-full bg-white shadow transition-transform sm:h-[18px] sm:w-[18px]"
+                          style={{ transform: s.is_active ? "translateX(18px)" : "translateX(3px)" }}
+                        />
                       </button>
                     </td>
-                    <td className="border-b border-gray-100 px-4 py-3 text-center">
-                      <button
-                        onClick={() => openEdit(s)}
-                        title="Edit"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 text-gray-500 transition-colors hover:border-[#3B9ED4] hover:text-[#3B9ED4]"
-                      >
-                        <Pencil size={14} />
-                      </button>
+                    <td className={td}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => openEdit(s)}
+                          title="Edit"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-gray-300 text-gray-500 transition-colors hover:border-[#3B9ED4] hover:text-[#3B9ED4] sm:h-8 sm:w-8"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => openDuplicate(s)}
+                          title="Register again (duplicate as new style)"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-gray-300 text-gray-500 transition-colors hover:border-[#3B9ED4] hover:text-[#3B9ED4] sm:h-8 sm:w-8"
+                        >
+                          <Copy size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(s)}
+                          disabled={deletingId === s.id}
+                          title="Delete"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-gray-300 text-gray-500 transition-colors hover:border-rose-400 hover:text-rose-600 disabled:opacity-50 sm:h-8 sm:w-8"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -391,9 +543,56 @@ export default function StyleRegisterPage() {
                     {releases.length > 0 ? (
                       <ul className="space-y-1.5 rounded-lg border border-gray-100 bg-gray-50 p-3">
                         {releases.map((r) => (
-                          <li key={r.id} className="flex items-center justify-between text-xs text-gray-600">
-                            <span className="font-mono font-semibold text-gray-800">{Number(r.qty).toLocaleString()} pcs</span>
-                            <span>{fmt(r.release_date)}</span>
+                          <li key={r.id} className="flex items-center justify-between gap-2 text-xs text-gray-600">
+                            {editingReleaseId === r.id ? (
+                              <>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  autoFocus
+                                  className="w-24 rounded-md border border-gray-300 px-2 py-1 text-xs outline-none focus:border-[#3B9ED4] focus:ring-1 focus:ring-[#3B9ED4]/30"
+                                  value={editReleaseQty}
+                                  onChange={(e) => setEditReleaseQty(e.target.value)}
+                                />
+                                <span className="flex-1 truncate">{fmt(r.release_date)}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => saveEditRelease(r.id)}
+                                  disabled={savingReleaseId === r.id || !editReleaseQty}
+                                  className="font-semibold text-[#3B9ED4] hover:text-[#2E8EC4] disabled:opacity-50"
+                                >
+                                  {savingReleaseId === r.id ? "Saving…" : "Save"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelEditRelease}
+                                  className="text-gray-400 hover:text-gray-600"
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="font-mono font-semibold text-gray-800">{Number(r.qty).toLocaleString()} pcs</span>
+                                <span className="flex-1 truncate text-right">{fmt(r.release_date)}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => startEditRelease(r)}
+                                  title="Edit qty"
+                                  className="text-gray-400 transition-colors hover:text-[#3B9ED4]"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteRelease(r.id)}
+                                  title="Delete release"
+                                  className="text-gray-400 transition-colors hover:text-rose-600"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </>
+                            )}
                           </li>
                         ))}
                       </ul>

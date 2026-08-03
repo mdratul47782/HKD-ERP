@@ -45,7 +45,10 @@ export const styles = mysqlTable("styles", {
   customer_name: varchar("customer_name", { length: 200 }).notNull(),
   brand: varchar("brand", { length: 150 }),
   style_name: varchar("style_name", { length: 200 }).notNull(),
-  style_number: varchar("style_number", { length: 100 }).notNull().unique(),
+  // NOTE: uniqueness intentionally removed — the same style number can now
+  // be registered multiple times (e.g. re-ordered, duplicated as a new row).
+  // Order-batch tracking (qty + date) still lives on style_releases below.
+  style_number: varchar("style_number", { length: 100 }).notNull(),
   description: text("description"),
   model: varchar("model", { length: 100 }),
   color: varchar("color", { length: 100 }),

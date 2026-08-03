@@ -100,16 +100,11 @@ export const createStyle = async (req, res) => {
       });
     }
 
-    const [existing] = await db
-      .select({ id: styles.id })
-      .from(styles)
-      .where(eq(styles.style_number, styleNumber));
-
-    if (existing) {
-      return res
-        .status(409)
-        .json({ message: "A style with this style number already exists." });
-    }
+    // NOTE: the style_number "already exists" conflict check that used to
+    // live here has been removed — the same style number can now be
+    // registered multiple times (e.g. duplicating a row as a new entry).
+    // This also requires dropping the unique index on styles.style_number
+    // in the database itself (see the migration note below).
 
     const finalImages = Array.isArray(images)
       ? await resolveImages(images, [])
@@ -297,6 +292,63 @@ export const addRelease = async (req, res) => {
   } catch (err) {
     console.error("addRelease error:", err);
     return res.status(500).json({ message: "Failed to add release." });
+  }
+};
+
+// PUT /styles/:id/release/:releaseId
+export const updateRelease = async (req, res) => {
+  try {
+    const { id, releaseId } = req.params;
+    const { qty } = req.body;
+
+    if (!qty || Number(qty) <= 0) {
+      return res.status(400).json({ message: "A positive qty is required." });
+    }
+
+    const [existing] = await db
+      .select()
+      .from(style_releases)
+      .where(eq(style_releases.id, releaseId));
+    if (!existing || existing.style_id !== Number(id)) {
+      return res.status(404).json({ message: "Release not found." });
+    }
+
+    await db
+      .update(style_releases)
+      .set({ qty: Number(qty) })
+      .where(eq(style_releases.id, releaseId));
+
+    const [updated] = await db
+      .select()
+      .from(style_releases)
+      .where(eq(style_releases.id, releaseId));
+
+    return res.json(updated);
+  } catch (err) {
+    console.error("updateRelease error:", err);
+    return res.status(500).json({ message: "Failed to update release." });
+  }
+};
+
+// DELETE /styles/:id/release/:releaseId
+export const deleteRelease = async (req, res) => {
+  try {
+    const { id, releaseId } = req.params;
+
+    const [existing] = await db
+      .select()
+      .from(style_releases)
+      .where(eq(style_releases.id, releaseId));
+    if (!existing || existing.style_id !== Number(id)) {
+      return res.status(404).json({ message: "Release not found." });
+    }
+
+    await db.delete(style_releases).where(eq(style_releases.id, releaseId));
+
+    return res.json({ message: "Release deleted." });
+  } catch (err) {
+    console.error("deleteRelease error:", err);
+    return res.status(500).json({ message: "Failed to delete release." });
   }
 };
 
