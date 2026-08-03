@@ -18,6 +18,8 @@ const STATUS_STYLES = {
 };
 
 // Field-driven form config — keeps the modal markup to one map() call.
+// `full` marks a field that should span both grid columns instead of
+// sitting side by side with its neighbor.
 const FIELDS = [
   { key: "customerName", label: "Customer Name", required: true },
   { key: "brand", label: "Brand" },
@@ -28,7 +30,7 @@ const FIELDS = [
   { key: "productType", label: "Product Type", type: "select", options: PRODUCT_TYPES },
   { key: "status", label: "Status", type: "select", options: STATUSES },
   { key: "qty", label: "Order Qty", type: "number", createOnly: true },
-  { key: "description", label: "Description", type: "textarea" },
+  { key: "description", label: "Description", type: "textarea", full: true },
 ];
 
 // Table columns — `responsive` hides a column below md so the table shrinks
@@ -80,11 +82,11 @@ const fileToDataUrl = (file) =>
     reader.readAsDataURL(file);
   });
 
-const input = "w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-sm outline-none transition-colors focus:border-[#3B9ED4] focus:ring-2 focus:ring-[#3B9ED4]/20 placeholder:text-gray-400 placeholder:uppercase placeholder:text-xs";
+const input = "w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none transition-colors focus:border-[#3B9ED4] focus:ring-2 focus:ring-[#3B9ED4]/20 placeholder:text-gray-400 placeholder:uppercase placeholder:text-[10px]";
 // FIX: added `align-top` so every cell in a row anchors to the top instead of
 // centering vertically — this stops other columns' content from "floating"
 // to the middle when the Order Releases cell makes a row taller.
-const td = "border-b border-gray-100 px-2 py-1.5 text-center align-top text-[11px] sm:px-2.5 sm:py-2 sm:text-[11px]";
+const td = "border-b border-gray-100 px-2 py-1 text-center align-middle text-[11px] sm:px-2.5 sm:py-1 sm:text-[11px]";
 const respCell = "hidden md:table-cell";
 
 export default function StyleRegisterPage() {
@@ -362,7 +364,7 @@ export default function StyleRegisterPage() {
                   <th
                     key={c.key}
                     scope="col"
-                    className={`px-3 py-2.5 text-left text-[11px] font-medium sm:text-xs ${ci % 2 === 0 ? "bg-gray-50" : ""} ${c.responsive ? respCell : ""}`}
+                    className={`px-3 py-1.5 text-left text-[11px] font-medium sm:text-xs ${ci % 2 === 0 ? "bg-gray-50" : ""} ${c.responsive ? respCell : ""}`}
                   >
                     {c.label}
                   </th>
@@ -378,8 +380,8 @@ export default function StyleRegisterPage() {
                 filtered.map((s, i) => (
                   <tr key={s.id} className={i % 2 === 0 ? "bg-white" : "bg-[#EEF6FC]"}>
                     <td className={td}>
-                      <div className="mx-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50 text-gray-300 sm:h-16 sm:w-16">
-                        {s.image ? <img src={s.image} alt="" className="h-full w-full object-contain" /> : <ImagePlus size={20} />}
+                      <div className="mx-auto flex h-8 w-8 items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50 text-gray-300 sm:h-10 sm:w-10">
+                        {s.image ? <img src={s.image} alt="" className="h-full w-full object-contain" /> : <ImagePlus size={16} />}
                       </div>
                     </td>
                     <td className={`${td} whitespace-normal break-words font-semibold uppercase tracking-wide text-gray-800`} title={s.style_name}>{s.style_name}</td>
@@ -404,10 +406,10 @@ export default function StyleRegisterPage() {
                                 key={r.id}
                                 className={ri < s.releases.length - 1 ? "border-b border-gray-300" : ""}
                               >
-                                <td className="w-1/2 py-1.5 pr-1 text-center align-middle font-mono font-semibold text-gray-800 text-[10px] leading-snug sm:text-xs">
+                                <td className="w-1/2 py-0.5 pr-1 text-center align-middle font-mono font-semibold text-gray-800 text-[10px] leading-snug sm:text-xs">
                                   {Number(r.qty).toLocaleString()} pcs
                                 </td>
-                                <td className="w-1/2 py-1.5 pl-1 text-center align-middle text-gray-500 text-[10px] leading-snug sm:text-xs">
+                                <td className="w-1/2 py-0.5 pl-1 text-center align-middle text-gray-500 text-[10px] leading-snug sm:text-xs">
                                   {fmt(r.release_date)}
                                 </td>
                               </tr>
@@ -422,17 +424,17 @@ export default function StyleRegisterPage() {
                       {(s.releases || []).reduce((sum, r) => sum + (Number(r.qty) || 0), 0).toLocaleString()}
                     </td>
                     <td className={td}>
-                      <span className={`rounded-full px-2 py-1 text-[10px] font-semibold sm:px-2.5 sm:text-xs ${STATUS_STYLES[s.status] || "bg-gray-100 text-gray-600"}`}>{s.status}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold sm:px-2.5 sm:text-xs ${STATUS_STYLES[s.status] || "bg-gray-100 text-gray-600"}`}>{s.status}</span>
                     </td>
                     <td className={`${td} ${respCell} text-gray-500`}>{fmt(s.updated_at)}</td>
                     <td className={`${td} ${respCell}`}>
                       <button
                         onClick={() => toggleActive(s.id)}
-                        className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors sm:h-5 sm:w-9 ${s.is_active ? "bg-[#3B9ED4]" : "bg-gray-300"}`}
+                        className={`relative inline-flex h-3.5 w-7 items-center rounded-full transition-colors sm:h-4 sm:w-8 ${s.is_active ? "bg-[#3B9ED4]" : "bg-gray-300"}`}
                       >
                         <span
-                          className="inline-block h-[12px] w-[12px] rounded-full bg-white shadow transition-transform sm:h-[14px] sm:w-[14px]"
-                          style={{ transform: s.is_active ? "translateX(16px)" : "translateX(2px)" }}
+                          className="inline-block h-[10px] w-[10px] rounded-full bg-white shadow transition-transform sm:h-[12px] sm:w-[12px]"
+                          style={{ transform: s.is_active ? "translateX(14px)" : "translateX(2px)" }}
                         />
                       </button>
                     </td>
@@ -441,24 +443,24 @@ export default function StyleRegisterPage() {
                         <button
                           onClick={() => openEdit(s)}
                           title="Edit"
-                          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-[#EEF6FC] hover:text-[#3B9ED4] sm:h-7 sm:w-7"
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-[#EEF6FC] hover:text-[#3B9ED4] sm:h-6 sm:w-6"
                         >
-                          <Pencil size={12} />
+                          <Pencil size={11} />
                         </button>
                         <button
                           onClick={() => openDuplicate(s)}
                           title="Register again (duplicate as new style)"
-                          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600 sm:h-7 sm:w-7"
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600 sm:h-6 sm:w-6"
                         >
-                          <Copy size={12} />
+                          <Copy size={11} />
                         </button>
                         <button
                           onClick={() => handleDelete(s)}
                           disabled={deletingId === s.id}
                           title="Delete"
-                          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50 sm:h-7 sm:w-7"
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50 sm:h-6 sm:w-6"
                         >
-                          <Trash2 size={12} />
+                          <Trash2 size={11} />
                         </button>
                       </div>
                     </td>
@@ -471,27 +473,32 @@ export default function StyleRegisterPage() {
         <div className="mt-3 text-right text-xs text-gray-400">Showing {filtered.length} of {styles.length} styles</div>
       </div>
 
-      {/* Modal */}
+      {/* Modal — shrunk from max-w-2xl to max-w-lg, and fields now sit in a
+          two-column grid (side by side) instead of one full-width row each.
+          Fields marked `full` (e.g. Description) still span both columns. */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-2 backdrop-blur-sm">
-          <form onSubmit={submit} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-xl">
+          <form onSubmit={submit} className="w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-xl bg-white shadow-xl">
             {/* Header - Compact */}
-            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
-              <h2 className="text-base font-bold text-gray-900">{editingId ? "Edit Style" : "Style Register"}</h2>
+            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2.5">
+              <h2 className="text-sm font-bold text-gray-900">{editingId ? "Edit Style" : "Style Register"}</h2>
               <button type="button" onClick={close} className="p-0.5 text-gray-400 transition-colors hover:text-gray-700">
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            {/* Body - Compact */}
-            <div className="space-y-3 px-5 py-4">
-              {FIELDS.filter((f) => !(f.createOnly && editingId)).map((f) => (
-                <div key={f.key} className="flex items-start gap-3">
-                  <div className="w-32 shrink-0 pt-2 text-xs font-semibold text-gray-700">{f.label} :</div>
-                  <div className="flex-1">
+            {/* Body - Compact, two columns */}
+            <div className="px-4 py-3">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                {FIELDS.filter((f) => !(f.createOnly && editingId)).map((f) => (
+                  <div key={f.key} className={f.full ? "col-span-2" : ""}>
+                    <label className="mb-1 block text-[11px] font-semibold text-gray-700">
+                      {f.label}
+                      {f.required && <span className="text-rose-500"> *</span>}
+                    </label>
                     {f.type === "select" ? (
                       <select
-                        className={`${input} h-8 text-xs cursor-pointer`}
+                        className={`${input} h-8 cursor-pointer`}
                         value={form[f.key]}
                         onChange={(e) => set(f.key, e.target.value)}
                       >
@@ -500,7 +507,7 @@ export default function StyleRegisterPage() {
                       </select>
                     ) : f.type === "textarea" ? (
                       <textarea
-                        className={`${input} h-16 text-xs resize-none`}
+                        className={`${input} h-14 resize-none`}
                         rows={2}
                         placeholder={`Enter ${f.label}...`}
                         value={form[f.key]}
@@ -510,7 +517,7 @@ export default function StyleRegisterPage() {
                       <input
                         type={f.type || "text"}
                         min={f.type === "number" ? 0 : undefined}
-                        className={`${input} h-8 text-xs`}
+                        className={`${input} h-8`}
                         placeholder={`Enter ${f.label}...`}
                         value={form[f.key]}
                         required={f.required}
@@ -518,59 +525,60 @@ export default function StyleRegisterPage() {
                       />
                     )}
                   </div>
-                </div>
-              ))}
+                ))}
 
-              {/* Season - Compact */}
-              <div className="flex items-start gap-3">
-                <div className="w-32 shrink-0 pt-2 text-xs font-semibold text-gray-700">Season :</div>
-                <div className="flex flex-1 gap-2">
-                  <select
-                    className={`${input} h-8 text-xs cursor-pointer`}
-                    value={form.seasonYear}
-                    onChange={(e) => set("seasonYear", e.target.value)}
-                  >
-                    {YEARS.map((y) => <option key={y}>{y}</option>)}
-                  </select>
-                  <select
-                    className={`${input} h-8 text-xs cursor-pointer`}
-                    value={form.season}
-                    onChange={(e) => set("season", e.target.value)}
-                  >
-                    {SEASONS.map((s) => <option key={s}>{s}</option>)}
-                  </select>
+                {/* Season - side by side with the grid, spans both columns
+                    as its own row so year/season sit next to each other */}
+                <div className="col-span-2">
+                  <label className="mb-1 block text-[11px] font-semibold text-gray-700">Season</label>
+                  <div className="grid grid-cols-2 gap-x-3">
+                    <select
+                      className={`${input} h-8 cursor-pointer`}
+                      value={form.seasonYear}
+                      onChange={(e) => set("seasonYear", e.target.value)}
+                    >
+                      {YEARS.map((y) => <option key={y}>{y}</option>)}
+                    </select>
+                    <select
+                      className={`${input} h-8 cursor-pointer`}
+                      value={form.season}
+                      onChange={(e) => set("season", e.target.value)}
+                    >
+                      {SEASONS.map((s) => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              {/* Images - Compact */}
-              <div className="flex items-start gap-3">
-                <div className="w-32 shrink-0 pt-2 text-xs font-semibold text-gray-700">Images :</div>
-                <div className="flex-1 space-y-1.5">
-                  <label className="flex h-14 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 text-gray-400 transition-colors hover:border-[#3B9ED4] hover:bg-[#EEF6FC] hover:text-[#3B9ED4]">
-                    <ImagePlus size={16} />
+              {/* Images - Compact, full width */}
+              <div className="mt-3">
+                <label className="mb-1 block text-[11px] font-semibold text-gray-700">Images</label>
+                <div className="space-y-1.5">
+                  <label className="flex h-12 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 text-gray-400 transition-colors hover:border-[#3B9ED4] hover:bg-[#EEF6FC] hover:text-[#3B9ED4]">
+                    <ImagePlus size={14} />
                     <span className="mt-0.5 text-[10px]">Click to upload style images</span>
                     <input type="file" accept="image/*" multiple className="hidden" onChange={handleImages} />
                   </label>
                   {form.images.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {form.images.map((img) => (
-                        <img key={img.id} src={img.url} alt="" className="h-10 w-10 rounded-md border border-gray-200 object-cover" />
+                        <img key={img.id} src={img.url} alt="" className="h-9 w-9 rounded-md border border-gray-200 object-cover" />
                       ))}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Order Releases - Compact */}
+              {/* Order Releases - Compact, full width */}
               {editingId && (
-                <div className="flex items-start gap-3">
-                  <div className="w-32 shrink-0 pt-2 text-xs font-semibold text-gray-700">Releases :</div>
-                  <div className="flex-1 space-y-2">
+                <div className="mt-3">
+                  <label className="mb-1 block text-[11px] font-semibold text-gray-700">Releases</label>
+                  <div className="space-y-2">
                     <div className="flex gap-1.5">
                       <input
                         type="number"
                         min={1}
-                        className={`${input} h-8 text-xs`}
+                        className={`${input} h-8`}
                         placeholder="Qty..."
                         value={newReleaseQty}
                         onChange={(e) => setNewReleaseQty(e.target.value)}
@@ -654,11 +662,11 @@ export default function StyleRegisterPage() {
             </div>
 
             {/* Footer - Compact */}
-            <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-5 py-3">
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-4 py-2.5">
               <button
                 type="button"
                 onClick={() => setForm(emptyForm())}
-                className="flex items-center gap-1.5 rounded-lg border-2 border-gray-300 px-4 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                className="flex items-center gap-1.5 rounded-lg border-2 border-gray-300 px-3.5 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50"
               >
                 <RotateCcw size={12} />
                 Reset
@@ -666,7 +674,7 @@ export default function StyleRegisterPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex items-center gap-1.5 rounded-lg bg-[#3B9ED4] px-5 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#2E8EC4] disabled:opacity-60"
+                className="flex items-center gap-1.5 rounded-lg bg-[#3B9ED4] px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#2E8EC4] disabled:opacity-60"
               >
                 <Send size={12} />
                 {submitting ? "Saving…" : editingId ? "Save Changes" : "Submit"}
