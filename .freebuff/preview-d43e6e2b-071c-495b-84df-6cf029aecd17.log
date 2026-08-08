@@ -1,0 +1,149 @@
+◇ injected env (9) from .env // tip: ⌘ override existing { override: true }
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+🟠 Connected to MySQL
+◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+Server running on http://localhost:52333
+◇ injected env (9) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+🟠 Connected to MySQL
+◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+Server running on http://localhost:5000
+getAllStyles error: DrizzleQueryError: Failed query: select `id`, `customer_name`, `brand`, `style_name`, `style_number`, `description`, `model`, `color`, `season_year`, `season`, `product_type`, `fob`, `order_qty`, `image`, `images`, `is_active`, `created_by`, `submitted_at`, `updated_at` from `styles` order by `styles`.`submitted_at` desc
+params: 
+    at MySql2PreparedQuery.queryWithCache (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql-core/session.js:25:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async MySql2PreparedQuery.execute (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql2/session.js:78:20)
+    at async getAllStyles (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/src/controllers/styles.controllers.js:111:18) {
+  query: 'select `id`, `customer_name`, `brand`, `style_name`, `style_number`, `description`, `model`, `color`, `season_year`, `season`, `product_type`, `fob`, `order_qty`, `image`, `images`, `is_active`, `created_by`, `submitted_at`, `updated_at` from `styles` order by `styles`.`submitted_at` desc',
+  params: [],
+  cause: AggregateError: 
+      at file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzl[browser] Uncaught TypeError: styles.filter is not a function
+    at StyleRegisterPage.useMemo[filtered] (.next\dev\static\chunks\frontend_0ebssz1._.js:237:27)
+    at updateMemo (.next\dev\static\chunks\0r9g_next_dist_compiled_react-dom_08_6uy3._.js:5413:21)
+    at Object.useMemo (.next\dev\static\chunks\0r9g_next_dist_compiled_react-dom_08_6uy3._.js:15465:24)
+    at exports.useMemo (.next\dev\static\chunks\0r9g_next_dist_compiled_0op9aht._.js:1742:36)
+    at StyleRegisterPage (.next\dev\static\chunks\frontend_0ebssz1._.js:234:207)
+    at Object.react_stack_bottom_frame (.next\dev\static\chunks\0r9g_next_dist_compiled_react-dom_08_6uy3._.js:15037:24)
+    at renderWithHooks (.next\dev\static\chunks\0r9g_next_dist_compiled_react-dom_08_6uy3._.js:4620:24)
+    at updateFungetAllStyles error: DrizzleQueryError: Failed query: select `id`, `customer_name`, `brand`, `style_name`, `style_number`, `description`, `model`, `color`, `season_year`, `season`, `product_type`, `fob`, `order_qty`, `image`, `images`, `is_active`, `created_by`, `submitted_at`, `updated_at` from `styles` order by `styles`.`submitted_at` desc
+params: 
+    at MySql2PreparedQuery.queryWithCache (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql-core/session.js:25:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async MySql2PreparedQuery.execute (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql2/session.js:78:20)
+    at async getAllStyles (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/src/controllers/styles.controllers.js:111:18) {
+  query: 'select `id`, `customer_name`, `brand`, `style_name`, `style_number`, `description`, `model`, `color`, `season_year`, `season`, `product_type`, `fob`, `order_qty`, `image`, `images`, `is_active`, `created_by`, `submitted_at`, `updated_at` from `styles` order by `styles`.`submitted_at` desc',
+  params: [],
+  cause: AggregateError: GET /style-register 200 in 87ms (next.js: 6ms, application-code: 81ms)
+[?25h
+
+D:\Projects\HKD-FULL-ERP-TEST-MYSQL\frontend>2PreparedQuery.queryWithCache (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql-core/session.js:23:22)
+      at MySql2PreparedQuery.execute (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql2/session.js:78:31)
+      at MySqlSelectBase.execute (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql-core/query-builders/select.js:805:27)
+      at MySqlSelectBase.then (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/query-promise.js:21:17)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+    code: 'ECONNREFUSED',
+    fatal: true,
+    [errors]: [ [Error], [Error] ]
+  }
+}
+getAllStyles error: DrizzleQueryError: Failed query: select `id`, `customer_name`, `brand`, `style_name`, `style_number`, `description`, `model`, `color`, `season_year`, `season`, `product_type`, `fob`, `order_qty`, `image`, `images`, `is_active`, `created_by`, `submitted_at`, `updated_at` from `styles` order by `styles`.`submitted_at` desc
+params: 
+    at MySql2PreparedQuery.queryWithCache (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql-core/session.js:25:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async MySql2PreparedQuery.execute (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql2/session.js:78:20)
+    at async getAllStyles (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/src/controllers/styles.controllers.js:111:18) {
+  query: 'select `id`, `customer_name`, `brand`, `style_name`, `style_number`, `description`, `model`, `color`, `season_year`, `season`, `product_type`, `fob`, `order_qty`, `image`, `images`, `is_active`, `created_by`, `submitted_at`, `updated_at` from `styles` order by `styles`.`submitted_at` desc',
+  params: [],
+  cause: AggregateError: 
+      at file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql2/session.js:79:27
+      at MySql2PreparedQuery.queryWithCache (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql-core/session.js:23:22)
+      at MySql2PreparedQuery.execute (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql2/session.js:78:31)
+      at MySqlSelectBase.execute (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql-core/query-builders/select.js:805:27)
+      at MySqlSelectBase.then (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/query-promise.js:21:17)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+    code: 'ECONNREFUSED',
+    fatal: true,
+    [errors]: [ [Error], [Error] ]
+  }
+}
+getAllBoms error: DrizzleQueryError: Failed query: select `id`, `style_id`, `status`, `created_at`, `updated_at` from `boms`
+params: 
+    at MySql2PreparedQuery.queryWithCache (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql-core/session.js:25:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async MySql2PreparedQuery.execute (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/node_modules/drizzle-orm/mysql2/session.js:78:20)
+    at async getAllBoms (file:///D:/Projects/HKD-FULL-ERP-TEST-MYSQL/backend/src/controllers/boms.controllers.js:56:18) {
+  query: 'select `id`, ` GET /admin/users 200 in 195ms (next.js: 89ms, application-code: 107ms)
+ GET / 200 in 112ms (next.js: 11ms, application-code: 101ms)
+ GET /admin/users 200 in 233ms (next.js: 13ms, application-code: 221ms)
+ GET /admin/users 200 in 251ms (next.js: 21ms, application-code: 229ms)
+ GET /admin/users 200 in 167ms (next.js: 15ms, application-code: 152ms)
+[browser] Image with src "https://res.cloudinary.com/df8fxkmdo/image/upload/v1785578958/profile_pictures/jai9e0sb0spkr7btvlv9.jpg" has "fill" but is missing "sizes" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes (.next\dev\static\chunks\0r9g_next_dist_0gdr-x8._.js:2477:13)
+ GET /cad 404 in 138ms (next.js: 77ms, application-code: 61ms)
+ GET /cad 404 in 134ms (next.js: 22ms, application-code: 112ms)
+ GET /style-register 200 in 128ms (next.js: 69ms, application-code: 60ms)
+ GET /bom-booking 200 in 52ms (next.js: 9ms, application-code: 43ms)
+ GET /style-register 200 in 145ms (next.js: 20ms, application-code: 124ms)
+ GET /style-register 200 in 148ms (next.js: 12ms, application-code: 136ms)
+[browser] Image with src "/HKD_Building_image.jpeg" has "fill" and a height value of 0. This is likely because the parent element of the image has not been styled to have a set height. (.next\dev\static\chunks\0r9g_next_dist_0gdr-x8._.js:2477:13)
+ GET /style-register 200 in 132ms (next.js: 15ms, application-code: 117ms)
+ GET /bom-booking 200 in 91ms (next.js: 12ms, application-code: 79ms)
+ GET /bom-booking 200 in 138ms (next.js: 12ms, application-code: 126ms)
+  Reload env: .env
+✓ Compiled in 1593ms
+ GET / 200 in 3.1s (next.js: 2.3s, application-code: 850ms)
+ GET /bom-booking 200 in 3.2s (next.js: 2.9s, application-code: 303ms)
+  Reload env: .env
+ GET / 200 in 634ms (next.js: 223ms, application-code: 411ms)
+ GET /bom-booking 200 in 1004ms (next.js: 77ms, application-code: 927ms)
+✓ Compiled in 398ms
+ GET / 200 in 1040ms (next.js: 22ms, application-code: 1018ms)
+ GET /bom-booking 200 in 1399ms (next.js: 147ms, application-code: 1253ms)
+ GET / 200 in 1083ms (next.js: 584ms, application-code: 500ms)
+ GET /bom-booking 200 in 1089ms (next.js: 198ms, application-code: 891ms)
+ GET / 200 in 313ms (next.js: 182ms, application-code: 132ms)
+ GET /bom-booking 200 in 318ms (next.js: 104ms, application-code: 214ms)
+ GET /bom-booking 200 in 323ms (next.js: 24ms, application-code: 299ms)
+ GET / 200 in 76ms (next.js: 14ms, application-code: 62ms)
+ GET /style-register 200 in 360ms (next.js: 255ms, application-code: 105ms)
+ GET /style-register 200 in 42ms (next.js: 9ms, application-code: 33ms)
+ GET /bom-booking 200 in 66ms (next.js: 13ms, application-code: 52ms)
+ GET /style-register 200 in 55ms (next.js: 10ms, application-code: 45ms)
+ GET /admin/users 200 in 375ms (next.js: 206ms, application-code: 169ms)
+[browser] Image with src "https://res.cloudinary.com/df8fxkmdo/image/upload/v1785578958/profile_pictures/jai9e0sb0spkr7btvlv9.jpg" has "fill" but is missing "sizes" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes (.next\dev\static\chunks\0r9g_next_dist_0gdr-x8._.js:2477:13)
+✓ Compiled in 774ms
+ GET / 200 in 430ms (next.js: 266ms, application-code: 164ms)
+ GET /admin/users 200 in 435ms (next.js: 161ms, application-code: 274ms)
+ GET / 200 in 119ms (next.js: 82ms, application-code: 37ms)
+ GET /admin/users 200 in 123ms (next.js: 17ms, application-code: 106ms)
+ GET /admin/users 200 in 535ms (next.js: 11ms, application-code: 524ms)
+[browser] Image with src "https://res.cloudinary.com/df8fxkmdo/image/upload/v1785578958/profile_pictures/jai9e0sb0spkr7btvlv9.jpg" has "fill" but is missing "sizes" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes (.next\dev\static\chunks\0r9g_next_dist_0gdr-x8._.js:2477:13)
+✓ Compiled in 126ms
+ GET / 200 in 369ms (next.js: 78ms, application-code: 291ms)
+ GET /admin/users 200 in 224ms (next.js: 140ms, application-code: 85ms)
+ GET /admin/users 200 in 202ms (next.js: 13ms, application-code: 189ms)
+ GET /dashboard 404 in 415ms (next.js: 246ms, application-code: 169ms)
+ GET /dashboard 404 in 220ms (next.js: 15ms, application-code: 204ms)
+ GET /admin/users 200 in 105ms (next.js: 12ms, application-code: 93ms)
+[browser] Image with src "https://res.cloudinary.com/df8fxkmdo/image/upload/v1785578958/profile_pictures/jai9e0sb0spkr7btvlv9.jpg" has "fill" but is missing "sizes" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes (.next\dev\static\chunks\0r9g_next_dist_0gdr-x8._.js:2477:13)
+ GET /admin/users 200 in 123ms (next.js: 13ms, application-code: 111ms)
+[browser] Image with src "https://res.cloudinary.com/df8fxkmdo/image/upload/v1785578958/profile_pictures/jai9e0sb0spkr7btvlv9.jpg" has "fill" but is missing "sizes" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes (.next\dev\static\chunks\0r9g_next_dist_0gdr-x8._.js:2477:13)
+ GET /style-register 200 in 84ms (next.js: 31ms, application-code: 54ms)
+ GET /admin/users 200 in 81ms (next.js: 9ms, application-code: 72ms)
+[browser] Image with src "https://res.cloudinary.com/df8fxkmdo/image/upload/v1785578958/profile_pictures/jai9e0sb0spkr7btvlv9.jpg" has "fill" but is missing "sizes" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes (.next\dev\static\chunks\0r9g_next_dist_0gdr-x8._.js:2477:13)
+✓ Compiled in 183ms
+ GET /style-register 200 in 668ms (next.js: 148ms, application-code: 520ms)
+ GET /admin/users 200 in 668ms (next.js: 563ms, application-code: 105ms)
+ GET /admin/users 200 in 176ms (next.js: 14ms, application-code: 162ms)
+[browser] Image with src "https://res.cloudinary.com/df8fxkmdo/image/upload/v1785578958/profile_pictures/jai9e0sb0spkr7btvlv9.jpg" has "fill" but is missing "sizes" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes (.next\dev\static\chunks\0r9g_next_dist_0gdr-x8._.js:2477:13)
+ GET /admin/users 200 in 93ms (next.js: 12ms, application-code: 81ms)
+ GET /dashboard 404 in 203ms (next.js: 37ms, application-code: 166ms)
+ GET /dashboard 404 in 118ms (next.js: 21ms, application-code: 98ms)
+ GET /admin/users 200 in 87ms (next.js: 8ms, application-code: 78ms)
+[browser] Image with src "https://res.cloudinary.com/df8fxkmdo/image/upload/v1785578958/profile_pictures/jai9e0sb0spkr7btvlv9.jpg" has "fill" but is missing "sizes" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes (.next\dev\static\chunks\0r9g_next_dist_0gdr-x8._.js:2477:13)
+[?25h
+MySQL
+◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+Server running on http://localhost:5000
