@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,30 +12,27 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 // Roles allowed on this page
 const USER_MANAGER_ROLES = ["Developer", "ERP-Executive"];
 
-// Editable text/select fields shown in the edit modal, in order.
-// (profile_picture is handled separately below since it needs an
-// upload control + preview, not a plain text input.)
-const FIELDS = [
-  { name: "user_name", label: "User Name" },
-  { name: "email", label: "Email" },
-  { name: "role", label: "Role" },
-  { name: "department", label: "Department" },
-  { name: "assigned_building", label: "Assigned Floor" },
-  { name: "factory", label: "Factory" },
-];
+// --- Dummy option lists for the dropdown fields. Replace with real data
+// (e.g. fetched from the backend) whenever it's available. ---
+const ROLE_OPTIONS = ["Developer", "ERP-Executive", "Manager", "Supervisor", "Operator", "Viewer"];
+const DEPARTMENT_OPTIONS = ["Production", "Quality", "Merchandising", "HR", "IT", "Finance"];
+const FLOOR_OPTIONS = ["1st Floor", "2nd Floor", "3rd Floor", "4th Floor", "5th Floor"];
+const FACTORY_OPTIONS = ["Factory A", "Factory B", "Factory C"];
 
 const fmt = (v) =>
   v && !Number.isNaN(new Date(v).getTime())
     ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
     : "—";
 
-const fileToDataUrl = (file) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+// Converts a stored date value into the "YYYY-MM-DDTHH:mm" shape a
+// <input type="datetime-local"> needs.
+const toDatetimeLocal = (v) => {
+  if (!v) return "";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
 export default function ManageUsersPage() {
   const { user, loading } = useAuth();
@@ -44,6 +41,8 @@ export default function ManageUsersPage() {
   const [users, setUsers] = useState([]);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
+  // holds the old_user_name of the row currently expanded for editing (or null)
+  const [editingRow, setEditingRow] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -78,21 +77,23 @@ export default function ManageUsersPage() {
     }
   }
 
-  function startEdit(u) {
+  function toggleEdit(u) {
+    if (editingRow === u.user_name) {
+      setEditingRow(null);
+      setEditingUser(null);
+      return;
+    }
+    setEditingRow(u.user_name);
     setEditingUser({
       old_user_name: u.user_name,
       user_name: u.user_name,
       email: u.email || "",
-      role: u.role,
+      password: u.password || "", // pre-filled with current password; edit to change it
+      role: u.role || "",
       department: u.department || "",
-      assigned_building: u.assigned_building,
-      factory: u.factory,
-      // `profile_picture` here doubles as both "current preview" and the
-      // value actually sent to the server:
-      //  - unchanged  -> stays as the existing URL string (server keeps it)
-      //  - new upload -> becomes a base64 data URL (server re-uploads it)
-      //  - removed    -> becomes null (server deletes it)
-      profile_picture: u.profile_picture || null,
+      assigned_building: u.assigned_building || "",
+      factory: u.factory || "",
+      createdAt: toDatetimeLocal(u.createdAt),
     });
   }
 
@@ -100,33 +101,27 @@ export default function ManageUsersPage() {
     setEditingUser((prev) => ({ ...prev, [name]: value }));
   }
 
-  async function handlePictureChange(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const dataUrl = await fileToDataUrl(file);
-    updateField("profile_picture", dataUrl);
-  }
-
-  function removePicture() {
-    updateField("profile_picture", null);
-  }
-
   async function saveEdit(e) {
     e.preventDefault();
     setSaving(true);
     setError("");
     try {
+      const payload = {
+        ...editingUser,
+        requester_user_name: user.user_name,
+        requester_role: user.role,
+      };
+      // Don't send an empty password — backend keeps the existing one.
+      if (!payload.password) delete payload.password;
+
       const res = await fetch(`${API_URL}/auth/update`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...editingUser,
-          requester_user_name: user.user_name,
-          requester_role: user.role,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Update failed");
+      setEditingRow(null);
       setEditingUser(null);
       fetchUsers();
     } catch (err) {
@@ -168,118 +163,181 @@ export default function ManageUsersPage() {
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id} className="border-t border-gray-100">
-                    <td className="px-4 py-2 flex items-center gap-2 whitespace-nowrap">
-                      {u.profile_picture ? (
-                        <div className="relative w-8 h-8 rounded-full overflow-hidden shrink-0">
-                          <Image src={u.profile_picture} alt={u.user_name} fill className="object-cover" />
-                        </div>
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center text-xs font-semibold shrink-0">
-                          {u.user_name?.[0]?.toUpperCase() || "?"}
-                        </div>
-                      )}
-                      {u.user_name}
-                    </td>
-                    <td className="px-4 py-2">{u.email || "—"}</td>
-                    <td className="px-4 py-2">{u.role}</td>
-                    <td className="px-4 py-2">{u.department || "-"}</td>
-                    <td className="px-4 py-2">{u.assigned_building}</td>
-                    <td className="px-4 py-2">{u.factory}</td>
-                    <td className="px-4 py-2 whitespace-nowrap text-gray-500">{fmt(u.createdAt)}</td>
-                    <td className="px-4 py-2 text-right">
-                      <button onClick={() => startEdit(u)} className="text-indigo-600 hover:underline text-sm">
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
+                  <Fragment key={u.id}>
+                    <tr className="border-t border-gray-100">
+                      <td className="px-4 py-2 flex items-center gap-2 whitespace-nowrap">
+                        {u.profile_picture ? (
+                          <div className="relative w-8 h-8 rounded-full overflow-hidden shrink-0">
+                            <Image src={u.profile_picture} alt={u.user_name} fill className="object-cover" />
+                          </div>
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center text-xs font-semibold shrink-0">
+                            {u.user_name?.[0]?.toUpperCase() || "?"}
+                          </div>
+                        )}
+                        {u.user_name}
+                      </td>
+                      <td className="px-4 py-2">{u.email || "—"}</td>
+                      <td className="px-4 py-2">{u.role}</td>
+                      <td className="px-4 py-2">{u.department || "-"}</td>
+                      <td className="px-4 py-2">{u.assigned_building}</td>
+                      <td className="px-4 py-2">{u.factory}</td>
+                      <td className="px-4 py-2 whitespace-nowrap text-gray-500">{fmt(u.createdAt)}</td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          onClick={() => toggleEdit(u)}
+                          className="text-indigo-600 hover:underline text-sm"
+                        >
+                          {editingRow === u.user_name ? "Close" : "Edit"}
+                        </button>
+                      </td>
+                    </tr>
+
+                    {editingRow === u.user_name && editingUser && (
+                      <tr className="border-t border-gray-100 bg-indigo-50/40">
+                        <td colSpan={8} className="px-4 py-4">
+                          <form onSubmit={saveEdit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+                              <input
+                                type="text"
+                                value={editingUser.user_name}
+                                onChange={(e) => updateField("user_name", e.target.value)}
+                                disabled={saving}
+                                className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                              <input
+                                type="email"
+                                value={editingUser.email}
+                                onChange={(e) => updateField("email", e.target.value)}
+                                disabled={saving}
+                                className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Password</label>
+                              <input
+                                type="text"
+                                value={editingUser.password}
+                                onChange={(e) => updateField("password", e.target.value)}
+                                disabled={saving}
+                                placeholder="No password set"
+                                className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+                              <select
+                                value={editingUser.role}
+                                onChange={(e) => updateField("role", e.target.value)}
+                                disabled={saving}
+                                className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                              >
+                                <option value="">Select role</option>
+                                {ROLE_OPTIONS.map((r) => (
+                                  <option key={r} value={r}>{r}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Department</label>
+                              <select
+                                value={editingUser.department}
+                                onChange={(e) => updateField("department", e.target.value)}
+                                disabled={saving}
+                                className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                              >
+                                <option value="">Select department</option>
+                                {DEPARTMENT_OPTIONS.map((d) => (
+                                  <option key={d} value={d}>{d}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Floor</label>
+                              <select
+                                value={editingUser.assigned_building}
+                                onChange={(e) => updateField("assigned_building", e.target.value)}
+                                disabled={saving}
+                                className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                              >
+                                <option value="">Select floor</option>
+                                {FLOOR_OPTIONS.map((f) => (
+                                  <option key={f} value={f}>{f}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Factory</label>
+                              <select
+                                value={editingUser.factory}
+                                onChange={(e) => updateField("factory", e.target.value)}
+                                disabled={saving}
+                                className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                              >
+                                <option value="">Select factory</option>
+                                {FACTORY_OPTIONS.map((f) => (
+                                  <option key={f} value={f}>{f}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Joined</label>
+                              <input
+                                type="datetime-local"
+                                value={editingUser.createdAt}
+                                onChange={(e) => updateField("createdAt", e.target.value)}
+                                disabled={saving}
+                                className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              />
+                            </div>
+
+                            <div className="col-span-full flex gap-3 pt-1">
+                              <button
+                                type="submit"
+                                disabled={saving}
+                                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white font-semibold rounded-lg px-4 py-2 text-sm flex items-center gap-2"
+                              >
+                                {saving ? (
+                                  <>
+                                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                    Saving...
+                                  </>
+                                ) : "Save Changes"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setEditingRow(null); setEditingUser(null); }}
+                                disabled={saving}
+                                className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
-
-      {editingUser && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50 overflow-y-auto py-8">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">
-              Edit {editingUser.old_user_name}
-            </h2>
-            <form onSubmit={saveEdit} className="space-y-4">
-              {/* Profile picture — preview + upload + remove */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Profile Picture</label>
-                <div className="flex items-center gap-3">
-                  {editingUser.profile_picture ? (
-                    <div className="relative w-14 h-14 rounded-full overflow-hidden shrink-0 border border-gray-200">
-                      <Image src={editingUser.profile_picture} alt="" fill className="object-cover" />
-                    </div>
-                  ) : (
-                    <div className="w-14 h-14 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center text-xs shrink-0 border border-gray-200">
-                      None
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 cursor-pointer">
-                      Upload new
-                      <input type="file" accept="image/*" className="hidden" onChange={handlePictureChange} disabled={saving} />
-                    </label>
-                    {editingUser.profile_picture && (
-                      <button
-                        type="button"
-                        onClick={removePicture}
-                        disabled={saving}
-                        className="text-xs font-semibold text-rose-600 hover:text-rose-700 text-left"
-                      >
-                        Remove picture
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {FIELDS.map((f) => (
-                <div key={f.name}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
-                  <input
-                    type="text"
-                    value={editingUser[f.name] || ""}
-                    onChange={(e) => updateField(f.name, e.target.value)}
-                    disabled={saving}
-                    className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              ))}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingUser(null)}
-                  disabled={saving}
-                  className="flex-1 border border-gray-300 rounded-lg py-2 text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white font-semibold rounded-lg py-2 flex items-center justify-center gap-2"
-                >
-                  {saving ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      Saving...
-                    </>
-                  ) : "Save Changes"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

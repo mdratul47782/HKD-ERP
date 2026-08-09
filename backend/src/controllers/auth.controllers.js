@@ -146,11 +146,13 @@ export const updateUser = async (req, res) => {
       old_user_name,
       user_name,
       email,
+      password,
       role,
       department,
       assigned_building,
       factory,
       profile_picture,
+      createdAt,
       requester_user_name,
       requester_role,
     } = req.body;
@@ -180,6 +182,10 @@ export const updateUser = async (req, res) => {
       if (duplicateEmail) return res.status(400).json({ message: "Email already registered" });
     }
 
+    if (password && password.length < 4) {
+      return res.status(400).json({ message: "Password must be at least 4 characters" });
+    }
+
     let pictureUrl = existing.profile_picture;
     let pictureId = existing.profile_picture_id;
 
@@ -194,15 +200,23 @@ export const updateUser = async (req, res) => {
       pictureId = uploaded.public_id;
     }
 
+    let newCreatedAt = existing.createdAt;
+    if (createdAt) {
+      const parsed = new Date(createdAt);
+      if (!Number.isNaN(parsed.getTime())) newCreatedAt = parsed;
+    }
+
     await db.update(users).set({
       user_name: user_name || existing.user_name,
       email: email || existing.email,
+      password: password || existing.password,
       role: role || existing.role,
       department: department !== undefined ? department : existing.department,
       assigned_building: assigned_building || existing.assigned_building,
       factory: factory || existing.factory,
       profile_picture: pictureUrl,
       profile_picture_id: pictureId,
+      createdAt: newCreatedAt,
     }).where(eq(users.user_name, old_user_name));
 
     const [updatedUser] = await db.select().from(users)
@@ -255,6 +269,12 @@ export const changePassword = async (req, res) => {
 };
 
 // GET /auth/users  — Developer / ERP-Executive listing for the admin page
+// NOTE: this now includes the raw `password` field so the admin edit UI can
+// pre-fill it. Since passwords are stored in plaintext and this endpoint is
+// already gated to USER_MANAGER_ROLES, this doesn't change the underlying
+// security posture — but it does mean every admin page load now ships every
+// user's password over the network in plain view. Worth hashing passwords
+// (bcrypt/argon2) and dropping this field long-term.
 export const getAllUsers = async (req, res) => {
   try {
     const { requester_role } = req.query;
@@ -266,6 +286,7 @@ export const getAllUsers = async (req, res) => {
       id: users.id,
       user_name: users.user_name,
       email: users.email,
+      password: users.password,
       role: users.role,
       department: users.department,
       assigned_building: users.assigned_building,
