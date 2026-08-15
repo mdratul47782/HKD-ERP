@@ -1,7 +1,7 @@
 // backend/src/controllers/materialReceive.controllers.js
 
 import { db, schema } from "../db/db.js";
-import { eq, like, or, and, inArray } from "drizzle-orm";
+import { eq, like, or, and, inArray, desc } from "drizzle-orm";
 
 const { materialReceives, materialReceiveStyles, materialReceiveItems, stockHistory } = schema;
 
@@ -20,7 +20,9 @@ async function getFullReceive(id) {
  *
  * Returns every Material Receive with its styles[] (Style + Model) and
  * items[] (Item Code/PDM, Color, Roll, Yds, Location, status). "search"
- * checks parent fields, style/model rows, and item/color rows.
+ * checks parent fields (including Remark), style/model rows, and item/color rows.
+ * Newest Receive first (createdAt DESC), so the most recently saved
+ * records always show at the top of the Saved Records list.
  */
 export const getAllMaterialReceives = async (req, res) => {
   try {
@@ -38,7 +40,8 @@ export const getAllMaterialReceives = async (req, res) => {
             like(materialReceives.invoiceNo, term),
             like(materialReceives.buyer, term),
             like(materialReceives.po, term),
-            like(materialReceives.item, term)
+            like(materialReceives.item, term),
+            like(materialReceives.remark, term)
           )
         );
 
@@ -60,8 +63,17 @@ export const getAllMaterialReceives = async (req, res) => {
       const merged = [...directMatches, ...receivesFromChildren];
       receives = Array.from(new Map(merged.map((r) => [r.id, r])).values());
     } else {
-      receives = await db.select().from(materialReceives);
+      receives = await db.select().from(materialReceives).orderBy(desc(materialReceives.createdAt));
     }
+
+    // Always end up newest-first, even for the search branch (which merges
+    // two separate queries and loses ordering along the way).
+    receives = receives.slice().sort((a, b) => {
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (tb !== ta) return tb - ta;
+      return b.id - a.id;
+    });
 
     const receiveIds = receives.map((r) => r.id);
     const allStyles = receiveIds.length
@@ -100,9 +112,11 @@ export const getMaterialReceiveById = async (req, res) => {
 
 /**
  * POST /material-receive
- * Body: { date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy,
+ * Body: { date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy, remark,
  *         styles: [{ style, model }],
  *         items: [{ itemCodePdm, color, rollQty, yds }] }
+ *
+ * "remark" is optional free text — not required, never validated.
  *
  * NOTE: Location/Rack is intentionally never accepted here. Every item row
  * is created as status "pending" with no location — that only happens on
@@ -114,7 +128,7 @@ export const getMaterialReceiveById = async (req, res) => {
  */
 export const createMaterialReceive = async (req, res) => {
   try {
-    const { date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy, styles, items } = req.body;
+    const { date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy, remark, styles, items } = req.body;
 
     if (!date || !invoiceNo || !fromType || !warehouse || !buyer || !season || !po || !item || !buy) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -129,7 +143,9 @@ export const createMaterialReceive = async (req, res) => {
     // Transaction: parent + styles + item batches + history succeed together or not at all.
     const newId = await db.transaction(async (tx) => {
       const [inserted] = await tx.insert(materialReceives).values({
-        date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy, status: "pending",
+        date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy,
+        remark: remark?.trim() || null,
+        status: "pending",
       });
       const materialReceiveId = inserted.insertId;
 
@@ -200,7 +216,7 @@ export const createMaterialReceive = async (req, res) => {
 export const updateMaterialReceive = async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy, styles, items } = req.body;
+    const { date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy, remark, styles, items } = req.body;
 
     const [existing] = await db.select().from(materialReceives).where(eq(materialReceives.id, id));
     if (!existing) return res.status(404).json({ message: "Material receive not found" });
@@ -213,7 +229,7 @@ export const updateMaterialReceive = async (req, res) => {
     await db.transaction(async (tx) => {
       await tx
         .update(materialReceives)
-        .set({ date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy })
+        .set({ date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy, remark: remark?.trim() || null })
         .where(eq(materialReceives.id, id));
 
       await tx.delete(materialReceiveStyles).where(eq(materialReceiveStyles.materialReceiveId, id));

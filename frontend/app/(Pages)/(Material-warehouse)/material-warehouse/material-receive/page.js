@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, Fragment } from "react";
 import { Search, Plus, Pencil, Trash2, PackageSearch, ChevronDown, ChevronUp, X, MapPin } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -23,14 +23,25 @@ const label = "block mb-1 text-[11px] font-medium tracking-wide text-[#7a6250] d
 const chip = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]";
 const chipPending = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#b8933a]/15 text-[#8a6a1a] dark:bg-[#e0c068]/15 dark:text-[#e0c068]";
 const chipApproved = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#5ca068]/15 text-[#3d7a4a] dark:bg-[#8fca9c]/15 dark:text-[#8fca9c]";
-const chipMuted = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#2c2417]/8 text-[#7a6250] dark:bg-[#e8ddd0]/10 dark:text-[#a8917d]";
 
 // Dummy rack list used everywhere a Location/Rack needs to be picked.
 const RACK_OPTIONS = Array.from({ length: 10 }, (_, i) => `Rack-${i + 1}`);
 
+// Warehouse codes (kept hyphenated everywhere: K-1 / K-2 / K-3).
+const WAREHOUSE_OPTIONS = ["K-1", "K-2", "K-3"];
+
+// Standard buyer list for the Buyer dropdown.
+const BUYERS = [
+  "Decathlon - Knit", "Decathlon - Woven", "Walmart", "Columbia",
+  "ZXY", "CTC", "DIESEL", "Sports Group Denmark", "Identity", "Fifth Avenur",
+];
+
+// All free-text values are forced upper case as the user types.
+const up = (v) => (v || "").toUpperCase();
+
 const emptyForm = {
-  date: "", invoiceNo: "", fromType: "Overseas", warehouse: "K2",
-  buyer: "", season: "", po: "", item: "", buy: "",
+  date: "", invoiceNo: "", fromType: "Overseas", warehouse: "K-2",
+  buyer: "", season: "", po: "", item: "", buy: "", remark: "",
 };
 const newColor = () => ({ key: crypto.randomUUID(), color: "", roll: "", yds: "" });
 const newItemCode = () => ({ key: crypto.randomUUID(), itemCodePdm: "", colors: [newColor()] });
@@ -58,9 +69,9 @@ function StyleModelRows({ rows, onAdd, onRemove, onChange }) {
     <div className="space-y-1.5">
       {rows.map((row, i) => (
         <div key={row.key} className="bg-white dark:bg-[#2a241b] border border-[#2c2417]/8 dark:border-[#e8ddd0]/8 rounded-md p-1.5 grid grid-cols-2 gap-1.5">
-          <input type="text" placeholder="Style" value={row.style} onChange={(e) => onChange(row.key, "style", e.target.value)} className={inputCls} />
+          <input type="text" placeholder="Style" value={row.style} onChange={(e) => onChange(row.key, "style", up(e.target.value))} className={inputCls} />
           <div className="flex items-center gap-1.5">
-            <input type="text" placeholder="Model" value={row.model} onChange={(e) => onChange(row.key, "model", e.target.value)} className={`${inputCls} flex-1`} />
+            <input type="text" placeholder="Model" value={row.model} onChange={(e) => onChange(row.key, "model", up(e.target.value))} className={`${inputCls} flex-1`} />
             {rows.length > 1 && (
               <button type="button" onClick={() => onRemove(row.key)} className="text-[10px] font-medium text-[#b87a4a] hover:underline shrink-0">×</button>
             )}
@@ -75,6 +86,69 @@ function StyleModelRows({ rows, onAdd, onRemove, onChange }) {
 }
 
 /* ============================================================
+   StockPreview -- big, clear "already in stock" breakdown for a
+   given Item Code/PDM + Color: grouped Rack-wise, then Date-wise
+   underneath each rack, with a per-rack total. Shared by the form's
+   live preview and the Location Assignment "search before assign".
+   ============================================================ */
+
+function StockPreview({ preview }) {
+  if (!preview?.length) {
+    return <div className="text-[11px] italic text-[#a08060] px-1 py-1">No existing stock found for this Item Code/PDM + Color.</div>;
+  }
+
+  const byRack = preview.reduce((acc, r) => {
+    const key = r.location || "Unassigned";
+    (acc[key] ||= []).push(r);
+    return acc;
+  }, {});
+  const rackNames = Object.keys(byRack).sort();
+
+  return (
+    <div className="space-y-2">
+      {rackNames.map((rack) => {
+        const rows = byRack[rack].slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+        const totalRoll = rows.reduce((s, r) => s + Number(r.availableRoll || 0), 0);
+        const totalYds = rows.reduce((s, r) => s + Number(r.availableYds || 0), 0);
+        return (
+          <div key={rack} className="rounded-lg border border-[#b87a4a]/30 dark:border-[#d4955e]/30 overflow-hidden">
+            <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#b87a4a]/12 dark:bg-[#d4955e]/12">
+              <span className="flex items-center gap-1 text-xs font-bold text-[#8a4a24] dark:text-[#d4955e]">
+                <MapPin size={13} /> {rack}
+              </span>
+              <span className="text-xs font-bold text-[#8a4a24] dark:text-[#d4955e]">
+                {totalRoll} Roll · {totalYds} Yds
+              </span>
+            </div>
+            <table className="w-full text-xs">
+              <tbody>
+                {rows.map((r) => (
+                  <tr
+                    key={r.itemId}
+                    title={`Invoice ${r.invoiceNo}`}
+                    className="border-t border-[#b87a4a]/10 dark:border-[#d4955e]/10"
+                  >
+                    <td className="px-2.5 py-1.5 text-[#7a6250] dark:text-[#a8917d] whitespace-nowrap">
+                      {r.date?.slice(0, 10)}
+                    </td>
+                    <td className="px-2.5 py-1.5 text-right font-semibold text-[#2c2417] dark:text-[#e8ddd0] whitespace-nowrap">
+                      {r.availableRoll} Roll
+                    </td>
+                    <td className="px-2.5 py-1.5 text-right font-semibold text-[#2c2417] dark:text-[#e8ddd0] whitespace-nowrap">
+                      {r.availableYds} Yds
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ============================================================
    ColorRow -- Color/Roll/Yds inputs, plus a live "already in stock"
    preview (Rack + Date + Qty) for this exact Item Code/PDM + Color,
    pulled from Available Stock as the user types.
@@ -83,6 +157,7 @@ function StyleModelRows({ rows, onAdd, onRemove, onChange }) {
 function ColorRow({ itemCodePdm, color, canRemove, onRemove, onChange }) {
   const [preview, setPreview] = useState([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const debounceRef = useRef(null);
 
   useEffect(() => {
@@ -93,6 +168,7 @@ function ColorRow({ itemCodePdm, color, canRemove, onRemove, onChange }) {
 
     if (!code || !col) {
       setPreview([]);
+      setHasSearched(false);
       return;
     }
 
@@ -108,6 +184,7 @@ function ColorRow({ itemCodePdm, color, canRemove, onRemove, onChange }) {
         setPreview([]);
       } finally {
         setLoadingPreview(false);
+        setHasSearched(true);
       }
     }, 400);
 
@@ -118,7 +195,7 @@ function ColorRow({ itemCodePdm, color, canRemove, onRemove, onChange }) {
   return (
     <div className="bg-white dark:bg-[#2a241b] border border-[#2c2417]/8 dark:border-[#e8ddd0]/8 rounded-md p-1.5 space-y-1">
       <div className="flex items-center gap-1.5">
-        <input type="text" placeholder="Color" value={color.color} onChange={(e) => onChange(color.key, "color", e.target.value)} className={`${inputCls} flex-1`} />
+        <input type="text" placeholder="Color" value={color.color} onChange={(e) => onChange(color.key, "color", up(e.target.value))} className={`${inputCls} flex-1`} />
         {canRemove && (
           <button type="button" onClick={() => onRemove(color.key)} className="text-[10px] font-medium text-[#b87a4a] hover:underline shrink-0">
             ×
@@ -133,16 +210,12 @@ function ColorRow({ itemCodePdm, color, canRemove, onRemove, onChange }) {
       {loadingPreview && (
         <div className="text-[10px] text-[#a08060] italic">Checking existing stock...</div>
       )}
-      {!loadingPreview && preview.length > 0 && (
-        <div className="pt-0.5 space-y-1">
-          <div className="text-[10px] font-medium text-[#7a6250] dark:text-[#a8917d]">Already in stock:</div>
-          <div className="flex flex-wrap gap-1">
-            {preview.map((r) => (
-              <span key={r.itemId} className={chipMuted} title={`Invoice ${r.invoiceNo}`}>
-                {r.location} · {r.date?.slice(0, 10)} · {r.availableRoll} Roll / {r.availableYds} Yds
-              </span>
-            ))}
+      {!loadingPreview && hasSearched && (
+        <div className="pt-1 space-y-1.5">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-[#7a6250] dark:text-[#a8917d]">
+            Already in Stock
           </div>
+          <StockPreview preview={preview} />
         </div>
       )}
     </div>
@@ -161,7 +234,7 @@ function ItemCodeCard({ itemCode, index, canRemove, onNameChange, onRemove, onAd
           {index + 1}
         </span>
         <input type="text" placeholder="Item Code / PDM" value={itemCode.itemCodePdm}
-          onChange={(e) => onNameChange(e.target.value)} className={`${inputCls} flex-1`} />
+          onChange={(e) => onNameChange(up(e.target.value))} className={`${inputCls} flex-1`} />
         {canRemove && (
           <button type="button" onClick={onRemove} className="text-[10px] font-medium text-[#b87a4a] hover:underline shrink-0">
             Remove
@@ -191,13 +264,19 @@ function ItemCodeCard({ itemCode, index, canRemove, onNameChange, onRemove, onAd
 
 /* ============================================================
    Item Code / Color breakdown -- real sub-table, with inline
-   Location/Rack assignment for pending rows right here.
+   Location/Rack assignment for pending rows right here, plus a
+   "search before assign" toggle that shows where this exact
+   Item Code/PDM + Color already sits (Rack + Date-wise) before
+   you commit to a rack.
    ============================================================ */
 
-function ItemsBreakdownTable({ items, onAssigned }) {
+function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
   const [rackChoice, setRackChoice] = useState({});
   const [assigningId, setAssigningId] = useState(null);
   const [rowError, setRowError] = useState({});
+  const [openPreviewId, setOpenPreviewId] = useState(null);
+  const [previewData, setPreviewData] = useState({});
+  const [previewLoadingId, setPreviewLoadingId] = useState(null);
 
   if (!items?.length) {
     return <tr><td colSpan={12} className="px-3 py-2 text-[11px] italic text-[#a08060]">No item code / color rows found.</td></tr>;
@@ -222,62 +301,113 @@ function ItemsBreakdownTable({ items, onAssigned }) {
     }
   };
 
+  const togglePreview = async (row) => {
+    if (openPreviewId === row.id) { setOpenPreviewId(null); return; }
+    setOpenPreviewId(row.id);
+    if (previewData[row.id]) return; // already fetched, no need to refetch
+    setPreviewLoadingId(row.id);
+    try {
+      const params = new URLSearchParams({ itemCodePdm: row.itemCodePdm, color: row.color });
+      const res = await fetch(`${API_URL}/material-stock?${params.toString()}`, { credentials: "include" });
+      if (!res.ok) throw new Error("lookup failed");
+      const data = await res.json();
+      setPreviewData((p) => ({ ...p, [row.id]: data.rows || [] }));
+    } catch {
+      setPreviewData((p) => ({ ...p, [row.id]: [] }));
+    } finally {
+      setPreviewLoadingId(null);
+    }
+  };
+
   return (
     <tr>
-      <td colSpan={12} className="p-0 bg-[#e6e0d4]/30 dark:bg-white/[0.02]">
+      <td colSpan={12} className="p-0 bg-[#faf8f3] dark:bg-[#1b1712]">
+        {/* Bold, high-contrast header so it's obvious which invoice these rows belong to */}
+        <div className="flex items-center gap-2 px-3 py-2 bg-[#2c2417] dark:bg-[#e8ddd0] border-y-2 border-[#b87a4a] dark:border-[#d4955e]">
+          <PackageSearch size={14} className="text-[#e0c068]" />
+          <span className="text-xs font-bold uppercase tracking-wide text-[#f0ede6] dark:text-[#1b1712]">
+            Items under Invoice {invoiceNo}
+          </span>
+        </div>
         <table className="min-w-full text-[11px]">
           <thead>
-            <tr className="text-[#7a6250] dark:text-[#a8917d] border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
-              <th className="px-3 py-1.5 text-left font-medium w-1/4">Item Code / PDM</th>
-              <th className="px-3 py-1.5 text-left font-medium">Color</th>
-              <th className="px-3 py-1.5 text-left font-medium">Roll</th>
-              <th className="px-3 py-1.5 text-left font-medium">Yds</th>
-              <th className="px-3 py-1.5 text-left font-medium">Status</th>
-              <th className="px-3 py-1.5 text-left font-medium w-64">Location</th>
+            <tr className="text-[#7a6250] dark:text-[#a8917d] border-b-2 border-[#2c2417]/15 dark:border-[#e8ddd0]/15 bg-[#e6e0d4]/50 dark:bg-white/[0.03]">
+              <th className="px-3 py-2 text-left font-semibold w-1/4">Item Code / PDM</th>
+              <th className="px-3 py-2 text-left font-semibold">Color</th>
+              <th className="px-3 py-2 text-left font-semibold">Roll</th>
+              <th className="px-3 py-2 text-left font-semibold">Yds</th>
+              <th className="px-3 py-2 text-left font-semibold">Status</th>
+              <th className="px-3 py-2 text-left font-semibold w-72">Location</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((row) => {
+            {items.map((row, idx) => {
               const rowId = row.id ?? row.key ?? `${row.itemCodePdm}-${row.color}`;
               const isPending = row.status !== "approved";
+              const previewOpen = openPreviewId === row.id;
               return (
-                <tr key={rowId} className="border-b border-[#2c2417]/5 dark:border-[#e8ddd0]/5 last:border-b-0">
-                  <td className="px-3 py-1.5 text-[#8a4a24] dark:text-[#d4955e] font-medium">{row.itemCodePdm}</td>
-                  <td className="px-3 py-1.5">{row.color}</td>
-                  <td className="px-3 py-1.5">{row.rollQty}</td>
-                  <td className="px-3 py-1.5">{row.yds}</td>
-                  <td className="px-3 py-1.5">
-                    <span className={row.status === "approved" ? chipApproved : chipPending}>
-                      {row.status === "approved" ? "Approved" : "Pending"}
-                    </span>
-                  </td>
-                  <td className="px-3 py-1.5">
-                    {!isPending ? (
-                      <span className="inline-flex items-center gap-1"><MapPin size={11} className="text-[#a08060]" />{row.location || "—"}</span>
-                    ) : (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          <select
-                            value={rackChoice[row.id] || RACK_OPTIONS[0]}
-                            onChange={(e) => setRackChoice((p) => ({ ...p, [row.id]: e.target.value }))}
-                            className={`${inputCls} flex-1`}
-                          >
-                            {RACK_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => handleAssign(row.id)}
-                            disabled={assigningId === row.id}
-                            className="inline-flex items-center gap-1 rounded-full bg-[#2c2417] dark:bg-[#e8ddd0] text-[#f0ede6] dark:text-[#1b1712] text-[10px] font-medium px-2.5 py-1 hover:bg-[#b87a4a] dark:hover:bg-[#d4955e] transition-colors disabled:opacity-50 shrink-0"
-                          >
-                            {assigningId === row.id ? "..." : "Assign"}
-                          </button>
+                <Fragment key={rowId}>
+                  <tr className={`border-b border-[#2c2417]/8 dark:border-[#e8ddd0]/8 last:border-b-0 ${idx % 2 === 1 ? "bg-[#2c2417]/[0.02] dark:bg-[#e8ddd0]/[0.02]" : ""}`}>
+                    <td className="px-3 py-2 text-[#8a4a24] dark:text-[#d4955e] font-bold">{row.itemCodePdm}</td>
+                    <td className="px-3 py-2 font-medium">{row.color}</td>
+                    <td className="px-3 py-2">{row.rollQty}</td>
+                    <td className="px-3 py-2">{row.yds}</td>
+                    <td className="px-3 py-2">
+                      <span className={row.status === "approved" ? chipApproved : chipPending}>
+                        {row.status === "approved" ? "Approved" : "Pending"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      {!isPending ? (
+                        <span className="inline-flex items-center gap-1"><MapPin size={11} className="text-[#a08060]" />{row.location || "—"}</span>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => togglePreview(row)}
+                              title="Search existing stock for this Item Code/PDM + Color before assigning"
+                              className={`inline-flex items-center justify-center h-[30px] w-[30px] shrink-0 rounded-md border-[1.5px] transition-colors ${
+                                previewOpen
+                                  ? "border-[#b87a4a] bg-[#b87a4a]/15 text-[#8a4a24] dark:border-[#d4955e] dark:bg-[#d4955e]/15 dark:text-[#d4955e]"
+                                  : "border-[#2c2417]/25 dark:border-[#e8ddd0]/25 text-[#7a6250] dark:text-[#a8917d] hover:border-[#b87a4a] hover:text-[#b87a4a]"
+                              }`}
+                            >
+                              <Search size={13} />
+                            </button>
+                            <select
+                              value={rackChoice[row.id] || RACK_OPTIONS[0]}
+                              onChange={(e) => setRackChoice((p) => ({ ...p, [row.id]: e.target.value }))}
+                              className={`${inputCls} flex-1`}
+                            >
+                              {RACK_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => handleAssign(row.id)}
+                              disabled={assigningId === row.id}
+                              className="inline-flex items-center gap-1 rounded-full bg-[#2c2417] dark:bg-[#e8ddd0] text-[#f0ede6] dark:text-[#1b1712] text-[10px] font-medium px-2.5 py-1.5 hover:bg-[#b87a4a] dark:hover:bg-[#d4955e] transition-colors disabled:opacity-50 shrink-0"
+                            >
+                              {assigningId === row.id ? "..." : "Assign"}
+                            </button>
+                          </div>
+                          {rowError[row.id] && <div className="text-[10px] text-[#a04a3a]">{rowError[row.id]}</div>}
                         </div>
-                        {rowError[row.id] && <div className="text-[10px] text-[#a04a3a]">{rowError[row.id]}</div>}
-                      </div>
-                    )}
-                  </td>
-                </tr>
+                      )}
+                    </td>
+                  </tr>
+                  {isPending && previewOpen && (
+                    <tr className="bg-[#e6e0d4]/40 dark:bg-white/[0.02]">
+                      <td colSpan={6} className="px-3 py-2.5">
+                        {previewLoadingId === row.id ? (
+                          <div className="text-[11px] text-[#a08060] italic">Checking existing stock...</div>
+                        ) : (
+                          <StockPreview preview={previewData[row.id] || []} />
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               );
             })}
           </tbody>
@@ -288,19 +418,23 @@ function ItemsBreakdownTable({ items, onAssigned }) {
 }
 
 /* ============================================================
-   Records panel -- a real HTML table, sits beside the form
+   Records panel -- a real HTML table, sits beside the form.
+   Its scroll area height is driven by the parent sticky wrapper
+   (see main page layout) so it always fills the available
+   viewport height instead of a fixed 70vh.
    ============================================================ */
 
 function RecordsPanel({ search, setSearch, receives, loading, expandedIds, toggleExpanded, onEdit, onDelete, onAssigned }) {
   return (
-    <div className={`${card} flex flex-col overflow-hidden`}>
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
+    <div className={`${card} flex flex-col h-full overflow-hidden`}>
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 shrink-0">
         <PackageSearch size={16} className="text-[#b87a4a]" />
         <h2 className="font-serif text-base text-[#1a1208] dark:text-[#f0e8dc]">Saved Records</h2>
         <span className="text-[11px] text-[#a08060]">({receives.length})</span>
+        <span className="text-[10px] text-[#a08060] ml-auto">Newest first</span>
       </div>
 
-      <div className="px-4 py-2.5 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
+      <div className="px-4 py-2.5 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 shrink-0">
         <div className="relative">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#a08060]" />
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
@@ -308,14 +442,14 @@ function RecordsPanel({ search, setSearch, receives, loading, expandedIds, toggl
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto max-h-[70vh]">
+      <div className="flex-1 min-h-0 overflow-auto">
         {loading ? (
           <div className="text-center py-8 text-[#a08060] text-xs">Loading...</div>
         ) : receives.length === 0 ? (
           <div className="text-center py-8 text-[#a08060] text-xs">No material receives found.</div>
         ) : (
           <table className="min-w-full text-[11px] border-collapse">
-            <thead className="sticky top-0 bg-[#e6e0d4]/70 dark:bg-[#221d16] text-[#7a6250] dark:text-[#a8917d] backdrop-blur">
+            <thead className="sticky top-0 bg-[#e6e0d4]/70 dark:bg-[#221d16] text-[#7a6250] dark:text-[#a8917d] backdrop-blur z-10">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold w-6"></th>
                 <th className="px-3 py-2 text-left font-semibold">Date</th>
@@ -336,10 +470,10 @@ function RecordsPanel({ search, setSearch, receives, loading, expandedIds, toggl
                 const isOpen = expandedIds.has(r.id);
                 const isApproved = r.status === "approved";
                 return (
-                  <>
+                  <Fragment key={r.id}>
                     <tr
-                      key={r.id}
                       onClick={() => toggleExpanded(r.id)}
+                      title={r.remark || undefined}
                       className="border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 cursor-pointer hover:bg-[#b87a4a]/5"
                     >
                       <td className="px-3 py-2 text-[#a08060]">
@@ -376,8 +510,8 @@ function RecordsPanel({ search, setSearch, receives, loading, expandedIds, toggl
                         </div>
                       </td>
                     </tr>
-                    {isOpen && <ItemsBreakdownTable key={`${r.id}-breakdown`} items={r.items} onAssigned={onAssigned} />}
-                  </>
+                    {isOpen && <ItemsBreakdownTable invoiceNo={r.invoiceNo} items={r.items} onAssigned={onAssigned} />}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -476,8 +610,8 @@ export default function MaterialReceivePage() {
       const data = await res.json();
       setForm({
         date: data.date?.slice(0, 10) || "", invoiceNo: data.invoiceNo || "", fromType: data.fromType || "Overseas",
-        warehouse: data.warehouse || "K2", buyer: data.buyer || "", season: data.season || "", po: data.po || "",
-        item: data.item || "", buy: data.buy || "",
+        warehouse: data.warehouse || "K-2", buyer: data.buyer || "", season: data.season || "", po: data.po || "",
+        item: data.item || "", buy: data.buy || "", remark: data.remark || "",
       });
 
       setStyleRows(
@@ -509,6 +643,10 @@ export default function MaterialReceivePage() {
     } catch (err) { setError(err.message); }
   };
 
+  // Keep the current buyer visible in the dropdown even if it's not one of
+  // the standard BUYERS (e.g. an older record saved before this list existed).
+  const buyerOptions = form.buyer && !BUYERS.includes(form.buyer) ? [form.buyer, ...BUYERS] : BUYERS;
+
   return (
     <div className="min-h-screen bg-[#f0ede6] dark:bg-[#1b1712]">
       <div className="max-w-[1400px] mx-auto px-4 py-6 space-y-5">
@@ -535,76 +673,110 @@ export default function MaterialReceivePage() {
         {error && <div className="rounded-lg bg-[#b87a4a]/10 border border-[#b87a4a]/25 text-[#8a4a24] dark:text-[#e0a878] text-xs px-3 py-2"><b>Error:</b> {error}</div>}
         {success && <div className="rounded-lg bg-[#5ca068]/10 border border-[#5ca068]/25 text-[#3d7a4a] dark:text-[#8fca9c] text-xs px-3 py-2">{success}</div>}
 
-        {/* FORM (slides in from the left when opened) + RECORDS TABLE */}
+        {/*
+          FORM + RECORDS TABLE, side by side, each with its OWN
+          independent scroll region:
+
+          - Outer wrapper (per column) is `sticky` at `top-6` and capped
+            to the viewport height with `max-h-[calc(100vh-3rem)]`.
+          - Inner content scrolls with `overflow-y-auto`.
+
+          Because each column's scroll container is separate and capped
+          to the viewport (not to each other's height), scrolling the
+          form never moves the table and scrolling the table never
+          moves the form.
+        */}
         <div className="flex items-start gap-4">
+          {/* FORM COLUMN */}
           <div
-            className={`shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
+            className={`shrink-0 transition-all duration-300 ease-in-out ${
               formOpen ? "w-[340px] opacity-100 translate-x-0" : "w-0 opacity-0 -translate-x-6 pointer-events-none"
             }`}
           >
-            <form onSubmit={handleSubmit} className={`${card} p-3 space-y-3 w-[340px]`}>
-              <div className="flex items-center justify-between pb-1 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
-                <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">
-                  {editingId ? "Edit Receive" : "Receive Details"}
-                </h2>
-                <button type="button" onClick={() => { setFormOpen(false); if (editingId) resetForm(); }}
-                  className="text-[#a08060] hover:text-[#b87a4a] transition-colors" title="Close">
-                  <X size={14} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-x-2 gap-y-2">
-                <Field text="Date" required><input type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className={inputCls} /></Field>
-                <Field text="Invoice No." required><input type="text" required value={form.invoiceNo} onChange={(e) => setForm({ ...form, invoiceNo: e.target.value })} className={inputCls} /></Field>
-                <Field text="From" required>
-                  <select value={form.fromType} onChange={(e) => setForm({ ...form, fromType: e.target.value })} className={inputCls}>
-                    <option value="Overseas">Overseas</option><option value="Local">Local</option>
-                  </select>
-                </Field>
-                <Field text="Warehouse" required>
-                  <select value={form.warehouse} onChange={(e) => setForm({ ...form, warehouse: e.target.value })} className={inputCls}>
-                    <option value="K2">K2</option><option value="K1">K1</option><option value="K3">K3</option>
-                  </select>
-                </Field>
-                <Field text="Buyer" required><input type="text" required value={form.buyer} onChange={(e) => setForm({ ...form, buyer: e.target.value })} className={inputCls} /></Field>
-                <Field text="Season" required><input type="text" required value={form.season} onChange={(e) => setForm({ ...form, season: e.target.value })} className={inputCls} /></Field>
-                <Field text="PO" required><input type="text" required value={form.po} onChange={(e) => setForm({ ...form, po: e.target.value })} className={inputCls} /></Field>
-                <Field text="Item" required><input type="text" required value={form.item} onChange={(e) => setForm({ ...form, item: e.target.value })} className={inputCls} /></Field>
-                <Field text="Buy" required><input type="text" required value={form.buy} onChange={(e) => setForm({ ...form, buy: e.target.value })} className={inputCls} /></Field>
-
-                <div className="col-span-2">
-                  <Field text="Style + Model" required>
-                    <StyleModelRows rows={styleRows} onAdd={addStyleRow} onRemove={removeStyleRow} onChange={updateStyleRow} />
-                  </Field>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
+            <div className="sticky top-6 w-[340px] max-h-[calc(100vh-3rem)] overflow-y-auto overflow-x-hidden">
+              <form onSubmit={handleSubmit} className={`${card} p-3 space-y-3 w-[340px]`}>
                 <div className="flex items-center justify-between pb-1 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
-                  <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">Item Code / PDM &amp; Colors</h2>
+                  <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">
+                    {editingId ? "Edit Receive" : "Receive Details"}
+                  </h2>
+                  <button type="button" onClick={() => { setFormOpen(false); if (editingId) resetForm(); }}
+                    className="text-[#a08060] hover:text-[#b87a4a] transition-colors" title="Close">
+                    <X size={14} />
+                  </button>
                 </div>
-                <button type="button" onClick={addItemCode} className={`${btnSecondary} w-full justify-center`}><Plus size={13} /> Add Item Code/PDM</button>
-                <div className="space-y-1.5">
-                  {itemCodes.map((ic, i) => (
-                    <ItemCodeCard key={ic.key} itemCode={ic} index={i} canRemove={itemCodes.length > 1}
-                      onNameChange={(v) => updateItemCodeName(ic.key, v)} onRemove={() => removeItemCode(ic.key)}
-                      onAddColor={() => addColor(ic.key)} onRemoveColor={(ck) => removeColor(ic.key, ck)}
-                      onColorChange={(ck, f, v) => updateColor(ic.key, ck, f, v)} />
-                  ))}
-                </div>
-              </div>
 
-              <div className="flex flex-col gap-2 pt-1 border-t border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
-                <button type="submit" disabled={saving} className={`${btnPrimary} w-full justify-center`}>
-                  {saving ? "Saving..." : editingId ? "Update Material Receive" : "Save Material Receive"}
-                </button>
-                {editingId && <button type="button" onClick={() => { resetForm(); setFormOpen(false); }} className={`${btnSecondary} w-full justify-center`}>Cancel Edit</button>}
-              </div>
-            </form>
+                <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+                  <Field text="Date" required><input type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className={inputCls} /></Field>
+                  <Field text="Invoice No." required><input type="text" required value={form.invoiceNo} onChange={(e) => setForm({ ...form, invoiceNo: up(e.target.value) })} className={inputCls} /></Field>
+                  <Field text="From" required>
+                    <select value={form.fromType} onChange={(e) => setForm({ ...form, fromType: e.target.value })} className={inputCls}>
+                      <option value="Overseas">Overseas</option><option value="Local">Local</option>
+                    </select>
+                  </Field>
+                  <Field text="Warehouse" required>
+                    <select value={form.warehouse} onChange={(e) => setForm({ ...form, warehouse: e.target.value })} className={inputCls}>
+                      {WAREHOUSE_OPTIONS.map((w) => <option key={w} value={w}>{w}</option>)}
+                    </select>
+                  </Field>
+                  <div className="col-span-2">
+                    <Field text="Buyer" required>
+                      <select required value={form.buyer} onChange={(e) => setForm({ ...form, buyer: e.target.value })} className={inputCls}>
+                        <option value="" disabled>Select buyer...</option>
+                        {buyerOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </Field>
+                  </div>
+                  <Field text="Season" required><input type="text" required value={form.season} onChange={(e) => setForm({ ...form, season: up(e.target.value) })} className={inputCls} /></Field>
+                  <Field text="PO" required><input type="text" required value={form.po} onChange={(e) => setForm({ ...form, po: up(e.target.value) })} className={inputCls} /></Field>
+                  <Field text="Item" required><input type="text" required value={form.item} onChange={(e) => setForm({ ...form, item: up(e.target.value) })} className={inputCls} /></Field>
+                  <Field text="Buy" required><input type="text" required value={form.buy} onChange={(e) => setForm({ ...form, buy: up(e.target.value) })} className={inputCls} /></Field>
+
+                  <div className="col-span-2">
+                    <Field text="Remark">
+                      <textarea
+                        rows={2}
+                        value={form.remark}
+                        onChange={(e) => setForm({ ...form, remark: up(e.target.value) })}
+                        placeholder="Optional note..."
+                        className={`${inputCls} resize-none`}
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="col-span-2">
+                    <Field text="Style + Model" required>
+                      <StyleModelRows rows={styleRows} onAdd={addStyleRow} onRemove={removeStyleRow} onChange={updateStyleRow} />
+                    </Field>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between pb-1 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
+                    <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">Item Code / PDM &amp; Colors</h2>
+                  </div>
+                  <button type="button" onClick={addItemCode} className={`${btnSecondary} w-full justify-center`}><Plus size={13} /> Add Item Code/PDM</button>
+                  <div className="space-y-1.5">
+                    {itemCodes.map((ic, i) => (
+                      <ItemCodeCard key={ic.key} itemCode={ic} index={i} canRemove={itemCodes.length > 1}
+                        onNameChange={(v) => updateItemCodeName(ic.key, v)} onRemove={() => removeItemCode(ic.key)}
+                        onAddColor={() => addColor(ic.key)} onRemoveColor={(ck) => removeColor(ic.key, ck)}
+                        onColorChange={(ck, f, v) => updateColor(ic.key, ck, f, v)} />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 pt-1 border-t border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
+                  <button type="submit" disabled={saving} className={`${btnPrimary} w-full justify-center`}>
+                    {saving ? "Saving..." : editingId ? "Update Material Receive" : "Save Material Receive"}
+                  </button>
+                  {editingId && <button type="button" onClick={() => { resetForm(); setFormOpen(false); }} className={`${btnSecondary} w-full justify-center`}>Cancel Edit</button>}
+                </div>
+              </form>
+            </div>
           </div>
 
-          {/* RECORDS -- real table, sits beside the form (or takes full width when form is closed) */}
-          <div className="flex-1 min-w-0">
+          {/* RECORDS COLUMN -- sticky + viewport-capped, own scroll region */}
+          <div className="flex-1 min-w-0 sticky top-6 max-h-[calc(100vh-3rem)] overflow-hidden">
             <RecordsPanel
               search={search}
               setSearch={setSearch}

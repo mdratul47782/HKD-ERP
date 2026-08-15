@@ -46,20 +46,16 @@ export const users = mysqlTable("users", {
 // Parent table — one row per "Material Receive" form submission
 export const materialReceives = mysqlTable("material_receives", {
   id: serial("id").primaryKey(),
-  // mode "string" keeps the YYYY-MM-DD exactly as entered — no timezone-
-  // shifted Date conversion — which FIFO ordering and date-wise stock views
-  // rely on.
   date: date("date", { mode: "string" }).notNull(),
   invoiceNo: varchar("invoice_no", { length: 100 }).notNull(),
-  fromType: varchar("from_type", { length: 20 }).notNull(), // "Overseas" | "Local"
-  warehouse: varchar("warehouse", { length: 10 }).notNull().default("K2"), // "K2" | "K1" | "K3"
+  fromType: varchar("from_type", { length: 20 }).notNull(),
+  warehouse: varchar("warehouse", { length: 10 }).notNull().default("K-2"), // "K-1" | "K-2" | "K-3"
   buyer: varchar("buyer", { length: 150 }).notNull(),
   season: varchar("season", { length: 100 }).notNull(),
   po: varchar("po", { length: 150 }).notNull(),
   item: varchar("item", { length: 150 }).notNull(),
   buy: varchar("buy", { length: 150 }).notNull(),
-  // Convenience rollup of the child items' status: "pending" until every
-  // item batch below has been location-assigned, then "approved".
+  remark: varchar("remark", { length: 255 }), // optional free text, never required
   status: mysqlEnum("status", ["pending", "approved"]).notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
 });

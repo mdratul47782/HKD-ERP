@@ -6,7 +6,8 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+     "seed:material": "node src/db/seed.material.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

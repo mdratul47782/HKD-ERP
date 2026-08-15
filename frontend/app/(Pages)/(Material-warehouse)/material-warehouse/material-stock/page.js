@@ -2,8 +2,8 @@
 
 "use client";
 
+import { Boxes, ChevronDown, ChevronUp, RotateCcw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Search, Boxes, RotateCcw } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -57,6 +57,151 @@ function SummaryStrip({ summary }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Filter Bar - Collapsible filters with toggle button
+   ============================================================ */
+
+function FilterBar({ filters, setFilters, loading, onSearch, onReset }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className={`${card} p-3`}>
+      {/* Toggle Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center justify-between w-full text-left"
+      >
+        <div className="flex items-center gap-2">
+          <Search size={16} className="text-[#b87a4a]" />
+          <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">Filters</h2>
+          <span className="text-[10px] text-[#a08060] ml-2">
+            {Object.values(filters).some(v => v && v.trim()) ? "(Active)" : ""}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {Object.values(filters).some(v => v && v.trim()) && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]">
+              {Object.values(filters).filter(v => v && v.trim()).length}
+            </span>
+          )}
+          {isOpen ? (
+            <ChevronUp size={18} className="text-[#a08060]" />
+          ) : (
+            <ChevronDown size={18} className="text-[#a08060]" />
+          )}
+        </div>
+      </button>
+
+      {/* Collapsible Filter Content */}
+      {isOpen && (
+        <form onSubmit={onSearch} className="space-y-3 mt-3 pt-3 border-t border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+            <Field text="Item Code/PDM">
+              <input
+                type="text"
+                value={filters.itemCodePdm}
+                onChange={(e) => setFilters({ ...filters, itemCodePdm: e.target.value })}
+                className={inputCls}
+                placeholder="e.g., FAB-001"
+              />
+            </Field>
+            <Field text="Style">
+              <input
+                type="text"
+                value={filters.style}
+                onChange={(e) => setFilters({ ...filters, style: e.target.value })}
+                className={inputCls}
+                placeholder="Style name"
+              />
+            </Field>
+            <Field text="Model">
+              <input
+                type="text"
+                value={filters.model}
+                onChange={(e) => setFilters({ ...filters, model: e.target.value })}
+                className={inputCls}
+                placeholder="Model"
+              />
+            </Field>
+            <Field text="Color">
+              <input
+                type="text"
+                value={filters.color}
+                onChange={(e) => setFilters({ ...filters, color: e.target.value })}
+                className={inputCls}
+                placeholder="Color"
+              />
+            </Field>
+            <Field text="Season">
+              <input
+                type="text"
+                value={filters.season}
+                onChange={(e) => setFilters({ ...filters, season: e.target.value })}
+                className={inputCls}
+                placeholder="Season"
+              />
+            </Field>
+            <Field text="Buyer">
+              <input
+                type="text"
+                value={filters.buyer}
+                onChange={(e) => setFilters({ ...filters, buyer: e.target.value })}
+                className={inputCls}
+                placeholder="Buyer name"
+              />
+            </Field>
+            <Field text="Invoice No.">
+              <input
+                type="text"
+                value={filters.invoiceNo}
+                onChange={(e) => setFilters({ ...filters, invoiceNo: e.target.value })}
+                className={inputCls}
+                placeholder="INV-001"
+              />
+            </Field>
+            <Field text="Item">
+              <input
+                type="text"
+                value={filters.item}
+                onChange={(e) => setFilters({ ...filters, item: e.target.value })}
+                className={inputCls}
+                placeholder="Item name"
+              />
+            </Field>
+            <Field text="Warehouse">
+              <input
+                type="text"
+                value={filters.warehouse}
+                onChange={(e) => setFilters({ ...filters, warehouse: e.target.value })}
+                className={inputCls}
+                placeholder="WH-01"
+              />
+            </Field>
+            <Field text="Location">
+              <input
+                type="text"
+                value={filters.location}
+                onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+                className={inputCls}
+                placeholder="A1-B2"
+              />
+            </Field>
+          </div>
+
+          <div className="flex gap-2">
+            <button type="submit" disabled={loading} className={`${btnPrimary} px-6`}>
+              {loading ? "Searching..." : "Search"}
+            </button>
+            <button type="button" onClick={onReset} className={`${btnSecondary}`}>
+              <RotateCcw size={12} /> Reset
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }
@@ -179,39 +324,19 @@ export default function MaterialStockPage() {
 
         {error && <div className="rounded-lg bg-[#b87a4a]/10 border border-[#b87a4a]/25 text-[#8a4a24] dark:text-[#e0a878] text-xs px-3 py-2"><b>Error:</b> {error}</div>}
 
-        <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-4 items-start">
-          {/* FILTER FORM */}
-          <form onSubmit={handleSubmit} className={`${card} p-3 space-y-3`}>
-            <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc] pb-1 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
-              Filters
-            </h2>
-            <div className="grid grid-cols-1 gap-2">
-              <Field text="Item Code/PDM"><input type="text" value={filters.itemCodePdm} onChange={(e) => setFilters({ ...filters, itemCodePdm: e.target.value })} className={inputCls} /></Field>
-              <Field text="Style"><input type="text" value={filters.style} onChange={(e) => setFilters({ ...filters, style: e.target.value })} className={inputCls} /></Field>
-              <Field text="Model"><input type="text" value={filters.model} onChange={(e) => setFilters({ ...filters, model: e.target.value })} className={inputCls} /></Field>
-              <Field text="Color"><input type="text" value={filters.color} onChange={(e) => setFilters({ ...filters, color: e.target.value })} className={inputCls} /></Field>
-              <Field text="Season"><input type="text" value={filters.season} onChange={(e) => setFilters({ ...filters, season: e.target.value })} className={inputCls} /></Field>
-              <Field text="Buyer"><input type="text" value={filters.buyer} onChange={(e) => setFilters({ ...filters, buyer: e.target.value })} className={inputCls} /></Field>
-              <Field text="Invoice No."><input type="text" value={filters.invoiceNo} onChange={(e) => setFilters({ ...filters, invoiceNo: e.target.value })} className={inputCls} /></Field>
-              <Field text="Item"><input type="text" value={filters.item} onChange={(e) => setFilters({ ...filters, item: e.target.value })} className={inputCls} /></Field>
-              <Field text="Warehouse"><input type="text" value={filters.warehouse} onChange={(e) => setFilters({ ...filters, warehouse: e.target.value })} className={inputCls} /></Field>
-              <Field text="Location"><input type="text" value={filters.location} onChange={(e) => setFilters({ ...filters, location: e.target.value })} className={inputCls} /></Field>
-            </div>
-            <div className="flex flex-col gap-2 pt-1 border-t border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
-              <button type="submit" disabled={loading} className={`${btnPrimary} w-full justify-center`}>
-                {loading ? "Searching..." : "Search"}
-              </button>
-              <button type="button" onClick={handleReset} className={`${btnSecondary} w-full justify-center`}>
-                <RotateCcw size={12} /> Reset
-              </button>
-            </div>
-          </form>
+        {/* Collapsible Filter Bar */}
+        <FilterBar
+          filters={filters}
+          setFilters={setFilters}
+          loading={loading}
+          onSearch={handleSubmit}
+          onReset={handleReset}
+        />
 
-          {/* RESULTS */}
-          <div className="space-y-4">
-            <SummaryStrip summary={summary} />
-            <ResultsTable rows={rows} loading={loading} searched={searched} />
-          </div>
+        {/* Summary and Results */}
+        <div className="space-y-4">
+          <SummaryStrip summary={summary} />
+          <ResultsTable rows={rows} loading={loading} searched={searched} />
         </div>
       </div>
     </div>
