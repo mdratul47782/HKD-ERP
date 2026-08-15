@@ -26,6 +26,15 @@ const chip = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font
 const chipPending = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#b8933a]/15 text-[#8a6a1a] dark:bg-[#e0c068]/15 dark:text-[#e0c068]";
 const chipApproved = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#5ca068]/15 text-[#3d7a4a] dark:bg-[#8fca9c]/15 dark:text-[#8fca9c]";
 
+// Thin, theme-matching scrollbar (webkit + firefox) instead of the browser's
+// default fat gray one. Applied to every independently-scrolling region so
+// each region's scroll is visually distinct from a page-level scroll.
+const scrollThin =
+  "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent " +
+  "[&::-webkit-scrollbar-thumb]:bg-[#b87a4a]/30 [&::-webkit-scrollbar-thumb]:rounded-full " +
+  "[&::-webkit-scrollbar-thumb:hover]:bg-[#b87a4a]/50 " +
+  "[scrollbar-width:thin] [scrollbar-color:#b87a4a4d_transparent]";
+
 // Dummy rack list used everywhere a Location/Rack needs to be picked.
 const RACK_OPTIONS = Array.from({ length: 10 }, (_, i) => `Rack-${i + 1}`);
 
@@ -286,6 +295,11 @@ function ItemCodeCard({ itemCode, index, canRemove, onNameChange, onRemove, onAd
    "search before assign" toggle that shows where this exact
    Item Code/PDM + Color already sits (Rack + Date-wise) before
    you commit to a rack.
+
+   Rendered as a distinct blue/slate "drawer" panel (not the page's
+   orange/brown palette) with a left accent border + margin + shadow,
+   so it's immediately obvious this whole block is the "Items under
+   Invoice X" expansion and NOT just another striped table row.
    ============================================================ */
 
 function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
@@ -339,97 +353,103 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
 
   return (
     <tr>
-      <td colSpan={12} className="p-0 bg-[#faf8f3] dark:bg-[#1b1712]">
-        {/* Bold, high-contrast header so it's obvious which invoice these rows belong to */}
-        <div className="flex items-center gap-2 px-3 py-2 bg-[#2c2417] dark:bg-[#e8ddd0] border-y-2 border-[#b87a4a] dark:border-[#d4955e]">
-          <PackageSearch size={14} className="text-[#e0c068]" />
-          <span className="text-xs font-bold uppercase tracking-wide text-[#f0ede6] dark:text-[#1b1712]">
-            Items under Invoice {invoiceNo}
-          </span>
-        </div>
-        <table className="min-w-full text-[11px]">
-          <thead>
-            <tr className="text-[#7a6250] dark:text-[#a8917d] border-b-2 border-[#2c2417]/15 dark:border-[#e8ddd0]/15 bg-[#e6e0d4]/50 dark:bg-white/[0.03]">
-              <th className="px-3 py-2 text-left font-semibold w-1/4">Item Code / PDM</th>
-              <th className="px-3 py-2 text-left font-semibold">Color</th>
-              <th className="px-3 py-2 text-left font-semibold">Roll</th>
-              <th className="px-3 py-2 text-left font-semibold">Yds</th>
-              <th className="px-3 py-2 text-left font-semibold">Status</th>
-              <th className="px-3 py-2 text-left font-semibold w-72">Location</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((row, idx) => {
-              const rowId = row.id ?? row.key ?? `${row.itemCodePdm}-${row.color}`;
-              const isPending = row.status !== "approved";
-              const previewOpen = openPreviewId === row.id;
-              return (
-                <Fragment key={rowId}>
-                  <tr className={`border-b border-[#2c2417]/8 dark:border-[#e8ddd0]/8 last:border-b-0 ${idx % 2 === 1 ? "bg-[#2c2417]/[0.02] dark:bg-[#e8ddd0]/[0.02]" : ""}`}>
-                    <td className="px-3 py-2 text-[#8a4a24] dark:text-[#d4955e] font-bold">{row.itemCodePdm}</td>
-                    <td className="px-3 py-2 font-medium">{row.color}</td>
-                    <td className="px-3 py-2">{row.rollQty}</td>
-                    <td className="px-3 py-2">{row.yds}</td>
-                    <td className="px-3 py-2">
-                      <span className={row.status === "approved" ? chipApproved : chipPending}>
-                        {row.status === "approved" ? "Approved" : "Pending"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      {!isPending ? (
-                        <span className="inline-flex items-center gap-1"><MapPin size={11} className="text-[#a08060]" />{row.location || "—"}</span>
-                      ) : (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => togglePreview(row)}
-                              title="Search existing stock for this Item Code/PDM + Color before assigning"
-                              className={`inline-flex items-center justify-center h-[30px] w-[30px] shrink-0 rounded-md border-[1.5px] transition-colors ${
-                                previewOpen
-                                  ? "border-[#b87a4a] bg-[#b87a4a]/15 text-[#8a4a24] dark:border-[#d4955e] dark:bg-[#d4955e]/15 dark:text-[#d4955e]"
-                                  : "border-[#2c2417]/25 dark:border-[#e8ddd0]/25 text-[#7a6250] dark:text-[#a8917d] hover:border-[#b87a4a] hover:text-[#b87a4a]"
-                              }`}
-                            >
-                              <Search size={13} />
-                            </button>
-                            <select
-                              value={rackChoice[row.id] || RACK_OPTIONS[0]}
-                              onChange={(e) => setRackChoice((p) => ({ ...p, [row.id]: e.target.value }))}
-                              className={`${inputCls} flex-1`}
-                            >
-                              {RACK_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() => handleAssign(row.id)}
-                              disabled={assigningId === row.id}
-                              className="inline-flex items-center gap-1 rounded-full bg-[#2c2417] dark:bg-[#e8ddd0] text-[#f0ede6] dark:text-[#1b1712] text-[10px] font-medium px-2.5 py-1.5 hover:bg-[#b87a4a] dark:hover:bg-[#d4955e] transition-colors disabled:opacity-50 shrink-0"
-                            >
-                              {assigningId === row.id ? "..." : "Assign"}
-                            </button>
-                          </div>
-                          {rowError[row.id] && <div className="text-[10px] text-[#a04a3a]">{rowError[row.id]}</div>}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                  {isPending && previewOpen && (
-                    <tr className="bg-[#e6e0d4]/40 dark:bg-white/[0.02]">
-                      <td colSpan={6} className="px-3 py-2.5">
-                        {previewLoadingId === row.id ? (
-                          <div className="text-[11px] text-[#a08060] italic">Checking existing stock...</div>
+      <td colSpan={12} className="p-0">
+        {/* Distinct blue/slate "drawer" wrapper -- deliberately a different
+            color family from the orange/brown page theme, plus margin,
+            rounded corners, left accent border and an inner shadow, so it
+            reads as a nested panel sitting inside the row, not as another
+            plain table row in the Saved Records list. */}
+        <div className="mx-2 my-2 rounded-lg border-l-4 border-[#3d6a8a] dark:border-[#6fa8d0] bg-[#eef3f7] dark:bg-[#182530] shadow-inner overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 bg-[#2c4a63] dark:bg-[#3d6a8a]">
+            <PackageSearch size={14} className="text-[#a8d0e8]" />
+            <span className="text-xs font-bold uppercase tracking-wide text-white">
+              Items under Invoice {invoiceNo}
+            </span>
+          </div>
+          <table className="min-w-full text-[11px]">
+            <thead>
+              <tr className="text-[#4a6578] dark:text-[#8fb0c4] border-b-2 border-[#3d6a8a]/20 dark:border-[#6fa8d0]/20 bg-[#dde8ef]/60 dark:bg-white/[0.03]">
+                <th className="px-3 py-2 text-left font-semibold w-1/4">Item Code / PDM</th>
+                <th className="px-3 py-2 text-left font-semibold">Color</th>
+                <th className="px-3 py-2 text-left font-semibold">Roll</th>
+                <th className="px-3 py-2 text-left font-semibold">Yds</th>
+                <th className="px-3 py-2 text-left font-semibold">Status</th>
+                <th className="px-3 py-2 text-left font-semibold w-72">Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((row, idx) => {
+                const rowId = row.id ?? row.key ?? `${row.itemCodePdm}-${row.color}`;
+                const isPending = row.status !== "approved";
+                const previewOpen = openPreviewId === row.id;
+                return (
+                  <Fragment key={rowId}>
+                    <tr className={`border-b border-[#3d6a8a]/10 dark:border-[#6fa8d0]/10 last:border-b-0 ${idx % 2 === 1 ? "bg-[#3d6a8a]/[0.04] dark:bg-[#6fa8d0]/[0.04]" : ""}`}>
+                      <td className="px-3 py-2 text-[#2c4a63] dark:text-[#8fb0c4] font-bold">{row.itemCodePdm}</td>
+                      <td className="px-3 py-2 font-medium">{row.color}</td>
+                      <td className="px-3 py-2">{row.rollQty}</td>
+                      <td className="px-3 py-2">{row.yds}</td>
+                      <td className="px-3 py-2">
+                        <span className={row.status === "approved" ? chipApproved : chipPending}>
+                          {row.status === "approved" ? "Approved" : "Pending"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        {!isPending ? (
+                          <span className="inline-flex items-center gap-1"><MapPin size={11} className="text-[#a08060]" />{row.location || "—"}</span>
                         ) : (
-                          <StockPreview preview={previewData[row.id] || []} />
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => togglePreview(row)}
+                                title="Search existing stock for this Item Code/PDM + Color before assigning"
+                                className={`inline-flex items-center justify-center h-[30px] w-[30px] shrink-0 rounded-md border-[1.5px] transition-colors ${
+                                  previewOpen
+                                    ? "border-[#3d6a8a] bg-[#3d6a8a]/15 text-[#2c4a63] dark:border-[#6fa8d0] dark:bg-[#6fa8d0]/15 dark:text-[#6fa8d0]"
+                                    : "border-[#2c4a63]/25 dark:border-[#6fa8d0]/25 text-[#4a6578] dark:text-[#8fb0c4] hover:border-[#3d6a8a] hover:text-[#3d6a8a]"
+                                }`}
+                              >
+                                <Search size={13} />
+                              </button>
+                              <select
+                                value={rackChoice[row.id] || RACK_OPTIONS[0]}
+                                onChange={(e) => setRackChoice((p) => ({ ...p, [row.id]: e.target.value }))}
+                                className={`${inputCls} flex-1`}
+                              >
+                                {RACK_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => handleAssign(row.id)}
+                                disabled={assigningId === row.id}
+                                className="inline-flex items-center gap-1 rounded-full bg-[#2c4a63] dark:bg-[#3d6a8a] text-white text-[10px] font-medium px-2.5 py-1.5 hover:bg-[#3d6a8a] dark:hover:bg-[#4a7a9a] transition-colors disabled:opacity-50 shrink-0"
+                              >
+                                {assigningId === row.id ? "..." : "Assign"}
+                              </button>
+                            </div>
+                            {rowError[row.id] && <div className="text-[10px] text-[#a04a3a]">{rowError[row.id]}</div>}
+                          </div>
                         )}
                       </td>
                     </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                    {isPending && previewOpen && (
+                      <tr className="bg-[#3d6a8a]/[0.06] dark:bg-[#6fa8d0]/[0.04]">
+                        <td colSpan={6} className="px-3 py-2.5">
+                          {previewLoadingId === row.id ? (
+                            <div className="text-[11px] text-[#a08060] italic">Checking existing stock...</div>
+                          ) : (
+                            <StockPreview preview={previewData[row.id] || []} />
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </td>
     </tr>
   );
@@ -445,7 +465,7 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
 function RecordFilterRow({ filters, setFilters }) {
   const anyActive = Object.values(filters).some((v) => v && v.trim());
   return (
-    <div className="flex items-end gap-1.5 overflow-x-auto pb-0.5">
+    <div className={`flex items-end gap-1.5 overflow-x-auto pb-0.5 ${scrollThin}`}>
       {RECORD_FILTER_FIELDS.map((f, i) => (
         <label key={f.key} className="shrink-0 w-[132px]">
           <span className="block mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#a08060] whitespace-nowrap">
@@ -494,7 +514,7 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
         <RecordFilterRow filters={filters} setFilters={setFilters} />
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className={`flex-1 min-h-0 overflow-auto ${scrollThin}`}>
         {loading ? (
           <div className="text-center py-8 text-[#a08060] text-xs">Loading...</div>
         ) : receives.length === 0 ? (
@@ -741,6 +761,8 @@ export default function MaterialReceivePage() {
           - Outer wrapper (per column) is `sticky` at `top-6` and capped
             to the viewport height with `max-h-[calc(100vh-3rem)]`.
           - Inner content scrolls with `overflow-y-auto`.
+          - Both scroll regions use the shared `scrollThin` thin,
+            theme-colored scrollbar instead of the browser default.
 
           Because each column's scroll container is separate and capped
           to the viewport (not to each other's height), scrolling the
@@ -754,7 +776,7 @@ export default function MaterialReceivePage() {
               formOpen ? "w-[340px] opacity-100 translate-x-0" : "w-0 opacity-0 -translate-x-6 pointer-events-none"
             }`}
           >
-            <div className="sticky top-6 w-[340px] max-h-[calc(100vh-3rem)] overflow-y-auto overflow-x-hidden">
+            <div className={`sticky top-6 w-[340px] max-h-[calc(100vh-3rem)] overflow-y-auto overflow-x-hidden ${scrollThin}`}>
               <form onSubmit={handleSubmit} className={`${card} p-3 space-y-3 w-[340px]`}>
                 <div className="flex items-center justify-between pb-1 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
                   <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">
