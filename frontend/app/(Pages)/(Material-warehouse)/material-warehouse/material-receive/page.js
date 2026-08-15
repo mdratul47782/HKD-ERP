@@ -2,8 +2,8 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Search, Plus, Pencil, Trash2, PackageSearch, ChevronDown, ChevronUp } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Search, Plus, Pencil, Trash2, PackageSearch, ChevronDown, ChevronUp, X, MapPin } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -23,6 +23,10 @@ const label = "block mb-1 text-[11px] font-medium tracking-wide text-[#7a6250] d
 const chip = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]";
 const chipPending = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#b8933a]/15 text-[#8a6a1a] dark:bg-[#e0c068]/15 dark:text-[#e0c068]";
 const chipApproved = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#5ca068]/15 text-[#3d7a4a] dark:bg-[#8fca9c]/15 dark:text-[#8fca9c]";
+const chipMuted = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#2c2417]/8 text-[#7a6250] dark:bg-[#e8ddd0]/10 dark:text-[#a8917d]";
+
+// Dummy rack list used everywhere a Location/Rack needs to be picked.
+const RACK_OPTIONS = Array.from({ length: 10 }, (_, i) => `Rack-${i + 1}`);
 
 const emptyForm = {
   date: "", invoiceNo: "", fromType: "Overseas", warehouse: "K2",
@@ -71,6 +75,81 @@ function StyleModelRows({ rows, onAdd, onRemove, onChange }) {
 }
 
 /* ============================================================
+   ColorRow -- Color/Roll/Yds inputs, plus a live "already in stock"
+   preview (Rack + Date + Qty) for this exact Item Code/PDM + Color,
+   pulled from Available Stock as the user types.
+   ============================================================ */
+
+function ColorRow({ itemCodePdm, color, canRemove, onRemove, onChange }) {
+  const [preview, setPreview] = useState([]);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const debounceRef = useRef(null);
+
+  useEffect(() => {
+    const code = (itemCodePdm || "").trim();
+    const col = (color.color || "").trim();
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (!code || !col) {
+      setPreview([]);
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      setLoadingPreview(true);
+      try {
+        const params = new URLSearchParams({ itemCodePdm: code, color: col });
+        const res = await fetch(`${API_URL}/material-stock?${params.toString()}`, { credentials: "include" });
+        if (!res.ok) throw new Error("lookup failed");
+        const data = await res.json();
+        setPreview(data.rows || []);
+      } catch {
+        setPreview([]);
+      } finally {
+        setLoadingPreview(false);
+      }
+    }, 400);
+
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemCodePdm, color.color]);
+
+  return (
+    <div className="bg-white dark:bg-[#2a241b] border border-[#2c2417]/8 dark:border-[#e8ddd0]/8 rounded-md p-1.5 space-y-1">
+      <div className="flex items-center gap-1.5">
+        <input type="text" placeholder="Color" value={color.color} onChange={(e) => onChange(color.key, "color", e.target.value)} className={`${inputCls} flex-1`} />
+        {canRemove && (
+          <button type="button" onClick={() => onRemove(color.key)} className="text-[10px] font-medium text-[#b87a4a] hover:underline shrink-0">
+            ×
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <input type="number" placeholder="Roll" value={color.roll} onChange={(e) => onChange(color.key, "roll", e.target.value)} className={inputCls} />
+        <input type="number" placeholder="Yds" value={color.yds} onChange={(e) => onChange(color.key, "yds", e.target.value)} className={inputCls} />
+      </div>
+
+      {loadingPreview && (
+        <div className="text-[10px] text-[#a08060] italic">Checking existing stock...</div>
+      )}
+      {!loadingPreview && preview.length > 0 && (
+        <div className="pt-0.5 space-y-1">
+          <div className="text-[10px] font-medium text-[#7a6250] dark:text-[#a8917d]">Already in stock:</div>
+          <div className="flex flex-wrap gap-1">
+            {preview.map((r) => (
+              <span key={r.itemId} className={chipMuted} title={`Invoice ${r.invoiceNo}`}>
+                {r.location} · {r.date?.slice(0, 10)} · {r.availableRoll} Roll / {r.availableYds} Yds
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
    ItemCodeCard (merged) -- compact row layout
    ============================================================ */
 
@@ -92,20 +171,14 @@ function ItemCodeCard({ itemCode, index, canRemove, onNameChange, onRemove, onAd
 
       <div className="space-y-1.5">
         {itemCode.colors.map((c) => (
-          <div key={c.key} className="bg-white dark:bg-[#2a241b] border border-[#2c2417]/8 dark:border-[#e8ddd0]/8 rounded-md p-1.5 space-y-1">
-            <div className="flex items-center gap-1.5">
-              <input type="text" placeholder="Color" value={c.color} onChange={(e) => onColorChange(c.key, "color", e.target.value)} className={`${inputCls} flex-1`} />
-              {itemCode.colors.length > 1 && (
-                <button type="button" onClick={() => onRemoveColor(c.key)} className="text-[10px] font-medium text-[#b87a4a] hover:underline shrink-0">
-                  ×
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <input type="number" placeholder="Roll" value={c.roll} onChange={(e) => onColorChange(c.key, "roll", e.target.value)} className={inputCls} />
-              <input type="number" placeholder="Yds" value={c.yds} onChange={(e) => onColorChange(c.key, "yds", e.target.value)} className={inputCls} />
-            </div>
-          </div>
+          <ColorRow
+            key={c.key}
+            itemCodePdm={itemCode.itemCodePdm}
+            color={c}
+            canRemove={itemCode.colors.length > 1}
+            onRemove={onRemoveColor}
+            onChange={onColorChange}
+          />
         ))}
       </div>
 
@@ -117,13 +190,38 @@ function ItemCodeCard({ itemCode, index, canRemove, onNameChange, onRemove, onAd
 }
 
 /* ============================================================
-   Item Code / Color breakdown, rendered as a real sub-table
+   Item Code / Color breakdown -- real sub-table, with inline
+   Location/Rack assignment for pending rows right here.
    ============================================================ */
 
-function ItemsBreakdownTable({ items }) {
+function ItemsBreakdownTable({ items, onAssigned }) {
+  const [rackChoice, setRackChoice] = useState({});
+  const [assigningId, setAssigningId] = useState(null);
+  const [rowError, setRowError] = useState({});
+
   if (!items?.length) {
     return <tr><td colSpan={12} className="px-3 py-2 text-[11px] italic text-[#a08060]">No item code / color rows found.</td></tr>;
   }
+
+  const handleAssign = async (itemId) => {
+    const rack = rackChoice[itemId] || RACK_OPTIONS[0];
+    setAssigningId(itemId);
+    setRowError((p) => ({ ...p, [itemId]: "" }));
+    try {
+      const res = await fetch(`${API_URL}/location-assignment/${itemId}`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ location: rack }),
+      });
+      if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to assign location"); }
+      onAssigned?.();
+    } catch (err) {
+      setRowError((p) => ({ ...p, [itemId]: err.message }));
+    } finally {
+      setAssigningId(null);
+    }
+  };
+
   return (
     <tr>
       <td colSpan={12} className="p-0 bg-[#e6e0d4]/30 dark:bg-white/[0.02]">
@@ -135,24 +233,53 @@ function ItemsBreakdownTable({ items }) {
               <th className="px-3 py-1.5 text-left font-medium">Roll</th>
               <th className="px-3 py-1.5 text-left font-medium">Yds</th>
               <th className="px-3 py-1.5 text-left font-medium">Status</th>
-              <th className="px-3 py-1.5 text-left font-medium">Location</th>
+              <th className="px-3 py-1.5 text-left font-medium w-64">Location</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((row) => (
-              <tr key={row.id ?? row.key ?? `${row.itemCodePdm}-${row.color}`} className="border-b border-[#2c2417]/5 dark:border-[#e8ddd0]/5 last:border-b-0">
-                <td className="px-3 py-1.5 text-[#8a4a24] dark:text-[#d4955e] font-medium">{row.itemCodePdm}</td>
-                <td className="px-3 py-1.5">{row.color}</td>
-                <td className="px-3 py-1.5">{row.rollQty}</td>
-                <td className="px-3 py-1.5">{row.yds}</td>
-                <td className="px-3 py-1.5">
-                  <span className={row.status === "approved" ? chipApproved : chipPending}>
-                    {row.status === "approved" ? "Approved" : "Pending"}
-                  </span>
-                </td>
-                <td className="px-3 py-1.5">{row.location || "—"}</td>
-              </tr>
-            ))}
+            {items.map((row) => {
+              const rowId = row.id ?? row.key ?? `${row.itemCodePdm}-${row.color}`;
+              const isPending = row.status !== "approved";
+              return (
+                <tr key={rowId} className="border-b border-[#2c2417]/5 dark:border-[#e8ddd0]/5 last:border-b-0">
+                  <td className="px-3 py-1.5 text-[#8a4a24] dark:text-[#d4955e] font-medium">{row.itemCodePdm}</td>
+                  <td className="px-3 py-1.5">{row.color}</td>
+                  <td className="px-3 py-1.5">{row.rollQty}</td>
+                  <td className="px-3 py-1.5">{row.yds}</td>
+                  <td className="px-3 py-1.5">
+                    <span className={row.status === "approved" ? chipApproved : chipPending}>
+                      {row.status === "approved" ? "Approved" : "Pending"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-1.5">
+                    {!isPending ? (
+                      <span className="inline-flex items-center gap-1"><MapPin size={11} className="text-[#a08060]" />{row.location || "—"}</span>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={rackChoice[row.id] || RACK_OPTIONS[0]}
+                            onChange={(e) => setRackChoice((p) => ({ ...p, [row.id]: e.target.value }))}
+                            className={`${inputCls} flex-1`}
+                          >
+                            {RACK_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleAssign(row.id)}
+                            disabled={assigningId === row.id}
+                            className="inline-flex items-center gap-1 rounded-full bg-[#2c2417] dark:bg-[#e8ddd0] text-[#f0ede6] dark:text-[#1b1712] text-[10px] font-medium px-2.5 py-1 hover:bg-[#b87a4a] dark:hover:bg-[#d4955e] transition-colors disabled:opacity-50 shrink-0"
+                          >
+                            {assigningId === row.id ? "..." : "Assign"}
+                          </button>
+                        </div>
+                        {rowError[row.id] && <div className="text-[10px] text-[#a04a3a]">{rowError[row.id]}</div>}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </td>
@@ -164,7 +291,7 @@ function ItemsBreakdownTable({ items }) {
    Records panel -- a real HTML table, sits beside the form
    ============================================================ */
 
-function RecordsPanel({ search, setSearch, receives, loading, expandedIds, toggleExpanded, onEdit, onDelete }) {
+function RecordsPanel({ search, setSearch, receives, loading, expandedIds, toggleExpanded, onEdit, onDelete, onAssigned }) {
   return (
     <div className={`${card} flex flex-col overflow-hidden`}>
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
@@ -249,7 +376,7 @@ function RecordsPanel({ search, setSearch, receives, loading, expandedIds, toggl
                         </div>
                       </td>
                     </tr>
-                    {isOpen && <ItemsBreakdownTable key={`${r.id}-breakdown`} items={r.items} />}
+                    {isOpen && <ItemsBreakdownTable key={`${r.id}-breakdown`} items={r.items} onAssigned={onAssigned} />}
                   </>
                 );
               })}
@@ -277,6 +404,7 @@ export default function MaterialReceivePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
 
   const fetchReceives = useCallback(async (searchTerm = "") => {
     setLoading(true); setError("");
@@ -331,7 +459,13 @@ export default function MaterialReceivePage() {
       if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to save material receive"); }
       setSuccess(editingId ? "Material receive updated." : "Material receive saved.");
       resetForm(); fetchReceives(search);
+      setFormOpen(false);
     } catch (err) { setError(err.message); } finally { setSaving(false); }
+  };
+
+  const handleNewReceive = () => {
+    resetForm();
+    setFormOpen(true);
   };
 
   const handleEdit = async (id) => {
@@ -360,6 +494,7 @@ export default function MaterialReceivePage() {
       }
       setItemCodes(grouped.length ? grouped : [newItemCode()]);
       setEditingId(id);
+      setFormOpen(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) { setError(err.message); }
   };
@@ -377,30 +512,47 @@ export default function MaterialReceivePage() {
   return (
     <div className="min-h-screen bg-[#f0ede6] dark:bg-[#1b1712]">
       <div className="max-w-[1400px] mx-auto px-4 py-6 space-y-5">
-        <div className="flex items-center gap-2">
-          <PackageSearch size={22} className="text-[#b87a4a]" />
-          <div>
-            <h1 className="font-serif text-2xl text-[#1a1208] dark:text-[#f0e8dc]">
-              Material <em className="italic text-[#b87a4a] dark:text-[#d4955e]">Receive</em>
-            </h1>
-            <p className="text-xs text-[#7a6250] dark:text-[#a8917d]">
-              Record incoming fabric/material invoices, grouped by Item Code/PDM and Color. Location/Rack is assigned
-              later on the Location Assignment page.
-            </p>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <PackageSearch size={22} className="text-[#b87a4a]" />
+            <div>
+              <h1 className="font-serif text-2xl text-[#1a1208] dark:text-[#f0e8dc]">
+                Material <em className="italic text-[#b87a4a] dark:text-[#d4955e]">Receive</em>
+              </h1>
+              <p className="text-xs text-[#7a6250] dark:text-[#a8917d]">
+                Record incoming fabric/material invoices, grouped by Item Code/PDM and Color. Expand a Saved Record
+                below to assign its Location/Rack.
+              </p>
+            </div>
           </div>
+          {!formOpen && (
+            <button type="button" onClick={handleNewReceive} className={btnPrimary}>
+              <Plus size={13} /> New Material Receive
+            </button>
+          )}
         </div>
 
         {error && <div className="rounded-lg bg-[#b87a4a]/10 border border-[#b87a4a]/25 text-[#8a4a24] dark:text-[#e0a878] text-xs px-3 py-2"><b>Error:</b> {error}</div>}
         {success && <div className="rounded-lg bg-[#5ca068]/10 border border-[#5ca068]/25 text-[#3d7a4a] dark:text-[#8fca9c] text-xs px-3 py-2">{success}</div>}
 
-        {/* FORM + RECORDS TABLE side by side */}
-        <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
-          {/* FORM -- narrow, compact, table-like, 2 fields per row */}
-          <form onSubmit={handleSubmit} className={`${card} p-3 space-y-3`}>
-            <div>
-              <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc] mb-2 pb-1 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
-                Receive Details
-              </h2>
+        {/* FORM (slides in from the left when opened) + RECORDS TABLE */}
+        <div className="flex items-start gap-4">
+          <div
+            className={`shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
+              formOpen ? "w-[340px] opacity-100 translate-x-0" : "w-0 opacity-0 -translate-x-6 pointer-events-none"
+            }`}
+          >
+            <form onSubmit={handleSubmit} className={`${card} p-3 space-y-3 w-[340px]`}>
+              <div className="flex items-center justify-between pb-1 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
+                <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">
+                  {editingId ? "Edit Receive" : "Receive Details"}
+                </h2>
+                <button type="button" onClick={() => { setFormOpen(false); if (editingId) resetForm(); }}
+                  className="text-[#a08060] hover:text-[#b87a4a] transition-colors" title="Close">
+                  <X size={14} />
+                </button>
+              </div>
+
               <div className="grid grid-cols-2 gap-x-2 gap-y-2">
                 <Field text="Date" required><input type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className={inputCls} /></Field>
                 <Field text="Invoice No." required><input type="text" required value={form.invoiceNo} onChange={(e) => setForm({ ...form, invoiceNo: e.target.value })} className={inputCls} /></Field>
@@ -426,42 +578,45 @@ export default function MaterialReceivePage() {
                   </Field>
                 </div>
               </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between pb-1 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
-                <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">Item Code / PDM &amp; Colors</h2>
-              </div>
-              <button type="button" onClick={addItemCode} className={`${btnSecondary} w-full justify-center`}><Plus size={13} /> Add Item Code/PDM</button>
               <div className="space-y-1.5">
-                {itemCodes.map((ic, i) => (
-                  <ItemCodeCard key={ic.key} itemCode={ic} index={i} canRemove={itemCodes.length > 1}
-                    onNameChange={(v) => updateItemCodeName(ic.key, v)} onRemove={() => removeItemCode(ic.key)}
-                    onAddColor={() => addColor(ic.key)} onRemoveColor={(ck) => removeColor(ic.key, ck)}
-                    onColorChange={(ck, f, v) => updateColor(ic.key, ck, f, v)} />
-                ))}
+                <div className="flex items-center justify-between pb-1 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
+                  <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">Item Code / PDM &amp; Colors</h2>
+                </div>
+                <button type="button" onClick={addItemCode} className={`${btnSecondary} w-full justify-center`}><Plus size={13} /> Add Item Code/PDM</button>
+                <div className="space-y-1.5">
+                  {itemCodes.map((ic, i) => (
+                    <ItemCodeCard key={ic.key} itemCode={ic} index={i} canRemove={itemCodes.length > 1}
+                      onNameChange={(v) => updateItemCodeName(ic.key, v)} onRemove={() => removeItemCode(ic.key)}
+                      onAddColor={() => addColor(ic.key)} onRemoveColor={(ck) => removeColor(ic.key, ck)}
+                      onColorChange={(ck, f, v) => updateColor(ic.key, ck, f, v)} />
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-col gap-2 pt-1 border-t border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
-              <button type="submit" disabled={saving} className={`${btnPrimary} w-full justify-center`}>
-                {saving ? "Saving..." : editingId ? "Update Material Receive" : "Save Material Receive"}
-              </button>
-              {editingId && <button type="button" onClick={resetForm} className={`${btnSecondary} w-full justify-center`}>Cancel Edit</button>}
-            </div>
-          </form>
+              <div className="flex flex-col gap-2 pt-1 border-t border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
+                <button type="submit" disabled={saving} className={`${btnPrimary} w-full justify-center`}>
+                  {saving ? "Saving..." : editingId ? "Update Material Receive" : "Save Material Receive"}
+                </button>
+                {editingId && <button type="button" onClick={() => { resetForm(); setFormOpen(false); }} className={`${btnSecondary} w-full justify-center`}>Cancel Edit</button>}
+              </div>
+            </form>
+          </div>
 
-          {/* RECORDS -- real table, sits beside the form */}
-          <RecordsPanel
-            search={search}
-            setSearch={setSearch}
-            receives={receives}
-            loading={loading}
-            expandedIds={expandedIds}
-            toggleExpanded={toggleExpanded}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
+          {/* RECORDS -- real table, sits beside the form (or takes full width when form is closed) */}
+          <div className="flex-1 min-w-0">
+            <RecordsPanel
+              search={search}
+              setSearch={setSearch}
+              receives={receives}
+              loading={loading}
+              expandedIds={expandedIds}
+              toggleExpanded={toggleExpanded}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onAssigned={() => fetchReceives(search)}
+            />
+          </div>
         </div>
       </div>
     </div>

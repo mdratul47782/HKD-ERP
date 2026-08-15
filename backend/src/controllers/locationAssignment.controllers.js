@@ -1,9 +1,9 @@
 // backend/src/controllers/locationAssignment.controllers.js
 
 import { db, schema } from "../db/db.js";
-import { eq, asc, inArray } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 
-const { materialReceives, materialReceiveItems, materialReceiveStyles, stockHistory } = schema;
+const { materialReceives, materialReceiveItems, stockHistory } = schema;
 
 /**
  * GET /location-assignment
@@ -32,35 +32,19 @@ export const getPendingAssignments = async (req, res) => {
         po: materialReceives.po,
         warehouse: materialReceives.warehouse,
         item: materialReceives.item,
-        buy: materialReceives.buy,
       })
       .from(materialReceiveItems)
       .innerJoin(materialReceives, eq(materialReceiveItems.materialReceiveId, materialReceives.id))
       .where(eq(materialReceiveItems.status, "pending"))
       .orderBy(asc(materialReceives.date));
 
-    // Attach each receive's Style + Model rows so the assignment screen can
-    // show which Style/Model a batch belongs to.
-    const receiveIds = Array.from(new Set(rows.map((r) => r.materialReceiveId)));
-    const styleRows = receiveIds.length
-      ? await db
-          .select()
-          .from(materialReceiveStyles)
-          .where(inArray(materialReceiveStyles.materialReceiveId, receiveIds))
-      : [];
-    const stylesByReceive = styleRows.reduce((acc, s) => {
-      (acc[s.materialReceiveId] ||= []).push(s);
-      return acc;
-    }, {});
-    const withStyles = rows.map((r) => ({ ...r, styles: stylesByReceive[r.materialReceiveId] || [] }));
-
     const filtered = search
-      ? withStyles.filter((r) =>
-          [r.itemCodePdm, r.color, r.invoiceNo, r.buyer, r.po, r.item, r.buy]
+      ? rows.filter((r) =>
+          [r.itemCodePdm, r.color, r.invoiceNo, r.buyer, r.po, r.item]
             .filter(Boolean)
             .some((v) => String(v).toLowerCase().includes(search))
         )
-      : withStyles;
+      : rows;
 
     res.json(filtered);
   } catch (error) {
@@ -81,6 +65,10 @@ export const getPendingAssignments = async (req, res) => {
  *
  * Once every batch under a Receive is approved, the parent Receive's own
  * status flips to "approved" too (for display/list filtering).
+ *
+ * Also writes a "location_assignment" row to stock_history so the ledger
+ * records when/where the batch first became available stock — the same
+ * ledger a future Cutting Issue module will append "issue" rows to.
  */
 export const assignLocation = async (req, res) => {
   try {
@@ -97,22 +85,22 @@ export const assignLocation = async (req, res) => {
       return res.status(400).json({ message: "This batch already has an assigned location" });
     }
 
+    const trimmedLocation = location.trim();
+
     await db.transaction(async (tx) => {
       await tx
         .update(materialReceiveItems)
-        .set({ location: location.trim(), status: "approved", approvedAt: new Date() })
+        .set({ location: trimmedLocation, status: "approved", approvedAt: new Date() })
         .where(eq(materialReceiveItems.id, itemId));
 
-      // Log the location assignment as a Stock History movement so the batch
-      // ledger shows exactly when/where this stock became available.
       await tx.insert(stockHistory).values({
-        batchId: item.id,
+        batchId: Number(itemId),
         materialReceiveId: item.materialReceiveId,
         action: "location_assignment",
-        location: location.trim(),
+        location: trimmedLocation,
         rollQty: item.rollQty,
         yds: item.yds,
-        note: "Location assigned; batch approved and available",
+        note: `Location assigned: ${trimmedLocation}`,
       });
 
       const siblings = await tx

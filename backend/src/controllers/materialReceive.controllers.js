@@ -5,22 +5,6 @@ import { eq, like, or, and, inArray } from "drizzle-orm";
 
 const { materialReceives, materialReceiveStyles, materialReceiveItems, stockHistory } = schema;
 
-/** Inserts one "receive" Stock History row per freshly created item batch. */
-async function logReceiveHistory(tx, materialReceiveId, batches) {
-  if (!batches.length) return;
-  await tx.insert(stockHistory).values(
-    batches.map((b) => ({
-      batchId: b.id,
-      materialReceiveId,
-      action: "receive",
-      location: null,
-      rollQty: b.rollQty,
-      yds: b.yds,
-      note: "Material received — awaiting location assignment",
-    }))
-  );
-}
-
 /** Loads one Material Receive with its Style/Model rows and Item/Color batches. */
 async function getFullReceive(id) {
   const [receive] = await db.select().from(materialReceives).where(eq(materialReceives.id, id));
@@ -123,6 +107,10 @@ export const getMaterialReceiveById = async (req, res) => {
  * NOTE: Location/Rack is intentionally never accepted here. Every item row
  * is created as status "pending" with no location — that only happens on
  * the Location Assignment page. The whole record starts "pending" too.
+ *
+ * Every batch created also gets a "receive" row in stock_history, so the
+ * ledger has a record of it entering the system before any location is
+ * ever assigned (needed for future FIFO / batch auditing in Cutting Issue).
  */
 export const createMaterialReceive = async (req, res) => {
   try {
@@ -138,7 +126,7 @@ export const createMaterialReceive = async (req, res) => {
       return res.status(400).json({ message: "At least one Item Code/PDM + Color row is required" });
     }
 
-    // Transaction: parent + styles + item batches succeed together or not at all.
+    // Transaction: parent + styles + item batches + history succeed together or not at all.
     const newId = await db.transaction(async (tx) => {
       const [inserted] = await tx.insert(materialReceives).values({
         date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy, status: "pending",
@@ -167,13 +155,24 @@ export const createMaterialReceive = async (req, res) => {
       });
       await tx.insert(materialReceiveItems).values(itemRows);
 
-      // Read the inserted batches back inside the transaction so each batch
-      // gets its own "receive" Stock History row with the exact ids.
+      // Read the batches back so we have their real ids for the history ledger.
       const insertedBatches = await tx
         .select()
         .from(materialReceiveItems)
         .where(eq(materialReceiveItems.materialReceiveId, materialReceiveId));
-      await logReceiveHistory(tx, materialReceiveId, insertedBatches);
+
+      if (insertedBatches.length) {
+        const historyRows = insertedBatches.map((batch) => ({
+          batchId: batch.id,
+          materialReceiveId,
+          action: "receive",
+          location: null,
+          rollQty: batch.rollQty,
+          yds: batch.yds,
+          note: `Received via invoice ${invoiceNo}`,
+        }));
+        await tx.insert(stockHistory).values(historyRows);
+      }
 
       return materialReceiveId;
     });
@@ -192,6 +191,11 @@ export const createMaterialReceive = async (req, res) => {
  * has a location assigned (status = "approved" on the parent), the record
  * is locked from editing here; changes at that point belong to stock
  * correction tooling, not the Receive form.
+ *
+ * Any pending batch that gets deleted here has its stock_history rows
+ * cascade-deleted with it (FK ON DELETE CASCADE), and every newly inserted
+ * replacement batch gets its own fresh "receive" history row, so the
+ * ledger always matches what's actually pending right now.
  */
 export const updateMaterialReceive = async (req, res) => {
   try {
@@ -242,14 +246,23 @@ export const updateMaterialReceive = async (req, res) => {
         });
         await tx.insert(materialReceiveItems).values(itemRows);
 
-        // The freshly re-created pending batches get their own "receive"
-        // history rows; the old pending batches (and their history) were
-        // cascade-deleted just above.
         const insertedBatches = await tx
           .select()
           .from(materialReceiveItems)
-          .where(eq(materialReceiveItems.materialReceiveId, Number(id)));
-        await logReceiveHistory(tx, Number(id), insertedBatches);
+          .where(and(eq(materialReceiveItems.materialReceiveId, Number(id)), eq(materialReceiveItems.status, "pending")));
+
+        if (insertedBatches.length) {
+          const historyRows = insertedBatches.map((batch) => ({
+            batchId: batch.id,
+            materialReceiveId: Number(id),
+            action: "receive",
+            location: null,
+            rollQty: batch.rollQty,
+            yds: batch.yds,
+            note: `Updated via invoice ${invoiceNo}`,
+          }));
+          await tx.insert(stockHistory).values(historyRows);
+        }
       }
     });
 

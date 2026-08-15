@@ -16,3 +16,1535 @@ Server running on http://localhost:5000
 ◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
 ◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
 Server running on http://localhost:5000
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.169.11.38:3000
+- Environments: .env
+✓ Ready in 1321ms
+
+○ Compiling /material-warehouse/location-assignment ...
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+
+<--- Last few GCs --->
+
+[32612:000001574AC5B000]     7526 ms: Scavenge 6.9 (8.9) -> 6.1 (8.6) MB, pooled: 0 MB, 2.20 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+[32612:000001574AC5B000]     7547 ms: Scavenge 6.7 (8.6) -> 6.5 (10.9) MB, pooled: 0 MB, 1.69 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+
+
+<--- Last few GCs --->
+
+[30468:000001FFA9381000]    12595 ms: Scavenge 6.9 (9.4) -> 6.0 (9.1) MB, pooled: 0 MB, 2.42 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F1663D9F 
+ 2: 00007FF6F02ADCB7 
+ 3: 00007FF6EFC25B96 
+ 4: 00007FF6EFD7E447 
+ 5: 00007FF6EFD7E491 
+ 6: 00007FF6EFD67160 
+ 7: 00007FF6EFD6878B 
+ 8: 00007FF6EFD6795E 
+ 9: 00007FF6EFD79832 
+10: 00007FF6EFD59305 
+11: 00007FF6EFD61F0B 
+12: 00007FF6EFD6140A 
+13: 00007FF6EFD54B07 
+14: 00007FF6EFD53CD4 
+15: 00007FF6EFD52FC2 
+16: 00007FF6EFD52C6A 
+17: 00007FF6EFD4E299 
+18: 00007FF6F022B6FF 
+19: 00007FF6F022E501 
+20: 00007FF6F02B7173 
+21: 00007FF6F168173F 
+22: 00007FF6F167FC93 
+23: 000001571FDCF64D 
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+ 1: 00007FF6F15AE43D 
+ 2: 00007FF6F0A13956 
+ 3: 00007FF6F02ADC96 
+ 4: 00007FF6F0114E7E 
+ 5: 00007FF6F01484DF 
+ 6: 00007FF6F0148F92 
+ 7: 00007FF6F0149972 
+ 8: 00007FF6EFC448B3 
+ 9: 00007FF6F02D8BA6 
+10: 00007FF6F177512D 
+11: 00007FF6F14CADC5 
+12: 00007FF6F0302D76 
+13: 00007FF6F19ADC73 
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+ 1: 00007FF6F1663D9F 
+ 2: 00007FF6F02ADCB7 
+ 3: 00007FF6EFC25B96 
+ 4: 00007FF6EFCEC003 
+ 5: 00007FF6EFCE7C87 
+ 6: 00007FF6EFCF0ADC 
+ 7: 00007FF6EFCD2D2B 
+ 8: 00007FF6EFCB6150 
+ 9: 00007FF6EFCB5872 
+10: 00007FF6EFCB4169 
+11: 00007FF6EFCB43FC 
+12: 00007FF6EFCB42DB 
+13: 00007FF6EFC8B1D2 
+14: 000001FFE16B75FA 
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+ 1: 00007FF6F15AE43D 
+ 2: 00007FF6F0A13956 
+ 3: 00007FF6F02ADC96 
+ 4: 00007FF6F0114E7E 
+ 5: 00007FF6F01484DF 
+ 6: 00007FF6F0148F92 
+ 7: 00007FF6F0149972 
+ 8: 00007FF6EFC448B3 
+ 9: 00007FF6F02D8BA6 
+10: 00007FF6F177512D 
+11: 00007FF6F14CADC5 
+12: 00007FF6F0302D76 
+13: 00007FF6F19ADC73 
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+
+
+#
+
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+
+#
+----- Native stack trace -----
+
+----- Native stack trace -----
+
+
+#
+
+# Fatal process out of memory: Re-embedded builtins: set permissions
+
+#
+#
+----- Native stack trace -----
+# Fatal process out of memory: Re-embedded builtins: set permissions
+
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+#
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+----- Native stack trace -----
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+12: 00007FF6F0302D76 uv_thread_detach+150
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+ 1: 00007FF6F15AE43D 
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+ 2: 00007FF6F0A13956 
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+ 3: 00007FF6F02ADC96 
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+ 4: 00007FF6F0114E7E 
+ 5: 00007FF6F01484DF 
+ 6: 00007FF6F0148F92 
+ 7: 00007FF6F0149972 
+ 8: 00007FF6EFC448B3 
+ 9: 00007FF6F02D8BA6 
+10: 00007FF6F177512D 
+11: 00007FF6F14CADC5 
+12: 00007FF6F0302D76 
+13: 00007FF6F19ADC73 
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C 
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+<--- Last few GCs --->
+
+
+
+#
+# Fatal JavaScript out of memory: MemoryChunk allocation failed during deserialization.
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F00AE4F7 uv_udp_get_send_queue_count+54423
+ 5: 00007FF6F006033A v8::base::AddressSpaceReservation::AddressSpaceReservation+3178
+ 6: 00007FF6F00603FC v8::base::AddressSpaceReservation::AddressSpaceReservation+3372
+ 7: 00007FF6F0060CEB v8::base::AddressSpaceReservation::AddressSpaceReservation+5659
+ 8: 00007FF6F0037F21 EC_GROUP_get0_field+15969
+ 9: 00007FF6F009DFE3 v8::base::AddressSpaceReservation::AddressSpaceReservation+256275
+10: 00007FF6F009DD4E v8::base::AddressSpaceReservation::AddressSpaceReservation+255614
+11: 00007FF6F009CB38 v8::base::AddressSpaceReservation::AddressSpaceReservation+250984
+12: 00007FF6F009CABA v8::base::AddressSpaceReservation::AddressSpaceReservation+250858
+13: 00007FF6EFC61C83 v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+34515
+14: 00007FF6EFC5FACC v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+25884
+15: 00007FF6EFC65776 v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+49606
+16: 00007FF6EFC607B8 v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+29192
+17: 00007FF6EFC5FCAE v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+26366
+18: 00007FF6EFC65776 v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+49606
+19: 00007FF6EFC607B8 v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+29192
+20: 00007FF6EFC5FCAE v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+26366
+21: 00007FF6EFC65776 v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+49606
+22: 00007FF6EFC607B8 v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+29192
+23: 00007FF6EFC5FCAE v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+26366
+24: 00007FF6EFC65776 v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+49606
+25: 00007FF6EFC607B8 v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+29192
+26: 00007FF6EFC5FCAE v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+26366
+27: 00007FF6EFC65776 v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+49606
+28: 00007FF6EFC607B8 v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+29192
+29: 00007FF6EFC5FCAE v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+26366
+30: 00007FF6EFC65776 v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+49606
+31: 00007FF6EFC607B8 v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+29192
+32: 00007FF6EFC5FCAE v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+26366
+33: 00007FF6EFC66D4E v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+55198
+34: 00007FF6EFC604FD v8_inspector::V8InspectorClient::runMessageLoopOnInstrumentationPause+28493
+35: 00007FF6F00B64B8 uv_udp_get_send_queue_count+87128
+36: 00007FF6EFC3E3E3 v8::internal::Version::GetSONAME+99363
+37: 00007FF6F014957C SSL_CTX_set_default_read_buffer_len+45500
+38: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+39: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+40: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+41: 00007FF6F177512D node::SetIsolateUpForNode+685
+42: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+43: 00007FF6F0302D76 uv_thread_detach+150
+44: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+45: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+46: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+
+#
+
+# Fatal process out of memory: Re-embedded builtins: set permissions
+
+
+
+#
+#
+#
+----- Native stack trace -----
+# Fatal process out of memory: Re-embedded builtins: set permissions
+
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+#
+----- Native stack trace -----
+----- Native stack trace -----
+
+
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+ 1: 00007FF6F15AE43D 
+ 1: 00007FF6F15AE43D 
+ 2: 00007FF6F0A13956 
+ 3: 00007FF6F02ADC96 
+ 4: 00007FF6F0114E7E 
+ 5: 00007FF6F01484DF 
+ 6: 00007FF6F0148F92 
+ 2: 00007FF6F0A13956 
+ 7: 00007FF6F0149972 
+ 3: 00007FF6F02ADC96 
+ 8: 00007FF6EFC448B3 
+ 4: 00007FF6F0114E7E 
+ 9: 00007FF6F02D8BA6 
+ 5: 00007FF6F01484DF 
+10: 00007FF6F177512D 
+ 6: 00007FF6F0148F92 
+11: 00007FF6F14CADC5 
+ 7: 00007FF6F0149972 
+12: 00007FF6F0302D76 
+ 8: 00007FF6EFC448B3 
+13: 00007FF6F19ADC73 
+ 9: 00007FF6F02D8BA6 
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+10: 00007FF6F177512D 
+15: 00007FF8E6BCAD6C 
+11: 00007FF6F14CADC5 
+12: 00007FF6F0302D76 
+13: 00007FF6F19ADC73 
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D 
+ 2: 00007FF6F0A13956 
+ 3: 00007FF6F02ADC96 
+ 4: 00007FF6F0114E7E 
+ 5: 00007FF6F01484DF 
+ 6: 00007FF6F0148F92 
+ 7: 00007FF6F0149972 
+ 8: 00007FF6EFC448B3 
+ 9: 00007FF6F02D8BA6 
+10: 00007FF6F177512D 
+11: 00007FF6F14CADC5 
+12: 00007FF6F0302D76 
+13: 00007FF6F19ADC73 
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+
+
+
+
+#
+#
+#
+----- Native stack trace -----
+# Fatal process out of memory: Re-embedded builtins: set permissions
+# Fatal process out of memory: Re-embedded builtins: set permissions
+
+#
+----- Native stack trace -----
+#
+
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D 
+ 2: 00007FF6F0A13956 
+ 3: 00007FF6F02ADC96 
+ 4: 00007FF6F0114E7E 
+ 5: 00007FF6F01484DF 
+ 6: 00007FF6F0148F92 
+ 7: 00007FF6F0149972 
+ 8: 00007FF6EFC448B3 
+ 9: 00007FF6F02D8BA6 
+10: 00007FF6F177512D 
+11: 00007FF6F14CADC5 
+12: 00007FF6F0302D76 
+13: 00007FF6F19ADC73 
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+ 1: 00007FF6F15AE43D 
+ 2: 00007FF6F0A13956 
+ 3: 00007FF6F02ADC96 
+ 4: 00007FF6F0114E7E 
+ 5: 00007FF6F01484DF 
+ 6: 00007FF6F0148F92 
+ 7: 00007FF6F0149972 
+ 8: 00007FF6EFC448B3 
+ 9: 00007FF6F02D8BA6 
+10: 00007FF6F177512D 
+11: 00007FF6F14CADC5 
+12: 00007FF6F0302D76 
+13: 00007FF6F19ADC73 
+ 1: 00007FF6F15AE43D 
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+ 2: 00007FF6F0A13956 
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+ 3: 00007FF6F02ADC96 
+ 4: 00007FF6F0114E7E 
+ 5: 00007FF6F01484DF 
+ 6: 00007FF6F0148F92 
+ 7: 00007FF6F0149972 
+ 8: 00007FF6EFC448B3 
+ 9: 00007FF6F02D8BA6 
+10: 00007FF6F177512D 
+11: 00007FF6F14CADC5 
+12: 00007FF6F0302D76 
+13: 00007FF6F19ADC73 
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C 
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+Persisting failed: Unable to write SST file 00004670.sst
+
+Caused by:
+    0: Failed to write value block
+    1: Failed to write block data
+    2: Insufficient system resources exist to complete the requested service. (os error 1450)
+Persisting failed: Another write batch or compaction is already active (Only a single write operations is allowed at a time)
+Compaction failed: Another write batch or compaction is already active (Only a single write operations is allowed at a time)
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+12: 00007FF6F0302D76 uv_thread_detach+150
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D 
+ 2: 00007FF6F0A13956 
+ 3: 00007FF6F02ADC96 
+ 4: 00007FF6F0114E7E 
+ 5: 00007FF6F01484DF 
+ 6: 00007FF6F0148F92 
+ 7: 00007FF6F0149972 
+ 8: 00007FF6EFC448B3 
+ 9: 00007FF6F02D8BA6 
+10: 00007FF6F177512D 
+11: 00007FF6F14CADC5 
+12: 00007FF6F0302D76 
+13: 00007FF6F19ADC73 
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D 
+ 2: 00007FF6F0A13956 
+ 3: 00007FF6F02ADC96 
+ 4: 00007FF6F0114E7E 
+ 5: 00007FF6F01484DF 
+ 6: 00007FF6F0148F92 
+ 7: 00007FF6F0149972 
+ 8: 00007FF6EFC448B3 
+ 9: 00007FF6F02D8BA6 
+10: 00007FF6F177512D 
+11: 00007FF6F14CADC5 
+12: 00007FF6F0302D76 
+13: 00007FF6F19ADC73 
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+<--- Last few GCs --->
+
+
+
+#
+# Fatal JavaScript out of memory: MemoryChunk allocation failed during deserialization.
+#
+----- Native stack trace -----
+
+
+<--- Last few GCs --->
+
+
+
+
+ 1: 00007FF6F15AE43D 
+
+<--- Last few GCs --->
+<--- Last few GCs --->
+<--- Last few GCs --->
+<--- Last few GCs --->
+
+ 2: 00007FF6F0A13956 
+
+[40856:0000019843FCD000]     1603 ms: Scavenge 6.2 (7.4) -> 5.6 (10.1) MB, pooled: 0 MB, 75.10 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+[40928:000001A6C7266000]     1782 ms: Scavenge 9.0 (11.5) -> 7.7 (11.5) MB, pooled: 0 MB, 2.67 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+ 3: 00007FF6F02ADC96 
+
+
+[40356:000001E4BB83B000]     1456 ms: Scavenge 9.0 (11.5) -> 7.6 (11.5) MB, pooled: 0 MB, 2.01 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+[40928:000001A6C7266000]     1896 ms: Scavenge 9.7 (12.5) -> 9.1 (17.7) MB, pooled: 0 MB, 2.83 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+[40888:0000023CD2519000]     1971 ms: Scavenge 9.0 (12.0) -> 7.6 (11.7) MB, pooled: 0 MB, 58.02 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+FATAL ERROR: Zone Allocation failed - process out of memory
+ 4: 00007FF6F00AE4F7 
+#
+[40888:0000023CD2519000]     2126 ms: Scavenge 9.8 (13.0) -> 9.1 (17.7) MB, pooled: 0 MB, 3.98 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+[40356:000001E4BB83B000]     1525 ms: Scavenge 9.7 (12.7) -> 9.1 (17.5) MB, pooled: 0 MB, 2.42 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+----- Native stack trace -----
+ 5: 00007FF6F006033A 
+
+# Fatal JavaScript out of memory: MemoryChunk allocation failed during deserialization.
+ 6: 00007FF6F00603FC 
+FATAL ERROR: Zone Allocation failed - process out of memory
+#
+
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+ 7: 00007FF6F0060CEB 
+----- Native stack trace -----
+----- Native stack trace -----
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+ 8: 00007FF6F0037F21 
+----- Native stack trace -----
+
+
+
+ 1: 00007FF6F15AE43D 
+
+ 9: 00007FF6F009DFE3 
+10: 00007FF6F009DD4E 
+ 2: 00007FF6F0A13956 
+11: 00007FF6F009CB38 
+ 3: 00007FF6F02ADC96 
+12: 00007FF6F009CABA 
+ 4: 00007FF6F00AE4F7 
+13: 00007FF6EFC61C83 
+ 5: 00007FF6F006033A 
+14: 00007FF6EFC5FACC 
+ 6: 00007FF6F00603FC 
+15: 00007FF6EFC66D4E 
+ 7: 00007FF6F0060CEB 
+16: 00007FF6EFC604FD 
+ 8: 00007FF6F0037F21 
+17: 00007FF6EFC3D924 
+ 9: 00007FF6F009DFE3 
+18: 00007FF6EFC5B631 
+10: 00007FF6F009DD4E 
+19: 00007FF6EFC49762 
+11: 00007FF6F009CB38 
+20: 00007FF6F0149529 
+12: 00007FF6F009CABA 
+21: 00007FF6F0149972 
+13: 00007FF6F00C6745 
+22: 00007FF6EFC448B3 
+14: 00007FF6EFC61CF8 
+23: 00007FF6F02D8BA6 
+15: 00007FF6EFC5FACC 
+24: 00007FF6F177512D 
+16: 00007FF6EFC66D4E 
+25: 00007FF6F14CADC5 
+17: 00007FF6EFC604FD 
+26: 00007FF6F0302D76 
+18: 00007FF6F00B64B8 
+27: 00007FF6F19ADC73 
+19: 00007FF6EFC3E3E3 
+28: 00007FF8E4FBCCB7 
+20: 00007FF6F014957C 
+29: 00007FF8E6BCAD6C 
+21: 00007FF6F0149972 
+22: 00007FF6EFC448B3 
+23: 00007FF6F02D8BA6 
+24: 00007FF6F177512D 
+25: 00007FF6F14CADC5 
+26: 00007FF6F0302D76 
+27: 00007FF6F19ADC73 
+28: 00007FF8E4FBCCB7 
+29: 00007FF8E6BCAD6C 
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F1663D9F 
+ 1: 00007FF6F1663D9F 
+ 2: 00007FF6F02ADCB7 
+ 3: 00007FF6EFC25B96 
+ 1: 00007FF6F1663D9F node::OnFatalError+1343
+ 2: 00007FF6F02ADCB7 
+ 4: 00007FF6EFAF6BFD 
+ 3: 00007FF6EFC25B96 
+ 5: 00007FF6EFAB4209 
+ 4: 00007FF6F0A40515 
+ 6: 00007FF6EFAB3E02 
+ 2: 00007FF6F02ADCB7 v8::Function::NewInstance+423
+ 3: 00007FF6EFC25B96 v8::SnapshotCreator::GetIsolate+56918
+ 5: 00007FF6F0A40D1B 
+ 7: 00007FF6EFAB1BF1 
+ 4: 00007FF6EFAF6BFD SSL_CTX_get_client_CA_list+704525
+ 6: 00007FF6EFA517A1 
+ 8: 00007FF6EFAAFC03 
+ 5: 00007FF6EFAB4209 SSL_CTX_get_client_CA_list+431641
+ 7: 00007FF6EFAFB633 
+ 9: 00007FF6EFA849BB 
+ 6: 00007FF6EFAB3E02 SSL_CTX_get_client_CA_list+430610
+ 8: 00007FF6EFAF953A 
+ 7: 00007FF6EFAB1BF1 SSL_CTX_get_client_CA_list+421889
+10: 00007FF6EFAFCA26 
+ 9: 00007FF6F022196F 
+11: 00007FF6EFAFB740 
+ 8: 00007FF6EFAAFC03 SSL_CTX_get_client_CA_list+413715
+10: 00007FF6EFAFB01B 
+ 9: 00007FF6EFA849BB SSL_CTX_get_client_CA_list+237003
+12: 00007FF6EFAF953A 
+11: 00007FF6F0A86C6F 
+13: 00007FF6F022196F 
+12: 00007FF6F15A944B 
+10: 00007FF6EFAFCA26 SSL_CTX_get_client_CA_list+728630
+14: 00007FF6EFAFB01B 
+11: 00007FF6EFAFB740 SSL_CTX_get_client_CA_list+723792
+13: 00007FF6F0302D76 
+15: 00007FF6F0A86C6F 
+14: 00007FF6F19ADC73 
+16: 00007FF6F15A944B 
+12: 00007FF6EFAF953A SSL_CTX_get_client_CA_list+715082
+13: 00007FF6F022196F X509_STORE_CTX_set_verify+200623
+15: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+17: 00007FF6F0302D76 
+14: 00007FF6EFAFB01B SSL_CTX_get_client_CA_list+721963
+16: 00007FF8E6BCAD6C RtlUserThreadStart+44
+18: 00007FF6F19ADC73 
+15: 00007FF6F0A86C6F v8::platform::DefaultJobHandle::UpdatePriority+591
+19: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+16: 00007FF6F15A944B node::GetNodeReport+93163
+20: 00007FF8E6BCAD6C RtlUserThreadStart+44
+17: 00007FF6F0302D76 uv_thread_detach+150
+18: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+19: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+20: 00007FF8E6BCAD6C RtlUserThreadStart+44
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+ 1: 00007FF6F1663D9F 
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+ 2: 00007FF6F02ADCB7 
+ 3: 00007FF6EFC25B96 
+ 4: 00007FF6EF819DA1 
+ 5: 00007FF6EFCECACD 
+ 6: 00007FF6EFCD2FD2 
+ 7: 00007FF6EFCD396A 
+ 8: 00007FF6EFCD43F7 
+ 9: 00007FF6EFCDA8A6 
+10: 00007FF6EFCD8342 
+11: 00007FF6EFCDA76B 
+12: 00007FF6EFCD8B30 
+13: 00007FF6EFCDA9F2 
+14: 00007FF6EFCDA9F2 
+15: 00007FF6EFCD8342 
+16: 00007FF6EFCDA76B 
+17: 00007FF6EFCD8B30 
+18: 00007FF6EFCDA9F2 
+19: 00007FF6EFCDA9F2 
+20: 00007FF6EFCD8342 
+21: 00007FF6EFCDA76B 
+22: 00007FF6EFCD8B30 
+23: 00007FF6EFCDA9F2 
+24: 00007FF6EFCDA9F2 
+25: 00007FF6EFCD8342 
+26: 00007FF6EFCDA228 
+27: 00007FF6EFCD8AAF 
+28: 00007FF6EFCDA9F2 
+29: 00007FF6EFCDA228 
+30: 00007FF6EFCD8AAF 
+31: 00007FF6EFCDA9F2 
+32: 00007FF6EFCDA9F2 
+33: 00007FF6EFCDA228 
+34: 00007FF6EFCD8AAF 
+35: 00007FF6EFCD38F4 
+36: 00007FF6EFCDA9F2 
+37: 00007FF6EFCDA9F2 
+38: 00007FF6EFCD6A36 
+39: 00007FF6EFCDA228 
+40: 00007FF6EFCD8AAF 
+41: 00007FF6EFCDA9F2 
+42: 00007FF6EFCDA9F2 
+43: 00007FF6EFCDA228 
+44: 00007FF6EFCD8AAF 
+45: 00007FF6EFCD2C58 
+46: 00007FF6EFCB6150 
+47: 00007FF6EFCB5872 
+48: 00007FF6EFCB4169 
+49: 00007FF6EFCB43FC 
+50: 00007FF6EFCB42DB 
+51: 00007FF6EFC8B1D2 
+52: 000001987C7375FA 
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+
+<--- Last few GCs --->
+
+[41596:00000197493EA000]     1201 ms: Scavenge 9.0 (11.5) -> 7.6 (11.5) MB, pooled: 0 MB, 1.76 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+[41596:00000197493EA000]     1320 ms: Scavenge 9.8 (12.5) -> 9.1 (17.7) MB, pooled: 0 MB, 2.38 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+
+ 1: 00007FF6F1663D9F node::OnFatalError+1343
+ 1: 00007FF6F15AE43D 
+ 2: 00007FF6F02ADCB7 v8::Function::NewInstance+423
+ 3: 00007FF6EFC25B96 v8::SnapshotCreator::GetIsolate+56918
+ 2: 00007FF6F0A13956 
+ 4: 00007FF6EFA4D902 SSL_CTX_get_client_CA_list+11538
+ 3: 00007FF6F02ADC96 
+ 5: 00007FF6EFA4D8C2 SSL_CTX_get_client_CA_list+11474
+ 4: 00007FF6F0114E7E 
+ 6: 00007FF6EFA4D8D4 SSL_CTX_get_client_CA_list+11492
+ 5: 00007FF6F01484DF 
+ 7: 00007FF6EFA4D8C2 SSL_CTX_get_client_CA_list+11474
+ 6: 00007FF6F0148F92 
+ 8: 00007FF6EFA4D8D4 SSL_CTX_get_client_CA_list+11492
+ 7: 00007FF6F0149972 
+ 9: 00007FF6EFA4D7C3 SSL_CTX_get_client_CA_list+11219
+ 8: 00007FF6EFC448B3 
+10: 00007FF6EFA4D70D SSL_CTX_get_client_CA_list+11037
+ 9: 00007FF6F02D8BA6 
+11: 00007FF6EFA47C24 v8::Isolate::GetNumberOfDataSlots+108596
+10: 00007FF6F177512D 
+12: 00007FF6EFA4FCDE SSL_CTX_get_client_CA_list+20718
+11: 00007FF6F14CADC5 
+13: 00007FF6EFA4FA53 SSL_CTX_get_client_CA_list+20067
+12: 00007FF6F0302D76 
+14: 00007FF6EFAB24C4 SSL_CTX_get_client_CA_list+424148
+13: 00007FF6F19ADC73 
+15: 00007FF6EFAB2DC0 SSL_CTX_get_client_CA_list+426448
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+16: 00007FF6EFAB1957 SSL_CTX_get_client_CA_list+421223
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+17: 00007FF6EFAAEE33 SSL_CTX_get_client_CA_list+410179
+18: 00007FF6EFA849BB SSL_CTX_get_client_CA_list+237003
+19: 00007FF6EFAFCA26 SSL_CTX_get_client_CA_list+728630
+20: 00007FF6EFAFB740 SSL_CTX_get_client_CA_list+723792
+21: 00007FF6EFAF953A SSL_CTX_get_client_CA_list+715082
+22: 00007FF6F022196F X509_STORE_CTX_set_verify+200623
+23: 00007FF6EFAFB01B SSL_CTX_get_client_CA_list+721963
+24: 00007FF6F0A86C6F v8::platform::DefaultJobHandle::UpdatePriority+591
+25: 00007FF6F15A944B node::GetNodeReport+93163
+26: 00007FF6F0302D76 uv_thread_detach+150
+27: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+28: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+29: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+
+#
+# Fatal process out of memory: Worklist::Segment::Create
+#
+----- Native stack trace -----
+
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+
+<--- Last few GCs --->
+#
+[1228:000001AAD8329000]     5188 ms: Scavenge 6.2 (7.9) -> 5.6 (10.6) MB, pooled: 0 MB, 2014.26 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+----- Native stack trace -----
+
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+
+
+<--- Last few GCs --->
+
+[39920:00000216BEE1F000]    10508 ms: Scavenge 9.0 (12.0) -> 7.7 (12.0) MB, pooled: 0 MB, 1013.85 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+[39920:00000216BEE1F000]    13629 ms: Scavenge 9.8 (13.0) -> 9.1 (17.7) MB, pooled: 0 MB, 2023.40 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+
+
+
+#
+# Fatal process out of memory: Worklist::Segment::Create
+#
+----- Native stack trace -----
+
+
+<--- Last few GCs --->
+
+[6476:0000022026E80000]     9451 ms: Scavenge 6.6 (8.9) -> 6.4 (11.1) MB, pooled: 0 MB, 1.70 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+[6476:0000022026E80000]    12609 ms: Scavenge 10.3 (13.2) -> 9.2 (13.5) MB, pooled: 0 MB, 1001.82 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+[6476:0000022026E80000]    22793 ms: Scavenge 10.7 (13.5) -> 10.0 (18.2) MB, pooled: 0 MB, 8059.32 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D 
+ 2: 00007FF6F0A13956 
+ 3: 00007FF6F002A6F6 
+ 4: 00007FF6F0027B93 
+ 5: 00007FF6F002AFBF 
+ 6: 00007FF6F0023546 
+ 1: 00007FF6F15AE43D 
+ 7: 00007FF6F001AA1F 
+ 8: 00007FF6F0017DF8 
+ 2: 00007FF6F0A13956 
+ 9: 00007FF6F0017BA0 
+ 3: 00007FF6F02ADC96 
+10: 00007FF6F0A86C6F 
+ 4: 00007FF6F0114E7E 
+11: 00007FF6F15A944B 
+ 5: 00007FF6F01484DF 
+12: 00007FF6F0302D76 
+ 6: 00007FF6F0148F92 
+13: 00007FF6F19ADC73 
+ 7: 00007FF6F0149972 
+14: 00007FF8E4FBCCB7 
+ 8: 00007FF6EFC448B3 
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+ 9: 00007FF6F02D8BA6 
+10: 00007FF6F177512D 
+11: 00007FF6F14CADC5 
+12: 00007FF6F0302D76 
+13: 00007FF6F19ADC73 
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+ 1: 00007FF6F1663D9F node::OnFatalError+1343
+ 2: 00007FF6F02ADCB7 v8::Function::NewInstance+423
+ 3: 00007FF6EFC25B96 v8::SnapshotCreator::GetIsolate+56918
+ 4: 00007FF6EF7AF23E uv_get_constrained_memory+1038
+ 5: 00007FF6EFCEC948 v8::base::CPU::has_bmi2+20664
+ 6: 00007FF6EFCEC755 v8::base::CPU::has_bmi2+20165
+ 7: 00007FF6EFCDA779 v8::base::CPU::family+71193
+ 8: 00007FF6EFCD8B30 v8::base::CPU::family+63952
+ 9: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+10: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+11: 00007FF6EFCD8342 v8::base::CPU::family+61922
+12: 00007FF6EFCDA228 v8::base::CPU::family+69832
+13: 00007FF6EFCD8AAF v8::base::CPU::family+63823
+14: 00007FF6EFCD38F4 v8::base::CPU::family+42900
+15: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+16: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+17: 00007FF6EFCD8342 v8::base::CPU::family+61922
+18: 00007FF6EFCDA228 v8::base::CPU::family+69832
+19: 00007FF6EFCD8AAF v8::base::CPU::family+63823
+20: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+21: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+22: 00007FF6EFCD8342 v8::base::CPU::family+61922
+23: 00007FF6EFCDA228 v8::base::CPU::family+69832
+24: 00007FF6EFCD8AAF v8::base::CPU::family+63823
+25: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+26: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+27: 00007FF6EFCD8342 v8::base::CPU::family+61922
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+28: 00007FF6EFCDA228 v8::base::CPU::family+69832
+ 3: 00007FF6F002A6F6 X509_STORE_get_cleanup+7590
+29: 00007FF6EFCD8AAF v8::base::CPU::family+63823
+ 4: 00007FF6F0027B93 v8::platform::tracing::TraceObject::bind_id+67411
+30: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+ 5: 00007FF6F001DA6F v8::platform::tracing::TraceObject::bind_id+26159
+ 1: 00007FF6F1663D9F node::OnFatalError+1343
+31: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+ 6: 00007FF6F0017DC8 v8::platform::tracing::TraceObject::bind_id+2440
+32: 00007FF6EFCD8342 v8::base::CPU::family+61922
+ 7: 00007FF6F0017BA0 v8::platform::tracing::TraceObject::bind_id+1888
+ 2: 00007FF6F02ADCB7 v8::Function::NewInstance+423
+33: 00007FF6EFCDA228 v8::base::CPU::family+69832
+ 8: 00007FF6F0A8641D v8::platform::DefaultJobState::Join+605
+ 3: 00007FF6EFC25B96 v8::SnapshotCreator::GetIsolate+56918
+34: 00007FF6EFCD8AAF v8::base::CPU::family+63823
+ 9: 00007FF6F0A868C2 v8::platform::DefaultJobHandle::Join+18
+ 4: 00007FF6EF819DA1 std::vector<v8::CpuProfileDeoptInfo,std::allocator<v8::CpuProfileDeoptInfo> >::_Tidy+44289
+35: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+10: 00007FF6F001F49E v8::platform::tracing::TraceObject::bind_id+32862
+ 5: 00007FF6EFFBE1E5 v8::Promise::MarkAsSilent+699973
+36: 00007FF6EFCDA228 v8::base::CPU::family+69832
+11: 00007FF6F00B0F92 uv_udp_get_send_queue_count+65330
+ 6: 00007FF6EFFCC9C7 v8::Promise::MarkAsSilent+759335
+12: 00007FF6F00AFF47 uv_udp_get_send_queue_count+61159
+37: 00007FF6EFCD8AAF v8::base::CPU::family+63823
+ 7: 00007FF6EFFB4A9D v8::Promise::MarkAsSilent+661245
+38: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+13: 00007FF6F00C0E82 v8::internal::StrongRootAllocatorBase::deallocate_impl+15858
+ 8: 00007FF6EFFA1F55 v8::Promise::MarkAsSilent+584629
+39: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+14: 00007FF6F00C09AB v8::internal::StrongRootAllocatorBase::deallocate_impl+14619
+ 9: 00007FF6EFFA01CB v8::Promise::MarkAsSilent+577067
+40: 00007FF6EFCDA228 v8::base::CPU::family+69832
+15: 00007FF6F19924AD node::AsyncResource::CallbackScope::CallbackScope+2184429
+10: 00007FF6EFFA0550 v8::Promise::MarkAsSilent+577968
+41: 00007FF6EFCD8AAF v8::base::CPU::family+63823
+16: 00007FF6F00ABFC0 uv_udp_get_send_queue_count+44896
+11: 00007FF6EFFA213A v8::Promise::MarkAsSilent+585114
+42: 00007FF6EFCD38F4 v8::base::CPU::family+42900
+17: 00007FF6F00C681A X509_STORE_set_cleanup+5098
+ 1: 00007FF6F1663D9F node::OnFatalError+1343
+12: 00007FF6EFF9F76B v8::Promise::MarkAsSilent+574411
+43: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+18: 00007FF6F00D2678 uv_timer_set_repeat+19096
+ 2: 00007FF6F02ADCB7 v8::Function::NewInstance+423
+13: 00007FF6EFF9EBDF v8::Promise::MarkAsSilent+571455
+44: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+19: 00007FF6F00EA06C uv_timer_set_repeat+115852
+ 3: 00007FF6EFC25B96 v8::SnapshotCreator::GetIsolate+56918
+14: 00007FF6EFF9D273 v8::Promise::MarkAsSilent+564947
+45: 00007FF6EFCD6A36 v8::base::CPU::family+55510
+20: 00007FF6F00EA005 uv_timer_set_repeat+115749
+ 4: 00007FF6EFA4D9FB SSL_CTX_get_client_CA_list+11787
+15: 00007FF6EFF94696 v8::Promise::MarkAsSilent+529142
+46: 00007FF6EFCDA228 v8::base::CPU::family+69832
+21: 00007FF6EFDBA99B v8::RegExp::GetFlags+16715
+ 5: 00007FF6EFA4D731 SSL_CTX_get_client_CA_list+11073
+16: 00007FF6F0232A4F RSA_get0_q+66303
+47: 00007FF6EFCD8AAF v8::base::CPU::family+63823
+22: 00007FF6EFDB9C6D v8::RegExp::GetFlags+13341
+ 6: 00007FF6EFA47C24 v8::Isolate::GetNumberOfDataSlots+108596
+17: 00007FF6F0229368 RSA_get0_q+27672
+23: 00007FF6EFDB98D8 v8::RegExp::GetFlags+12424
+ 7: 00007FF6EFA4FCDE SSL_CTX_get_client_CA_list+20718
+48: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+18: 00007FF6F0228B8D RSA_get0_q+25661
+49: 00007FF6EFCDA9F2 v8::base::CPU::family+71826
+24: 00007FF6EFCAD3E7 v8::CodeEvent::GetFunctionName+171607
+ 8: 00007FF6EFA4FA53 SSL_CTX_get_client_CA_list+20067
+19: 00007FF6F022962C RSA_get0_q+28380
+50: 00007FF6EFCDA228 v8::base::CPU::family+69832
+25: 000002472FE775FA 
+ 9: 00007FF6EFAB24C4 SSL_CTX_get_client_CA_list+424148
+20: 00007FF6EFCAA98B v8::CodeEvent::GetFunctionName+160763
+51: 00007FF6EFCD8AAF v8::base::CPU::family+63823
+10: 00007FF6EFAB2DC0 SSL_CTX_get_client_CA_list+426448
+21: 00000216F74775FA 
+52: 00007FF6EFCD2C58 v8::base::CPU::family+39672
+11: 00007FF6EFAB1957 SSL_CTX_get_client_CA_list+421223
+53: 00007FF6EFCB6150 node::StartExecutionCallbackInfoWithModule::process_object+10784
+12: 00007FF6EFAAEE33 SSL_CTX_get_client_CA_list+410179
+54: 00007FF6EFCB5872 node::StartExecutionCallbackInfoWithModule::process_object+8514
+13: 00007FF6EFA849BB SSL_CTX_get_client_CA_list+237003
+55: 00007FF6EFCB4169 node::StartExecutionCallbackInfoWithModule::process_object+2617
+14: 00007FF6EFA84592 SSL_CTX_get_client_CA_list+235938
+56: 00007FF6EFCB43FC node::StartExecutionCallbackInfoWithModule::process_object+3276
+15: 00007FF6EFA8655C SSL_CTX_get_client_CA_list+244076
+57: 00007FF6EFCB42DB node::StartExecutionCallbackInfoWithModule::process_object+2987
+16: 00007FF6EFA859EE SSL_CTX_get_client_CA_list+241150
+58: 00007FF6EFC8B1D2 v8::CodeEvent::GetFunctionName+31810
+17: 00007FF6EFA98F71 SSL_CTX_get_client_CA_list+320385
+59: 000001AA9FE775FA 
+18: 00007FF6EFA6DDB5 SSL_CTX_get_client_CA_list+143813
+19: 00007FF6EFA89502 SSL_CTX_get_client_CA_list+256274
+20: 00007FF6EFA9ABC6 SSL_CTX_get_client_CA_list+327638
+21: 00007FF6EFA9B9C7 SSL_CTX_get_client_CA_list+331223
+22: 00007FF6EFAAFD9A SSL_CTX_get_client_CA_list+414122
+23: 00007FF6EFA849BB SSL_CTX_get_client_CA_list+237003
+24: 00007FF6EFAFCA26 SSL_CTX_get_client_CA_list+728630
+25: 00007FF6EFAFB740 SSL_CTX_get_client_CA_list+723792
+26: 00007FF6EFAF953A SSL_CTX_get_client_CA_list+715082
+27: 00007FF6F022196F X509_STORE_CTX_set_verify+200623
+28: 00007FF6EFAFB01B SSL_CTX_get_client_CA_list+721963
+29: 00007FF6F0A86C6F v8::platform::DefaultJobHandle::UpdatePriority+591
+30: 00007FF6F15A944B node::GetNodeReport+93163
+31: 00007FF6F0302D76 uv_thread_detach+150
+32: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+33: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+34: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+<--- Last few GCs --->
+[18180:000002B2EB256000]      628 ms: Scavenge 6.2 (7.4) -> 5.6 (10.1) MB, pooled: 0 MB, 5.08 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+
+
+<--- Last few GCs --->
+
+[18076:000002DFC4798000]      243 ms: Scavenge 9.0 (11.5) -> 7.7 (11.7) MB, pooled: 0 MB, 2.53 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+[18076:000002DFC4798000]      318 ms: Scavenge 9.7 (12.7) -> 9.1 (17.5) MB, pooled: 0 MB, 2.65 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+FATAL ERROR: NewSpace::EnsureCurrentCapacity Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 00007FF6F1663D9F 
+ 2: 00007FF6F02ADCB7 
+ 3: 00007FF6F00AE4F7 
+ 4: 00007FF6F006ED73 
+ 5: 00007FF6F00B08FA 
+ 6: 00007FF6F00AFF26 
+ 7: 00007FF6F00C0E82 
+ 8: 00007FF6F00C09AB 
+ 9: 00007FF6F19924AD 
+10: 00007FF6F00ABFC0 
+11: 00007FF6F00D26C1 
+12: 00007FF6F00ED884 
+13: 00007FF6F00ED75C 
+14: 00007FF6F00D4859 
+15: 00007FF6F00D49C2 
+16: 00007FF6F02ADAB2 
+17: 00007FF6F163FFE8 
+18: 000002DFFCE4F64D 
+ 1: 00007FF6F1663D9F 
+ 2: 00007FF6F02ADCB7 
+ 3: 00007FF6EFC25B96 
+ 4: 00007FF6EF819DA1 
+ 5: 00007FF6EFCECACD 
+ 6: 00007FF6EFCD2FD2 
+ 7: 00007FF6EFCD396A 
+ 8: 00007FF6EFCD43F7 
+ 9: 00007FF6EFCDA8A6 
+10: 00007FF6EFCD8342 
+11: 00007FF6EFCDA76B 
+12: 00007FF6EFCD8B30 
+13: 00007FF6EFCDA9F2 
+14: 00007FF6EFCDA9F2 
+15: 00007FF6EFCD8342 
+16: 00007FF6EFCDA76B 
+17: 00007FF6EFCD8B30 
+18: 00007FF6EFCDA9F2 
+19: 00007FF6EFCDA9F2 
+20: 00007FF6EFCD8342 
+21: 00007FF6EFCDA76B 
+22: 00007FF6EFCD8B30 
+23: 00007FF6EFCDA9F2 
+24: 00007FF6EFCDA9F2 
+25: 00007FF6EFCD8342 
+26: 00007FF6EFCDA228 
+27: 00007FF6EFCD8AAF 
+28: 00007FF6EFCDA9F2 
+29: 00007FF6EFCDA228 
+30: 00007FF6EFCD8AAF 
+31: 00007FF6EFCDA9F2 
+32: 00007FF6EFCDA9F2 
+33: 00007FF6EFCDA228 
+34: 00007FF6EFCD8AAF 
+35: 00007FF6EFCD38F4 
+36: 00007FF6EFCDA9F2 
+37: 00007FF6EFCDA9F2 
+38: 00007FF6EFCD6A36 
+39: 00007FF6EFCDA228 
+40: 00007FF6EFCD8AAF 
+41: 00007FF6EFCDA9F2 
+42: 00007FF6EFCDA9F2 
+43: 00007FF6EFCDA228 
+44: 00007FF6EFCD8AAF 
+45: 00007FF6EFCD2C58 
+46: 00007FF6EFCB6150 
+47: 00007FF6EFCB5872 
+48: 00007FF6EFCB4169 
+49: 00007FF6EFCB43FC 
+50: 00007FF6EFCB42DB 
+51: 00007FF6EFC8B1D2 
+52: 000002B2A7E775FA 
+
+<--- Last few GCs --->
+[1928:000001EFB0048000]      160 ms: Scavenge 6.2 (7.6) -> 5.6 (10.4) MB, pooled: 0 MB, 3.60 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+
+ 1: 00007FF6F1663D9F node::OnFatalError+1343
+ 2: 00007FF6F02ADCB7 v8::Function::NewInstance+423
+ 3: 00007FF6EFC25B96 v8::SnapshotCreator::GetIsolate+56918
+ 4: 00007FF6EFD71236 v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+324470
+ 5: 00007FF6EFD6FA96 v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+318422
+ 6: 00007FF6EFD67086 v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+283078
+ 7: 00007FF6EFD6878B v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+288971
+ 8: 00007FF6EFD6795E v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+285342
+ 9: 00007FF6EFD6D324 v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+308324
+10: 00007FF6EFD6B7AE v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+301294
+11: 00007FF6EFD6878B v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+288971
+12: 00007FF6EFD6795E v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+285342
+13: 00007FF6EFD67619 v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+284505
+14: 00007FF6EFD6FDE0 v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+319264
+15: 00007FF6EFD67086 v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+283078
+16: 00007FF6EFD6878B v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+288971
+17: 00007FF6EFD6795E v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+285342
+18: 00007FF6EFD79832 v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+358770
+19: 00007FF6EFD59305 v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+226373
+20: 00007FF6EFD61F0B v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+262219
+21: 00007FF6EFD6140A v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+259402
+22: 00007FF6EFD54B07 v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+207943
+23: 00007FF6EFD53CD4 v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+204308
+24: 00007FF6EFD52FC2 v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+200962
+25: 00007FF6EFD52C6A v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+200106
+26: 00007FF6EFD4E299 v8::ResourceConstraints::set_initial_old_generation_size_in_bytes+181209
+27: 00007FF6F022B6FF RSA_get0_q+36783
+28: 00007FF6F022E501 RSA_get0_q+48561
+29: 00007FF6F02B7173 v8::ScriptCompiler::CompileFunction+1011
+30: 00007FF6F168173F node::GetCurrentEnvironment+22351
+31: 00007FF6F167FC93 node::GetCurrentEnvironment+15523
+32: 000001EFE868F64D 
+
+<--- Last few GCs --->
+
+[33208:0000017597E9A000]    13462 ms: Scavenge (interleaved) 6.8 (8.9) -> 6.6 (11.6) MB, pooled: 0 MB, 2.39 / 0.00 ms  (average mu = 0.673, current mu = 0.673) allocation failure; 
+[33208:0000017597E9A000]    13711 ms: Scavenge (interleaved) 10.4 (13.2) -> 9.4 (14.0) MB, pooled: 0 MB, 2.58 / 0.00 ms  (average mu = 0.673, current mu = 0.673) allocation failure; 
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+
+ 1: 00007FF6F1663D9F 
+ 2: 00007FF6F02ADCB7 
+ 3: 00007FF6EFC25B96 
+ 4: 00007FF6F0A36A36 
+ 5: 00007FF6F0A40D1B 
+ 6: 00007FF6EFA517A1 
+ 7: 00007FF6EFAFB633 
+ 8: 00007FF6EFAF953A 
+ 9: 00007FF6F022196F 
+10: 00007FF6EFAFB01B 
+11: 00007FF6F0A86C6F 
+12: 00007FF6F15A944B 
+13: 00007FF6F0302D76 
+14: 00007FF6F19ADC73 
+15: 00007FF8E4FBCCB7 
+16: 00007FF8E6BCAD6C 
+
+
+#
+# Fatal process out of memory: Re-embedded builtins: set permissions
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D node::MultiIsolatePlatform::DisposeIsolate+8061
+ 2: 00007FF6F0A13956 v8::base::FatalOOM+54
+ 3: 00007FF6F02ADC96 v8::Function::NewInstance+390
+ 4: 00007FF6F0114E7E v8::CppHeap::CollectGarbageInYoungGenerationForTesting+111502
+ 5: 00007FF6F01484DF SSL_CTX_set_default_read_buffer_len+41247
+ 6: 00007FF6F0148F92 SSL_CTX_set_default_read_buffer_len+43986
+ 7: 00007FF6F0149972 SSL_CTX_set_default_read_buffer_len+46514
+ 8: 00007FF6EFC448B3 v8::internal::Version::GetSONAME+125171
+ 9: 00007FF6F02D8BA6 v8::Isolate::Initialize+662
+10: 00007FF6F177512D node::SetIsolateUpForNode+685
+11: 00007FF6F14CADC5 v8::CTypeInfoBuilder<__int64>::Build+292789
+12: 00007FF6F0302D76 uv_thread_detach+150
+13: 00007FF6F19ADC73 node::AsyncResource::CallbackScope::CallbackScope+2297011
+14: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+15: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+<--- Last few GCs --->
+[2160:000001F135338000]      133 ms: Scavenge 6.2 (7.6) -> 5.6 (10.4) MB, pooled: 0 MB, 2.04 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+
+ 1: 00007FF6F1663D9F 
+ 2: 00007FF6F02ADCB7 
+ 3: 00007FF6EFC25B96 
+ 4: 00007FF6EFCEC003 
+ 5: 00007FF6EFCE7C87 
+ 6: 00007FF6EFCF0ADC 
+ 7: 00007FF6EFCD2D2B 
+ 8: 00007FF6EFCB6150 
+ 9: 00007FF6EFCB5872 
+10: 00007FF6EFCB4169 
+11: 00007FF6EFCB43FC 
+12: 00007FF6EFCB42DB 
+13: 00007FF6EFC8B1D2 
+14: 000001F16D2F75FA 
+
+<--- Last few GCs --->
+
+
+
+#
+# Fatal JavaScript out of memory: MemoryChunk allocation failed during deserialization.
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F15AE43D 
+ 2: 00007FF6F0A13956 
+ 3: 00007FF6F02ADC96 
+ 4: 00007FF6F00AE4F7 
+ 5: 00007FF6F006033A 
+ 6: 00007FF6F00603FC 
+ 7: 00007FF6F0060CEB 
+ 8: 00007FF6F0037F21 
+ 9: 00007FF6F009DFE3 
+10: 00007FF6F009DD4E 
+11: 00007FF6F009CB38 
+12: 00007FF6F009CABA 
+13: 00007FF6F00C6745 
+14: 00007FF6EFC61CF8 
+15: 00007FF6EFC5FACC 
+16: 00007FF6EFC65776 
+17: 00007FF6EFC607B8 
+18: 00007FF6EFC5FCAE 
+19: 00007FF6EFC65776 
+20: 00007FF6EFC607B8 
+21: 00007FF6EFC5FCAE 
+22: 00007FF6EFC65776 
+23: 00007FF6EFC607B8 
+24: 00007FF6EFC5FCAE 
+25: 00007FF6EFC65776 
+26: 00007FF6EFC607B8 
+27: 00007FF6EFC5FCAE 
+28: 00007FF6EFC66D4E 
+29: 00007FF6EFC604FD 
+30: 00007FF6F00B64B8 
+31: 00007FF6EFC3E3E3 
+32: 00007FF6F014957C 
+33: 00007FF6F0149972 
+34: 00007FF6EFC448B3 
+35: 00007FF6F02D8BA6 
+36: 00007FF6F177512D 
+37: 00007FF6F14CADC5 
+38: 00007FF6F0302D76 
+39: 00007FF6F19ADC73 
+40: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+41: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+<--- Last few GCs --->
+
+[43004:0000027342767000]     9706 ms: Scavenge 6.9 (8.9) -> 6.1 (8.6) MB, pooled: 0 MB, 7.94 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+[43004:0000027342767000]     9798 ms: Scavenge 6.7 (8.6) -> 6.4 (10.9) MB, pooled: 0 MB, 1.85 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+[43004:0000027342767000]    10203 ms: Scavenge 10.3 (13.2) -> 9.3 (13.5) MB, pooled: 0 MB, 2.43 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+
+ 1: 00007FF6F1663D9F 
+ 2: 00007FF6F02ADCB7 
+ 3: 00007FF6EFC25B96 
+ 4: 00007FF6EFA4D748 
+ 5: 00007FF6EFA47C24 
+ 6: 00007FF6EFA4FCDE 
+ 7: 00007FF6EFA4FA53 
+ 8: 00007FF6EFAB24C4 
+ 9: 00007FF6EFAB2DC0 
+10: 00007FF6EFAB1CBB 
+11: 00007FF6EFAAEFD7 
+12: 00007FF6EFA849BB 
+13: 00007FF6EFAFCA26 
+14: 00007FF6EFAFB740 
+15: 00007FF6EFAF953A 
+16: 00007FF6F022196F 
+17: 00007FF6EFAFB01B 
+18: 00007FF6F0A86C6F 
+19: 00007FF6F15A944B 
+20: 00007FF6F0302D76 
+21: 00007FF6F19ADC73 
+22: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+23: 00007FF8E6BCAD6C RtlUserThreadStart+44
+Persisting failed: Another write batch or compaction is already active (Only a single write operations is allowed at a time)
+Compaction failed: Another write batch or compaction is already active (Only a single write operations is allowed at a time)
+
+<--- Last few GCs --->
+
+[43116:000001D338BF0000]    10972 ms: Scavenge 6.9 (9.4) -> 6.1 (8.9) MB, pooled: 0 MB, 7.52 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+[43116:000001D338BF0000]    11044 ms: Scavenge 6.6 (9.1) -> 6.4 (11.4) MB, pooled: 0 MB, 1.66 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+[43116:000001D338BF0000]    21336 ms: Scavenge 10.3 (13.5) -> 9.2 (13.7) MB, pooled: 0 MB, 7062.95 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+
+ 1: 00007FF6F1663D9F 
+ 2: 00007FF6F02ADCB7 
+ 3: 00007FF6EFC25B96 
+ 4: 00007FF6EFA1B1DC 
+ 5: 00007FF6EFA59A5B 
+ 6: 00007FF6EFAA1D24 
+ 7: 00007FF6EFAAFDFA 
+ 8: 00007FF6EFA849BB 
+ 9: 00007FF6EFAFCA26 
+10: 00007FF6EFAFB740 
+11: 00007FF6EFAF953A 
+12: 00007FF6F022196F 
+13: 00007FF6EFAFB01B 
+14: 00007FF6F0A86C6F 
+15: 00007FF6F15A944B 
+16: 00007FF6F0302D76 
+17: 00007FF6F19ADC73 
+18: 00007FF8E4FBCCB7 BaseThreadInitThunk+23
+19: 00007FF8E6BCAD6C RtlUserThreadStart+44
+
+<--- Last few GCs --->
+
+[16556:000002259E9AD000]     1346 ms: Scavenge 9.0 (12.0) -> 7.7 (12.0) MB, pooled: 0 MB, 2.07 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+[16556:000002259E9AD000]     1417 ms: Scavenge 9.7 (12.7) -> 9.1 (17.7) MB, pooled: 0 MB, 18.44 / 0.00 ms  (average mu = 1.000, current mu = 1.000) allocation failure; 
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+
