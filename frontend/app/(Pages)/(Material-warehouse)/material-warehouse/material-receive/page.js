@@ -1,8 +1,10 @@
-// frontend/app/(Pages)/material-warehouse/material-receive/page.js
+// frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-receive/page.js
+
+
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState, Fragment } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
 import { Search, Plus, Pencil, Trash2, PackageSearch, ChevronDown, ChevronUp, X, MapPin } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -46,6 +48,22 @@ const emptyForm = {
 const newColor = () => ({ key: crypto.randomUUID(), color: "", roll: "", yds: "" });
 const newItemCode = () => ({ key: crypto.randomUUID(), itemCodePdm: "", colors: [newColor()] });
 const newStyleRow = () => ({ key: crypto.randomUUID(), style: "", model: "" });
+
+// Separate, clearly-labeled Saved Records search fields -- each one is its
+// own small input so "Style" and "Model" (and everything else) never get
+// confused with one another, but they all sit on a single scrollable row.
+const emptyRecordFilters = {
+  invoiceNo: "", buyer: "", po: "", style: "", model: "", itemCodePdm: "", color: "",
+};
+const RECORD_FILTER_FIELDS = [
+  { key: "invoiceNo", label: "Invoice No." },
+  { key: "buyer", label: "Buyer" },
+  { key: "po", label: "PO" },
+  { key: "style", label: "Style" },
+  { key: "model", label: "Model" },
+  { key: "itemCodePdm", label: "Item Code/PDM" },
+  { key: "color", label: "Color" },
+];
 
 /* ============================================================
    Small helpers
@@ -418,13 +436,51 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
 }
 
 /* ============================================================
-   Records panel -- a real HTML table, sits beside the form.
-   Its scroll area height is driven by the parent sticky wrapper
-   (see main page layout) so it always fills the available
-   viewport height instead of a fixed 70vh.
+   Saved Records search row -- one clearly-labeled input per field
+   (Invoice No., Buyer, PO, Style, Model, Item Code/PDM, Color),
+   all sitting on a single horizontally-scrollable line so nothing
+   gets confused with anything else.
    ============================================================ */
 
-function RecordsPanel({ search, setSearch, receives, loading, expandedIds, toggleExpanded, onEdit, onDelete, onAssigned }) {
+function RecordFilterRow({ filters, setFilters }) {
+  const anyActive = Object.values(filters).some((v) => v && v.trim());
+  return (
+    <div className="flex items-end gap-1.5 overflow-x-auto pb-0.5">
+      {RECORD_FILTER_FIELDS.map((f, i) => (
+        <label key={f.key} className="shrink-0 w-[132px]">
+          <span className="block mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#a08060] whitespace-nowrap">
+            {f.label}
+          </span>
+          <div className="relative">
+            {i === 0 && <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#a08060]" />}
+            <input
+              type="text"
+              value={filters[f.key]}
+              onChange={(e) => setFilters((p) => ({ ...p, [f.key]: e.target.value }))}
+              placeholder={f.label}
+              className={`${inputCls} text-[11px] py-1 ${i === 0 ? "pl-6" : ""}`}
+            />
+          </div>
+        </label>
+      ))}
+      {anyActive && (
+        <button
+          type="button"
+          onClick={() => setFilters(emptyRecordFilters)}
+          className="shrink-0 self-stretch flex items-center text-[10px] font-medium text-[#b87a4a] hover:underline px-1"
+        >
+          Clear
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   Records panel -- a real HTML table, sits beside the form
+   ============================================================ */
+
+function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, toggleExpanded, onEdit, onDelete, onAssigned }) {
   return (
     <div className={`${card} flex flex-col h-full overflow-hidden`}>
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 shrink-0">
@@ -435,11 +491,7 @@ function RecordsPanel({ search, setSearch, receives, loading, expandedIds, toggl
       </div>
 
       <div className="px-4 py-2.5 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 shrink-0">
-        <div className="relative">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#a08060]" />
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search invoice, buyer, PO, style, model, item code, color..." className={`${inputCls} pl-8`} />
-        </div>
+        <RecordFilterRow filters={filters} setFilters={setFilters} />
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto">
@@ -531,7 +583,7 @@ export default function MaterialReceivePage() {
   const [styleRows, setStyleRows] = useState([newStyleRow()]);
   const [itemCodes, setItemCodes] = useState([newItemCode()]);
   const [receives, setReceives] = useState([]);
-  const [search, setSearch] = useState("");
+  const [recordFilters, setRecordFilters] = useState(emptyRecordFilters);
   const [editingId, setEditingId] = useState(null);
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [loading, setLoading] = useState(false);
@@ -539,6 +591,15 @@ export default function MaterialReceivePage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+
+  // The backend's /material-receive?search= endpoint takes one fuzzy string
+  // that matches across invoice/buyer/PO/style/model/item-code/color. The UI
+  // now has one clearly-labeled input per field, so we just join whatever
+  // the user typed into those separate boxes into that single search string.
+  const combinedSearch = useMemo(
+    () => RECORD_FILTER_FIELDS.map((f) => recordFilters[f.key]).filter((v) => v && v.trim()).join(" "),
+    [recordFilters]
+  );
 
   const fetchReceives = useCallback(async (searchTerm = "") => {
     setLoading(true); setError("");
@@ -551,7 +612,7 @@ export default function MaterialReceivePage() {
   }, []);
 
   useEffect(() => { fetchReceives(); }, [fetchReceives]);
-  useEffect(() => { const t = setTimeout(() => fetchReceives(search), 400); return () => clearTimeout(t); }, [search, fetchReceives]);
+  useEffect(() => { const t = setTimeout(() => fetchReceives(combinedSearch), 400); return () => clearTimeout(t); }, [combinedSearch, fetchReceives]);
 
   const resetForm = () => {
     setForm(emptyForm); setStyleRows([newStyleRow()]); setItemCodes([newItemCode()]); setEditingId(null);
@@ -592,7 +653,7 @@ export default function MaterialReceivePage() {
       });
       if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to save material receive"); }
       setSuccess(editingId ? "Material receive updated." : "Material receive saved.");
-      resetForm(); fetchReceives(search);
+      resetForm(); fetchReceives(combinedSearch);
       setFormOpen(false);
     } catch (err) { setError(err.message); } finally { setSaving(false); }
   };
@@ -639,7 +700,7 @@ export default function MaterialReceivePage() {
     try {
       const res = await fetch(`${API_URL}/material-receive/${id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to delete material receive"); }
-      setSuccess("Material receive deleted."); fetchReceives(search);
+      setSuccess("Material receive deleted."); fetchReceives(combinedSearch);
     } catch (err) { setError(err.message); }
   };
 
@@ -778,15 +839,15 @@ export default function MaterialReceivePage() {
           {/* RECORDS COLUMN -- sticky + viewport-capped, own scroll region */}
           <div className="flex-1 min-w-0 sticky top-6 max-h-[calc(100vh-3rem)] overflow-hidden">
             <RecordsPanel
-              search={search}
-              setSearch={setSearch}
+              filters={recordFilters}
+              setFilters={setRecordFilters}
               receives={receives}
               loading={loading}
               expandedIds={expandedIds}
               toggleExpanded={toggleExpanded}
               onEdit={handleEdit}
               onDelete={handleDelete}
-              onAssigned={() => fetchReceives(search)}
+              onAssigned={() => fetchReceives(combinedSearch)}
             />
           </div>
         </div>

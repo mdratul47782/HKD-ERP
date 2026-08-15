@@ -1,8 +1,9 @@
-// frontend/app/(Pages)/material-warehouse/material-stock/page.js
+// frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-stock/page.js
+
 
 "use client";
 
-import { Boxes, ChevronDown, ChevronUp, RotateCcw, Search } from "lucide-react";
+import { Boxes, RotateCcw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -18,7 +19,6 @@ const btnPrimary =
   "inline-flex items-center gap-1.5 rounded-full bg-[#2c2417] dark:bg-[#e8ddd0] text-[#f0ede6] dark:text-[#1b1712] text-xs font-medium px-4 py-2 hover:bg-[#b87a4a] dark:hover:bg-[#d4955e] transition-colors disabled:opacity-50";
 const btnSecondary =
   "inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#2c2417]/25 dark:border-[#e8ddd0]/25 bg-white dark:bg-[#2a241b] text-[#7a6250] dark:text-[#a8917d] text-xs font-medium px-3 py-1.5 hover:border-[#b87a4a] hover:text-[#b87a4a] dark:hover:border-[#d4955e] dark:hover:text-[#d4955e] transition-colors disabled:opacity-40 disabled:pointer-events-none";
-const label = "block mb-1 text-[11px] font-medium tracking-wide text-[#7a6250] dark:text-[#a8917d]";
 const chip = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]";
 
 const emptyFilters = {
@@ -26,32 +26,53 @@ const emptyFilters = {
   buyer: "", invoiceNo: "", item: "", warehouse: "", location: "",
 };
 
-function Field({ text, children }) {
-  return (
-    <label className="block text-xs">
-      <span className={label}>{text}</span>
-      {children}
-    </label>
-  );
-}
+// One clearly-labeled field per filter, all rendered on a single
+// horizontally-scrollable line (no click-to-open/close anymore).
+const STOCK_FILTER_FIELDS = [
+  { key: "itemCodePdm", label: "Item Code/PDM" },
+  { key: "style", label: "Style" },
+  { key: "model", label: "Model" },
+  { key: "color", label: "Color" },
+  { key: "season", label: "Season" },
+  { key: "buyer", label: "Buyer" },
+  { key: "invoiceNo", label: "Invoice No." },
+  { key: "item", label: "Item" },
+  { key: "warehouse", label: "Warehouse" },
+  { key: "location", label: "Location" },
+];
 
 /* ============================================================
-   Summary cards -- Total Available Roll/Yds per Item Code/PDM + Color
+   Summary cards -- Total Available Roll/Yds per Item Code/PDM + Color.
+   Each value is now explicitly labeled ("Item Code/PDM:", "Color:")
+   so it's unambiguous which part of the card is which. Note this
+   card aggregates across ALL invoices for that Item Code/PDM + Color
+   combination (that's the whole point of "Total Available"), so
+   there's no single Invoice No. shown here -- it's a total, not a
+   per-invoice batch. Per-invoice, date-wise batches are in the
+   table below.
    ============================================================ */
 
 function SummaryStrip({ summary }) {
   if (!summary?.length) return null;
   return (
     <div className={`${card} p-3`}>
-      <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc] mb-2">Total Available</h2>
+      <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc] mb-2">
+        Total Available <span className="text-[11px] font-sans font-normal text-[#a08060]">(across all invoices, by Item Code/PDM + Color)</span>
+      </h2>
       <div className="flex flex-wrap gap-2">
         {summary.map((s) => (
           <div
             key={`${s.itemCodePdm}-${s.color}`}
-            className="rounded-lg border border-[#2c2417]/10 dark:border-[#e8ddd0]/10 bg-white dark:bg-[#2a241b] px-3 py-2 min-w-[160px]"
+            className="rounded-lg border border-[#2c2417]/10 dark:border-[#e8ddd0]/10 bg-white dark:bg-[#2a241b] px-3 py-2 min-w-[180px]"
           >
-            <div className="text-[11px] font-medium text-[#8a4a24] dark:text-[#d4955e]">{s.itemCodePdm} · {s.color}</div>
-            <div className="text-xs text-[#2c2417] dark:text-[#e8ddd0] mt-0.5">
+            <div className="text-[11px] leading-relaxed">
+              <span className="text-[#a08060]">Item Code/PDM:</span>{" "}
+              <span className="font-semibold text-[#8a4a24] dark:text-[#d4955e]">{s.itemCodePdm}</span>
+              <br />
+              <span className="text-[#a08060]">Color:</span>{" "}
+              <span className="font-semibold text-[#8a4a24] dark:text-[#d4955e]">{s.color}</span>
+            </div>
+            <div className="text-xs text-[#2c2417] dark:text-[#e8ddd0] mt-1 pt-1 border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8">
               {s.totalAvailableRoll} Roll &middot; {s.totalAvailableYds} Yds
             </div>
           </div>
@@ -62,146 +83,52 @@ function SummaryStrip({ summary }) {
 }
 
 /* ============================================================
-   Filter Bar - Collapsible filters with toggle button
+   Filter Bar -- always visible (no click-to-expand), every field
+   on one scrollable line with its own small label above it.
    ============================================================ */
 
 function FilterBar({ filters, setFilters, loading, onSearch, onReset }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const activeCount = Object.values(filters).filter((v) => v && v.trim()).length;
 
   return (
     <div className={`${card} p-3`}>
-      {/* Toggle Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-between w-full text-left"
-      >
-        <div className="flex items-center gap-2">
-          <Search size={16} className="text-[#b87a4a]" />
-          <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">Filters</h2>
-          <span className="text-[10px] text-[#a08060] ml-2">
-            {Object.values(filters).some(v => v && v.trim()) ? "(Active)" : ""}
+      <div className="flex items-center gap-2 mb-2">
+        <Search size={16} className="text-[#b87a4a]" />
+        <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">Filters</h2>
+        {activeCount > 0 && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]">
+            {activeCount} active
           </span>
-        </div>
-        <div className="flex items-center gap-2">
-          {Object.values(filters).some(v => v && v.trim()) && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]">
-              {Object.values(filters).filter(v => v && v.trim()).length}
-            </span>
-          )}
-          {isOpen ? (
-            <ChevronUp size={18} className="text-[#a08060]" />
-          ) : (
-            <ChevronDown size={18} className="text-[#a08060]" />
-          )}
-        </div>
-      </button>
+        )}
+      </div>
 
-      {/* Collapsible Filter Content */}
-      {isOpen && (
-        <form onSubmit={onSearch} className="space-y-3 mt-3 pt-3 border-t border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
-            <Field text="Item Code/PDM">
+      <form onSubmit={onSearch}>
+        <div className="flex items-end gap-1.5 overflow-x-auto pb-1">
+          {STOCK_FILTER_FIELDS.map((f) => (
+            <label key={f.key} className="shrink-0 w-[132px]">
+              <span className="block mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#a08060] whitespace-nowrap">
+                {f.label}
+              </span>
               <input
                 type="text"
-                value={filters.itemCodePdm}
-                onChange={(e) => setFilters({ ...filters, itemCodePdm: e.target.value })}
-                className={inputCls}
-                placeholder="e.g., FAB-001"
+                value={filters[f.key]}
+                onChange={(e) => setFilters({ ...filters, [f.key]: e.target.value })}
+                placeholder={f.label}
+                className={`${inputCls} text-[11px] py-1`}
               />
-            </Field>
-            <Field text="Style">
-              <input
-                type="text"
-                value={filters.style}
-                onChange={(e) => setFilters({ ...filters, style: e.target.value })}
-                className={inputCls}
-                placeholder="Style name"
-              />
-            </Field>
-            <Field text="Model">
-              <input
-                type="text"
-                value={filters.model}
-                onChange={(e) => setFilters({ ...filters, model: e.target.value })}
-                className={inputCls}
-                placeholder="Model"
-              />
-            </Field>
-            <Field text="Color">
-              <input
-                type="text"
-                value={filters.color}
-                onChange={(e) => setFilters({ ...filters, color: e.target.value })}
-                className={inputCls}
-                placeholder="Color"
-              />
-            </Field>
-            <Field text="Season">
-              <input
-                type="text"
-                value={filters.season}
-                onChange={(e) => setFilters({ ...filters, season: e.target.value })}
-                className={inputCls}
-                placeholder="Season"
-              />
-            </Field>
-            <Field text="Buyer">
-              <input
-                type="text"
-                value={filters.buyer}
-                onChange={(e) => setFilters({ ...filters, buyer: e.target.value })}
-                className={inputCls}
-                placeholder="Buyer name"
-              />
-            </Field>
-            <Field text="Invoice No.">
-              <input
-                type="text"
-                value={filters.invoiceNo}
-                onChange={(e) => setFilters({ ...filters, invoiceNo: e.target.value })}
-                className={inputCls}
-                placeholder="INV-001"
-              />
-            </Field>
-            <Field text="Item">
-              <input
-                type="text"
-                value={filters.item}
-                onChange={(e) => setFilters({ ...filters, item: e.target.value })}
-                className={inputCls}
-                placeholder="Item name"
-              />
-            </Field>
-            <Field text="Warehouse">
-              <input
-                type="text"
-                value={filters.warehouse}
-                onChange={(e) => setFilters({ ...filters, warehouse: e.target.value })}
-                className={inputCls}
-                placeholder="WH-01"
-              />
-            </Field>
-            <Field text="Location">
-              <input
-                type="text"
-                value={filters.location}
-                onChange={(e) => setFilters({ ...filters, location: e.target.value })}
-                className={inputCls}
-                placeholder="A1-B2"
-              />
-            </Field>
-          </div>
+            </label>
+          ))}
 
-          <div className="flex gap-2">
-            <button type="submit" disabled={loading} className={`${btnPrimary} px-6`}>
-              {loading ? "Searching..." : "Search"}
+          <div className="shrink-0 flex gap-1.5 pb-[1px]">
+            <button type="submit" disabled={loading} className={`${btnPrimary} px-4 whitespace-nowrap`}>
+              {loading ? "..." : "Search"}
             </button>
-            <button type="button" onClick={onReset} className={`${btnSecondary}`}>
+            <button type="button" onClick={onReset} className={`${btnSecondary} whitespace-nowrap`}>
               <RotateCcw size={12} /> Reset
             </button>
           </div>
-        </form>
-      )}
+        </div>
+      </form>
     </div>
   );
 }
@@ -311,20 +238,14 @@ export default function MaterialStockPage() {
       <div className="max-w-[1400px] mx-auto px-4 py-6 space-y-5">
         <div className="flex items-center gap-2">
           <Search size={22} className="text-[#b87a4a]" />
-          <div>
-            <h1 className="font-serif text-2xl text-[#1a1208] dark:text-[#f0e8dc]">
-              Material Stock <em className="italic text-[#b87a4a] dark:text-[#d4955e]">Search</em>
-            </h1>
-            <p className="text-xs text-[#7a6250] dark:text-[#a8917d]">
-              Search Available Stock (Location-assigned batches only). Results stay Date-wise and Batch-wise —
-              same Item Code/PDM + Color at the same Location on different Receive Dates never merges into one row.
-            </p>
-          </div>
+          <h1 className="font-serif text-2xl text-[#1a1208] dark:text-[#f0e8dc]">
+            Material Stock <em className="italic text-[#b87a4a] dark:text-[#d4955e]">Search</em>
+          </h1>
         </div>
 
         {error && <div className="rounded-lg bg-[#b87a4a]/10 border border-[#b87a4a]/25 text-[#8a4a24] dark:text-[#e0a878] text-xs px-3 py-2"><b>Error:</b> {error}</div>}
 
-        {/* Collapsible Filter Bar */}
+        {/* Always-visible, single-line filter bar */}
         <FilterBar
           filters={filters}
           setFilters={setFilters}
