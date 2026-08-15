@@ -11,6 +11,9 @@ import {
   text,
   timestamp,
   varchar,
+  date,
+  decimal,
+  foreignKey,
 } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
@@ -27,61 +30,91 @@ export const users = mysqlTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-/* ------------------------------------------------------------------ */
-/* Style Register                                                      */
-/* ------------------------------------------------------------------ */
+// ================= Material Warehouse: Material Receive =================
+//
+// Workflow: Receive (pending, no location) -> Location Assignment (per
+// Item Code/PDM + Color batch, sets location + flips to approved) ->
+// Available Stock / Stock Search (reads only approved batches).
+//
+// A "batch" = one row in material_receive_items. Because it is tied to one
+// parent Receive (one Date/Invoice) + one Item Code/PDM + one Color, two
+// receives of the same Item Code/PDM + Color on different dates naturally
+// stay as separate batches/rows — they are never summed together. This is
+// also what will let a future Cutting Issue module walk batches oldest
+// Date first (FIFO), and optionally target one specific Location + Batch.
 
-export const STYLE_STATUS_VALUES = [
-  "Pending",
-  "Approved",
-  "In Production",
-  "Completed",
-  "Cancelled",
-];
-
-export const styles = mysqlTable("styles", {
+// Parent table — one row per "Material Receive" form submission
+export const materialReceives = mysqlTable("material_receives", {
   id: serial("id").primaryKey(),
-
-  customer_name: varchar("customer_name", { length: 200 }).notNull(),
-  brand: varchar("brand", { length: 150 }),
-  style_name: varchar("style_name", { length: 200 }).notNull(),
-  // NOTE: uniqueness intentionally removed — the same style number can now
-  // be registered multiple times (e.g. re-ordered, duplicated as a new row).
-  // Order-batch tracking (qty + date) still lives on style_releases below.
-  style_number: varchar("style_number", { length: 100 }).notNull(),
-  description: text("description"),
-  model: varchar("model", { length: 100 }),
-  color: varchar("color", { length: 100 }),
-
-  season_year: varchar("season_year", { length: 10 }),
-  season: varchar("season", { length: 20 }),
-  product_type: varchar("product_type", { length: 50 }),
-
-  // main/cover image + full gallery
-  image: text("image"),
-  images: json("images"),
-
-  status: mysqlEnum("status", STYLE_STATUS_VALUES).default("Pending").notNull(),
-  is_active: boolean("is_active").default(true).notNull(),
-
-  created_by: bigint("created_by", { mode: "number", unsigned: true }).references(
-    () => users.id
-  ),
-  // "Date of submit"
-  submitted_at: timestamp("submitted_at").defaultNow().notNull(),
-  // "Update date" — auto-refreshes on every UPDATE
-  updated_at: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  date: date("date").notNull(), // Receive date = batch date, used for FIFO ordering
+  invoiceNo: varchar("invoice_no", { length: 100 }).notNull(),
+  fromType: varchar("from_type", { length: 20 }).notNull(), // "Overseas" | "Local"
+  warehouse: varchar("warehouse", { length: 10 }).notNull().default("K2"), // "K2" | "K1" | "K3"
+  buyer: varchar("buyer", { length: 150 }).notNull(),
+  season: varchar("season", { length: 100 }).notNull(),
+  po: varchar("po", { length: 150 }).notNull(),
+  item: varchar("item", { length: 150 }).notNull(),
+  buy: varchar("buy", { length: 150 }).notNull(),
+  // Convenience rollup of the child items' status: "pending" until every
+  // item batch below has been location-assigned, then "approved".
+  status: mysqlEnum("status", ["pending", "approved"]).notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const style_releases = mysqlTable("style_releases", {
-  id: serial("id").primaryKey(),
-  style_id: bigint("style_id", { mode: "number", unsigned: true })
-    .notNull()
-    .references(() => styles.id, { onDelete: "cascade" }),
-  qty: int("qty").notNull(),
-  // date-time the release was added
-  release_date: timestamp("release_date").defaultNow().notNull(),
-  created_by: bigint("created_by", { mode: "number", unsigned: true }).references(
-    () => users.id
-  ),
-});
+// Child table — one row per Style, each with its own Model.
+// (One Style = one Model; multiple Styles on one Receive each carry their
+// own Model separately.)
+export const materialReceiveStyles = mysqlTable(
+  "material_receive_styles",
+  {
+    id: serial("id").primaryKey(),
+    materialReceiveId: bigint("material_receive_id", {
+      mode: "number",
+      unsigned: true,
+    }).notNull(),
+    style: varchar("style", { length: 100 }).notNull(),
+    model: varchar("model", { length: 150 }),
+  },
+  (table) => ({
+    materialReceiveFk: foreignKey({
+      columns: [table.materialReceiveId],
+      foreignColumns: [materialReceives.id],
+      name: "mrs_material_receive_fk",
+    }).onDelete("cascade"),
+  })
+);
+
+// Child table — one row per Item Code/PDM + Color = one Stock Batch.
+// "Item Code" and "PDM" are the same thing, so there is only itemCodePdm.
+// No Location is set here (Receive never assigns Location/Rack). Location
+// is added later by the Location Assignment step, which also flips
+// status to "approved". availableRoll/availableYds start out equal to
+// rollQty/yds and are the only fields a future Cutting Issue module should
+// decrement — rollQty/yds stay as the immutable "as received" record.
+export const materialReceiveItems = mysqlTable(
+  "material_receive_items",
+  {
+    id: serial("id").primaryKey(),
+    materialReceiveId: bigint("material_receive_id", {
+      mode: "number",
+      unsigned: true,
+    }).notNull(),
+    itemCodePdm: varchar("item_code_pdm", { length: 150 }).notNull(),
+    color: varchar("color", { length: 100 }).notNull(),
+    rollQty: int("roll_qty").notNull(), // as received, immutable
+    yds: decimal("yds", { precision: 10, scale: 2 }).notNull(), // as received, immutable
+    availableRoll: int("available_roll").notNull(), // decremented by future Cutting Issue
+    availableYds: decimal("available_yds", { precision: 10, scale: 2 }).notNull(), // decremented by future Cutting Issue
+    location: varchar("location", { length: 100 }), // Rack/Location, null until approved
+    status: mysqlEnum("status", ["pending", "approved"]).notNull().default("pending"),
+    approvedAt: timestamp("approved_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    materialReceiveFk: foreignKey({
+      columns: [table.materialReceiveId],
+      foreignColumns: [materialReceives.id],
+      name: "mri_material_receive_fk",
+    }).onDelete("cascade"),
+  })
+);

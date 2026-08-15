@@ -3,14 +3,13 @@
 "use client";
 
 import { useSidebar } from "@/app/provider/SidebarContext";
-import { TrendingUp, Box, Wrench, PanelLeft, PanelLeftClose } from "lucide-react";
+import { TrendingUp, Box, Wrench, Warehouse, PanelLeft, PanelLeftClose } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const DEPARTMENTS = [
-  { href: "/sales", label: "Sales", icon: TrendingUp },
-  { href: "/cad", label: "CAD", icon: Box },
-  { href: "/mc", label: "MC", icon: Wrench },
+  
+  { href: "/material-warehouse/material-receive", label: "Material Warehouse", icon: Warehouse },
 ];
 
 export default function DeptSidebar() {
