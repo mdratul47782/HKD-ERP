@@ -3,7 +3,23 @@
 import { db, schema } from "../db/db.js";
 import { eq, like, or, and, inArray } from "drizzle-orm";
 
-const { materialReceives, materialReceiveStyles, materialReceiveItems } = schema;
+const { materialReceives, materialReceiveStyles, materialReceiveItems, stockHistory } = schema;
+
+/** Inserts one "receive" Stock History row per freshly created item batch. */
+async function logReceiveHistory(tx, materialReceiveId, batches) {
+  if (!batches.length) return;
+  await tx.insert(stockHistory).values(
+    batches.map((b) => ({
+      batchId: b.id,
+      materialReceiveId,
+      action: "receive",
+      location: null,
+      rollQty: b.rollQty,
+      yds: b.yds,
+      note: "Material received — awaiting location assignment",
+    }))
+  );
+}
 
 /** Loads one Material Receive with its Style/Model rows and Item/Color batches. */
 async function getFullReceive(id) {
@@ -151,6 +167,14 @@ export const createMaterialReceive = async (req, res) => {
       });
       await tx.insert(materialReceiveItems).values(itemRows);
 
+      // Read the inserted batches back inside the transaction so each batch
+      // gets its own "receive" Stock History row with the exact ids.
+      const insertedBatches = await tx
+        .select()
+        .from(materialReceiveItems)
+        .where(eq(materialReceiveItems.materialReceiveId, materialReceiveId));
+      await logReceiveHistory(tx, materialReceiveId, insertedBatches);
+
       return materialReceiveId;
     });
 
@@ -217,6 +241,15 @@ export const updateMaterialReceive = async (req, res) => {
           };
         });
         await tx.insert(materialReceiveItems).values(itemRows);
+
+        // The freshly re-created pending batches get their own "receive"
+        // history rows; the old pending batches (and their history) were
+        // cascade-deleted just above.
+        const insertedBatches = await tx
+          .select()
+          .from(materialReceiveItems)
+          .where(eq(materialReceiveItems.materialReceiveId, Number(id)));
+        await logReceiveHistory(tx, Number(id), insertedBatches);
       }
     });
 

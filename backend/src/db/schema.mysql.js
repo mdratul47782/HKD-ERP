@@ -46,7 +46,10 @@ export const users = mysqlTable("users", {
 // Parent table — one row per "Material Receive" form submission
 export const materialReceives = mysqlTable("material_receives", {
   id: serial("id").primaryKey(),
-  date: date("date").notNull(), // Receive date = batch date, used for FIFO ordering
+  // mode "string" keeps the YYYY-MM-DD exactly as entered — no timezone-
+  // shifted Date conversion — which FIFO ordering and date-wise stock views
+  // rely on.
+  date: date("date", { mode: "string" }).notNull(),
   invoiceNo: varchar("invoice_no", { length: 100 }).notNull(),
   fromType: varchar("from_type", { length: 20 }).notNull(), // "Overseas" | "Local"
   warehouse: varchar("warehouse", { length: 10 }).notNull().default("K2"), // "K2" | "K1" | "K3"
@@ -115,6 +118,47 @@ export const materialReceiveItems = mysqlTable(
       columns: [table.materialReceiveId],
       foreignColumns: [materialReceives.id],
       name: "mri_material_receive_fk",
+    }).onDelete("cascade"),
+  })
+);
+
+// Stock History — the ledger of every movement against a stock batch.
+// Written today for "receive" (batch created) and "location_assignment"
+// (batch approved with a Location/Rack). A future Cutting Issue module
+// will add "issue" rows here as it decrements availableRoll/availableYds
+// on material_receive_items — the batch row plus this ledger is what keeps
+// FIFO (oldest Receive Date issued first) and per-Location + per-Batch
+// issuing auditable from now on. History rows cascade away with their batch
+// or parent Receive, so correcting/deleting a still-pending Receive never
+// leaves orphaned history.
+export const stockHistory = mysqlTable(
+  "stock_history",
+  {
+    id: serial("id").primaryKey(),
+    batchId: bigint("batch_id", { mode: "number", unsigned: true }).notNull(), // -> material_receive_items.id
+    materialReceiveId: bigint("material_receive_id", {
+      mode: "number",
+      unsigned: true,
+    }).notNull(),
+    action: mysqlEnum("action", ["receive", "location_assignment", "issue", "adjustment"])
+      .notNull()
+      .default("receive"),
+    location: varchar("location", { length: 100 }), // Location/Rack at the time of the movement
+    rollQty: int("roll_qty").notNull(), // rolls moved in this action
+    yds: decimal("yds", { precision: 10, scale: 2 }).notNull(), // yds moved in this action
+    note: varchar("note", { length: 255 }),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    batchFk: foreignKey({
+      columns: [table.batchId],
+      foreignColumns: [materialReceiveItems.id],
+      name: "sh_batch_fk",
+    }).onDelete("cascade"),
+    receiveFk: foreignKey({
+      columns: [table.materialReceiveId],
+      foreignColumns: [materialReceives.id],
+      name: "sh_receive_fk",
     }).onDelete("cascade"),
   })
 );

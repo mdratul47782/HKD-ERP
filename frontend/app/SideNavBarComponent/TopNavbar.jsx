@@ -15,9 +15,10 @@ import {
   ShieldUser,
   Palette,
   Settings,
-  TrendingUp,
-  Box,
-  Wrench,
+  Warehouse,
+  PackageSearch,
+  MapPin,
+  Boxes,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -35,9 +36,9 @@ const NAV_ITEMS = [
 // Departments — mirrors DeptSidebar, used for the mobile drawer since the
 // side navbar is desktop-only
 const DEPARTMENTS = [
-  { href: "/sales", label: "Sales", icon: TrendingUp },
-  { href: "/cad", label: "CAD", icon: Box },
-  { href: "/mc", label: "MC", icon: Wrench },
+  { href: "/material-warehouse/material-receive", label: "Material Receive", icon: PackageSearch },
+  { href: "/material-warehouse/location-assignment", label: "Location Assignment", icon: MapPin },
+  { href: "/material-warehouse/material-stock", label: "Material Stock", icon: Boxes },
 ];
 
 export default function TopNavbar() {

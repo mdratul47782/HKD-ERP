@@ -3,13 +3,20 @@
 "use client";
 
 import { useSidebar } from "@/app/provider/SidebarContext";
-import { TrendingUp, Box, Wrench, Warehouse, PanelLeft, PanelLeftClose } from "lucide-react";
+import { TrendingUp, Box, Wrench, Warehouse, PackageSearch, MapPin, Boxes, PanelLeft, PanelLeftClose } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const DEPARTMENTS = [
-  
-  { href: "/material-warehouse/material-receive", label: "Material Warehouse", icon: Warehouse },
+  {
+    label: "Material Warehouse",
+    icon: Warehouse,
+    items: [
+      { href: "/material-warehouse/material-receive", label: "Material Receive", icon: PackageSearch },
+      { href: "/material-warehouse/location-assignment", label: "Location Assignment", icon: MapPin },
+      { href: "/material-warehouse/material-stock", label: "Material Stock", icon: Boxes },
+    ],
+  },
 ];
 
 export default function DeptSidebar() {
@@ -48,34 +55,44 @@ export default function DeptSidebar() {
 
       {/* DEPARTMENT ITEMS */}
       <div className="flex-1 flex flex-col gap-0.5 px-2 py-1 overflow-hidden">
-        {DEPARTMENTS.map(({ href, icon: Icon, label }) => {
-          const active = isActive(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              title={!expanded ? label : undefined}
-              className={`group flex items-center gap-3 h-8 rounded-md px-2 transition-all duration-150
-                ${
-                  active
-                    ? "bg-black/[0.08] dark:bg-white/[0.09] text-slate-900 dark:text-[#ececec]"
-                    : "text-slate-600 dark:text-[#8a8a8a] hover:bg-black/5 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-[#ececec]"
-                }
-                ${expanded ? "" : "justify-center"}`}
-            >
-              <Icon
-                size={15}
-                strokeWidth={active ? 2 : 1.75}
-                className="flex-shrink-0"
-              />
-              {expanded && (
-                <span className="text-[13px] font-medium truncate leading-none">
-                  {label}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+        {DEPARTMENTS.map((dept) => (
+          <div key={dept.label} className="flex flex-col gap-0.5">
+            {expanded && (
+              <div className="flex items-center gap-2 h-8 px-2 text-slate-500 dark:text-[#8a8a8a]">
+                <dept.icon size={14} strokeWidth={1.75} className="flex-shrink-0" />
+                <span className="text-[11px] font-semibold uppercase tracking-wide truncate">{dept.label}</span>
+              </div>
+            )}
+            {dept.items.map(({ href, icon: Icon, label }) => {
+              const active = isActive(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  title={!expanded ? label : undefined}
+                  className={`group flex items-center gap-3 h-8 rounded-md px-2 transition-all duration-150
+                    ${
+                      active
+                        ? "bg-black/[0.08] dark:bg-white/[0.09] text-slate-900 dark:text-[#ececec]"
+                        : "text-slate-600 dark:text-[#8a8a8a] hover:bg-black/5 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-[#ececec]"
+                    }
+                    ${expanded ? "" : "justify-center"}`}
+                >
+                  <Icon
+                    size={15}
+                    strokeWidth={active ? 2 : 1.75}
+                    className="flex-shrink-0"
+                  />
+                  {expanded && (
+                    <span className="text-[13px] font-medium truncate leading-none">
+                      {label}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </aside>
   );

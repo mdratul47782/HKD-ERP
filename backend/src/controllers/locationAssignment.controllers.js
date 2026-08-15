@@ -1,9 +1,9 @@
 // backend/src/controllers/locationAssignment.controllers.js
 
 import { db, schema } from "../db/db.js";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, inArray } from "drizzle-orm";
 
-const { materialReceives, materialReceiveItems } = schema;
+const { materialReceives, materialReceiveItems, materialReceiveStyles, stockHistory } = schema;
 
 /**
  * GET /location-assignment
@@ -32,19 +32,35 @@ export const getPendingAssignments = async (req, res) => {
         po: materialReceives.po,
         warehouse: materialReceives.warehouse,
         item: materialReceives.item,
+        buy: materialReceives.buy,
       })
       .from(materialReceiveItems)
       .innerJoin(materialReceives, eq(materialReceiveItems.materialReceiveId, materialReceives.id))
       .where(eq(materialReceiveItems.status, "pending"))
       .orderBy(asc(materialReceives.date));
 
+    // Attach each receive's Style + Model rows so the assignment screen can
+    // show which Style/Model a batch belongs to.
+    const receiveIds = Array.from(new Set(rows.map((r) => r.materialReceiveId)));
+    const styleRows = receiveIds.length
+      ? await db
+          .select()
+          .from(materialReceiveStyles)
+          .where(inArray(materialReceiveStyles.materialReceiveId, receiveIds))
+      : [];
+    const stylesByReceive = styleRows.reduce((acc, s) => {
+      (acc[s.materialReceiveId] ||= []).push(s);
+      return acc;
+    }, {});
+    const withStyles = rows.map((r) => ({ ...r, styles: stylesByReceive[r.materialReceiveId] || [] }));
+
     const filtered = search
-      ? rows.filter((r) =>
-          [r.itemCodePdm, r.color, r.invoiceNo, r.buyer, r.po, r.item]
+      ? withStyles.filter((r) =>
+          [r.itemCodePdm, r.color, r.invoiceNo, r.buyer, r.po, r.item, r.buy]
             .filter(Boolean)
             .some((v) => String(v).toLowerCase().includes(search))
         )
-      : rows;
+      : withStyles;
 
     res.json(filtered);
   } catch (error) {
@@ -86,6 +102,18 @@ export const assignLocation = async (req, res) => {
         .update(materialReceiveItems)
         .set({ location: location.trim(), status: "approved", approvedAt: new Date() })
         .where(eq(materialReceiveItems.id, itemId));
+
+      // Log the location assignment as a Stock History movement so the batch
+      // ledger shows exactly when/where this stock became available.
+      await tx.insert(stockHistory).values({
+        batchId: item.id,
+        materialReceiveId: item.materialReceiveId,
+        action: "location_assignment",
+        location: location.trim(),
+        rollQty: item.rollQty,
+        yds: item.yds,
+        note: "Location assigned; batch approved and available",
+      });
 
       const siblings = await tx
         .select()

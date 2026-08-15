@@ -42,6 +42,7 @@ export const searchMaterialStock = async (req, res) => {
         po: materialReceives.po,
         warehouse: materialReceives.warehouse,
         item: materialReceives.item,
+        buy: materialReceives.buy,
       })
       .from(materialReceiveItems)
       .innerJoin(materialReceives, eq(materialReceiveItems.materialReceiveId, materialReceives.id))
