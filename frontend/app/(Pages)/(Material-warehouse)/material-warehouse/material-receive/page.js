@@ -1,11 +1,9 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-receive/page.js
 
-
-
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
-import { Search, Plus, Pencil, Trash2, PackageSearch, ChevronDown, ChevronUp, X, MapPin } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, PackageSearch, ChevronDown, ChevronUp, X, MapPin, Check } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -24,6 +22,7 @@ const btnSecondary =
 const label = "block mb-1 text-[11px] font-medium tracking-wide text-[#7a6250] dark:text-[#a8917d]";
 const chip = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]";
 const chipPending = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#b8933a]/15 text-[#8a6a1a] dark:bg-[#e0c068]/15 dark:text-[#e0c068]";
+const chipPartial = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#3d6a8a]/15 text-[#2c4a63] dark:bg-[#6fa8d0]/15 dark:text-[#6fa8d0]";
 const chipApproved = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#5ca068]/15 text-[#3d7a4a] dark:bg-[#8fca9c]/15 dark:text-[#8fca9c]";
 
 // Thin, theme-matching scrollbar (webkit + firefox) instead of the browser's
@@ -59,14 +58,17 @@ const newItemCode = () => ({ key: crypto.randomUUID(), itemCodePdm: "", colors: 
 const newStyleRow = () => ({ key: crypto.randomUUID(), style: "", model: "" });
 
 // Separate, clearly-labeled Saved Records search fields -- each one is its
-// own small input so "Style" and "Model" (and everything else) never get
-// confused with one another, but they all sit on a single scrollable row.
+// own small input (Buyer is a dropdown, same options as the form) so
+// "Style" and "Model" (and everything else) never get confused with one
+// another, but they all sit on a single scrollable row. Each field is sent
+// to the backend as its OWN query param and matched only against its own
+// column there -- see fetchReceives below.
 const emptyRecordFilters = {
   invoiceNo: "", buyer: "", po: "", style: "", model: "", itemCodePdm: "", color: "",
 };
 const RECORD_FILTER_FIELDS = [
   { key: "invoiceNo", label: "Invoice No." },
-  { key: "buyer", label: "Buyer" },
+  { key: "buyer", label: "Buyer", type: "select" },
   { key: "po", label: "PO" },
   { key: "style", label: "Style" },
   { key: "model", label: "Model" },
@@ -85,6 +87,12 @@ function Field({ text, required, children }) {
       {children}
     </label>
   );
+}
+
+function statusChip(status) {
+  if (status === "approved") return <span className={chipApproved}>Approved</span>;
+  if (status === "partial") return <span className={chipPartial}>Partially Assigned</span>;
+  return <span className={chipPending}>Pending</span>;
 }
 
 /* ============================================================
@@ -290,11 +298,81 @@ function ItemCodeCard({ itemCode, index, canRemove, onNameChange, onRemove, onAd
 }
 
 /* ============================================================
+   AllocationList -- shows a batch's existing rack allocations
+   (Rack, Roll, Yds), each editable inline or removable. This is
+   what lets a single 100-roll batch show up as e.g.
+     Rack-1: 70 Roll / 700 Yds   [Edit] [Remove]
+     Rack-2: 30 Roll / 300 Yds   [Edit] [Remove]
+   ============================================================ */
+
+function AllocationList({ locations, onSaveEdit, onDelete, busyId }) {
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState({ location: "", roll: "", yds: "" });
+
+  if (!locations?.length) {
+    return <div className="text-[10px] italic text-[#a08060]">No rack assigned yet.</div>;
+  }
+
+  const startEdit = (loc) => {
+    setEditingId(loc.id);
+    setDraft({ location: loc.location, roll: String(loc.rollQty), yds: String(loc.yds) });
+  };
+
+  const saveEdit = async (id) => {
+    await onSaveEdit(id, { location: draft.location, rollQty: draft.roll, yds: draft.yds });
+    setEditingId(null);
+  };
+
+  return (
+    <div className="space-y-1">
+      {locations.map((loc) => {
+        const locked = Number(loc.availableRoll) !== Number(loc.rollQty) || Number(loc.availableYds) !== Number(loc.yds);
+        const isEditing = editingId === loc.id;
+        return (
+          <div key={loc.id} className="flex items-center gap-1.5 bg-white dark:bg-[#2a241b] border border-[#2c4a63]/15 dark:border-[#6fa8d0]/15 rounded-md px-2 py-1">
+            {isEditing ? (
+              <>
+                <select value={draft.location} onChange={(e) => setDraft((p) => ({ ...p, location: e.target.value }))} className={`${inputCls} !py-1 flex-1`}>
+                  {RACK_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <input type="number" value={draft.roll} onChange={(e) => setDraft((p) => ({ ...p, roll: e.target.value }))} placeholder="Roll" className={`${inputCls} !py-1 w-16`} />
+                <input type="number" value={draft.yds} onChange={(e) => setDraft((p) => ({ ...p, yds: e.target.value }))} placeholder="Yds" className={`${inputCls} !py-1 w-16`} />
+                <button type="button" onClick={() => saveEdit(loc.id)} disabled={busyId === loc.id} className="text-[#3d7a4a] hover:opacity-70 shrink-0"><Check size={13} /></button>
+                <button type="button" onClick={() => setEditingId(null)} className="text-[#a04a3a] hover:opacity-70 shrink-0"><X size={13} /></button>
+              </>
+            ) : (
+              <>
+                <MapPin size={11} className="text-[#3d6a8a] dark:text-[#6fa8d0] shrink-0" />
+                <span className="font-semibold text-[#2c4a63] dark:text-[#6fa8d0] text-[11px]">{loc.location}</span>
+                <span className="text-[11px] text-[#2c2417] dark:text-[#e8ddd0] flex-1">
+                  {loc.rollQty} Roll · {loc.yds} Yds
+                  {locked && <span className="text-[9px] italic text-[#a08060] ml-1">(issued, locked)</span>}
+                </span>
+                {!locked && (
+                  <>
+                    <button type="button" onClick={() => startEdit(loc)} className="text-[#3d6a8a] dark:text-[#6fa8d0] hover:underline text-[10px] font-medium shrink-0">Edit</button>
+                    <button type="button" onClick={() => onDelete(loc.id)} disabled={busyId === loc.id} className="text-[#a04a3a] hover:underline text-[10px] font-medium shrink-0">Remove</button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ============================================================
    Item Code / Color breakdown -- real sub-table, with inline
-   Location/Rack assignment for pending rows right here, plus a
-   "search before assign" toggle that shows where this exact
-   Item Code/PDM + Color already sits (Rack + Date-wise) before
-   you commit to a rack.
+   MULTI-RACK Location/Rack assignment for pending/partial rows:
+   each row shows its existing per-rack allocations (editable /
+   removable) plus a form to assign more of whatever's still
+   unassigned, so one batch (e.g. 100 Roll) can be split across
+   several racks (e.g. 70 -> Rack-1, 30 -> Rack-2). Also keeps the
+   "search before assign" toggle that shows where this exact Item
+   Code/PDM + Color already sits (Rack + Date-wise) before you
+   commit to a rack.
 
    Rendered as a distinct blue/slate "drawer" panel (not the page's
    orange/brown palette) with a left accent border + margin + shadow,
@@ -303,7 +381,7 @@ function ItemCodeCard({ itemCode, index, canRemove, onNameChange, onRemove, onAd
    ============================================================ */
 
 function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
-  const [rackChoice, setRackChoice] = useState({});
+  const [newAlloc, setNewAlloc] = useState({}); // { [itemId]: { location, roll, yds } }
   const [assigningId, setAssigningId] = useState(null);
   const [rowError, setRowError] = useState({});
   const [openPreviewId, setOpenPreviewId] = useState(null);
@@ -314,22 +392,52 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
     return <tr><td colSpan={12} className="px-3 py-2 text-[11px] italic text-[#a08060]">No item code / color rows found.</td></tr>;
   }
 
-  const handleAssign = async (itemId) => {
-    const rack = rackChoice[itemId] || RACK_OPTIONS[0];
-    setAssigningId(itemId);
-    setRowError((p) => ({ ...p, [itemId]: "" }));
+  const getDraft = (itemId) => newAlloc[itemId] || { location: RACK_OPTIONS[0], roll: "", yds: "" };
+  const setDraft = (itemId, field, v) =>
+    setNewAlloc((p) => ({ ...p, [itemId]: { ...getDraft(itemId), [field]: v } }));
+
+  const handleAssign = async (row) => {
+    const draft = getDraft(row.id);
+    setAssigningId(row.id);
+    setRowError((p) => ({ ...p, [row.id]: "" }));
     try {
-      const res = await fetch(`${API_URL}/location-assignment/${itemId}`, {
-        method: "PATCH", credentials: "include",
+      const res = await fetch(`${API_URL}/location-assignment/${row.id}`, {
+        method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ location: rack }),
+        body: JSON.stringify({ location: draft.location, rollQty: draft.roll || 0, yds: draft.yds || 0 }),
       });
       if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to assign location"); }
+      setNewAlloc((p) => ({ ...p, [row.id]: { location: RACK_OPTIONS[0], roll: "", yds: "" } }));
       onAssigned?.();
     } catch (err) {
-      setRowError((p) => ({ ...p, [itemId]: err.message }));
+      setRowError((p) => ({ ...p, [row.id]: err.message }));
     } finally {
       setAssigningId(null);
+    }
+  };
+
+  const handleSaveAllocationEdit = async (allocationId, { location, rollQty, yds }) => {
+    try {
+      const res = await fetch(`${API_URL}/location-assignment/allocation/${allocationId}`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ location, rollQty, yds }),
+      });
+      if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to update allocation"); }
+      onAssigned?.();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleDeleteAllocation = async (allocationId) => {
+    if (!confirm("Remove this rack allocation? The quantity returns to unassigned.")) return;
+    try {
+      const res = await fetch(`${API_URL}/location-assignment/allocation/${allocationId}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to remove allocation"); }
+      onAssigned?.();
+    } catch (err) {
+      alert(err.message);
     }
   };
 
@@ -369,71 +477,89 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
           <table className="min-w-full text-[11px]">
             <thead>
               <tr className="text-[#4a6578] dark:text-[#8fb0c4] border-b-2 border-[#3d6a8a]/20 dark:border-[#6fa8d0]/20 bg-[#dde8ef]/60 dark:bg-white/[0.03]">
-                <th className="px-3 py-2 text-left font-semibold w-1/4">Item Code / PDM</th>
+                <th className="px-3 py-2 text-left font-semibold w-1/5">Item Code / PDM</th>
                 <th className="px-3 py-2 text-left font-semibold">Color</th>
-                <th className="px-3 py-2 text-left font-semibold">Roll</th>
-                <th className="px-3 py-2 text-left font-semibold">Yds</th>
+                <th className="px-3 py-2 text-left font-semibold">Total Roll/Yds</th>
+                <th className="px-3 py-2 text-left font-semibold">Unassigned</th>
                 <th className="px-3 py-2 text-left font-semibold">Status</th>
-                <th className="px-3 py-2 text-left font-semibold w-72">Location</th>
+                <th className="px-3 py-2 text-left font-semibold w-96">Rack Assignment</th>
               </tr>
             </thead>
             <tbody>
               {items.map((row, idx) => {
                 const rowId = row.id ?? row.key ?? `${row.itemCodePdm}-${row.color}`;
-                const isPending = row.status !== "approved";
+                const isLocked = row.status === "approved";
                 const previewOpen = openPreviewId === row.id;
+                const draft = getDraft(row.id);
                 return (
                   <Fragment key={rowId}>
                     <tr className={`border-b border-[#3d6a8a]/10 dark:border-[#6fa8d0]/10 last:border-b-0 ${idx % 2 === 1 ? "bg-[#3d6a8a]/[0.04] dark:bg-[#6fa8d0]/[0.04]" : ""}`}>
-                      <td className="px-3 py-2 text-[#2c4a63] dark:text-[#8fb0c4] font-bold">{row.itemCodePdm}</td>
-                      <td className="px-3 py-2 font-medium">{row.color}</td>
-                      <td className="px-3 py-2">{row.rollQty}</td>
-                      <td className="px-3 py-2">{row.yds}</td>
-                      <td className="px-3 py-2">
-                        <span className={row.status === "approved" ? chipApproved : chipPending}>
-                          {row.status === "approved" ? "Approved" : "Pending"}
-                        </span>
+                      <td className="px-3 py-2 text-[#2c4a63] dark:text-[#8fb0c4] font-bold align-top">{row.itemCodePdm}</td>
+                      <td className="px-3 py-2 font-medium align-top">{row.color}</td>
+                      <td className="px-3 py-2 align-top whitespace-nowrap">{row.rollQty} Roll / {row.yds} Yds</td>
+                      <td className="px-3 py-2 align-top whitespace-nowrap font-semibold text-[#8a4a24] dark:text-[#d4955e]">
+                        {row.unassignedRoll} Roll / {row.unassignedYds} Yds
                       </td>
-                      <td className="px-3 py-2">
-                        {!isPending ? (
-                          <span className="inline-flex items-center gap-1"><MapPin size={11} className="text-[#a08060]" />{row.location || "—"}</span>
-                        ) : (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => togglePreview(row)}
-                                title="Search existing stock for this Item Code/PDM + Color before assigning"
-                                className={`inline-flex items-center justify-center h-[30px] w-[30px] shrink-0 rounded-md border-[1.5px] transition-colors ${
-                                  previewOpen
-                                    ? "border-[#3d6a8a] bg-[#3d6a8a]/15 text-[#2c4a63] dark:border-[#6fa8d0] dark:bg-[#6fa8d0]/15 dark:text-[#6fa8d0]"
-                                    : "border-[#2c4a63]/25 dark:border-[#6fa8d0]/25 text-[#4a6578] dark:text-[#8fb0c4] hover:border-[#3d6a8a] hover:text-[#3d6a8a]"
-                                }`}
-                              >
-                                <Search size={13} />
-                              </button>
-                              <select
-                                value={rackChoice[row.id] || RACK_OPTIONS[0]}
-                                onChange={(e) => setRackChoice((p) => ({ ...p, [row.id]: e.target.value }))}
-                                className={`${inputCls} flex-1`}
-                              >
-                                {RACK_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                              </select>
-                              <button
-                                type="button"
-                                onClick={() => handleAssign(row.id)}
-                                disabled={assigningId === row.id}
-                                className="inline-flex items-center gap-1 rounded-full bg-[#2c4a63] dark:bg-[#3d6a8a] text-white text-[10px] font-medium px-2.5 py-1.5 hover:bg-[#3d6a8a] dark:hover:bg-[#4a7a9a] transition-colors disabled:opacity-50 shrink-0"
-                              >
-                                {assigningId === row.id ? "..." : "Assign"}
-                              </button>
+                      <td className="px-3 py-2 align-top">{statusChip(row.status)}</td>
+                      <td className="px-3 py-2 align-top">
+                        <div className="space-y-1.5">
+                          {/* Existing rack allocations for this batch */}
+                          <AllocationList
+                            locations={row.locations}
+                            onSaveEdit={handleSaveAllocationEdit}
+                            onDelete={handleDeleteAllocation}
+                            busyId={assigningId}
+                          />
+
+                          {/* Search-before-assign toggle */}
+                          <button
+                            type="button"
+                            onClick={() => togglePreview(row)}
+                            className={`inline-flex items-center gap-1 text-[10px] font-medium ${previewOpen ? "text-[#2c4a63] dark:text-[#6fa8d0]" : "text-[#4a6578] dark:text-[#8fb0c4]"} hover:underline`}
+                          >
+                            <Search size={11} /> {previewOpen ? "Hide" : "Check"} existing stock
+                          </button>
+
+                          {/* Assign-more form, only while quantity remains unassigned */}
+                          {!isLocked && (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <select
+                                  value={draft.location}
+                                  onChange={(e) => setDraft(row.id, "location", e.target.value)}
+                                  className={`${inputCls} flex-1`}
+                                >
+                                  {RACK_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                                </select>
+                                <input
+                                  type="number" placeholder="Roll" value={draft.roll}
+                                  onChange={(e) => setDraft(row.id, "roll", e.target.value)}
+                                  className={`${inputCls} w-16`}
+                                />
+                                <input
+                                  type="number" placeholder="Yds" value={draft.yds}
+                                  onChange={(e) => setDraft(row.id, "yds", e.target.value)}
+                                  className={`${inputCls} w-16`}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleAssign(row)}
+                                  disabled={assigningId === row.id}
+                                  className="inline-flex items-center gap-1 rounded-full bg-[#2c4a63] dark:bg-[#3d6a8a] text-white text-[10px] font-medium px-2.5 py-1.5 hover:bg-[#3d6a8a] dark:hover:bg-[#4a7a9a] transition-colors disabled:opacity-50 shrink-0"
+                                >
+                                  {assigningId === row.id ? "..." : "Assign"}
+                                </button>
+                              </div>
+                              <div className="text-[9px] text-[#a08060]">
+                                Up to {row.unassignedRoll} Roll / {row.unassignedYds} Yds left to place. Assign part of it to split across racks.
+                              </div>
                             </div>
-                            {rowError[row.id] && <div className="text-[10px] text-[#a04a3a]">{rowError[row.id]}</div>}
-                          </div>
-                        )}
+                          )}
+                          {rowError[row.id] && <div className="text-[10px] text-[#a04a3a]">{rowError[row.id]}</div>}
+                        </div>
                       </td>
                     </tr>
-                    {isPending && previewOpen && (
+                    {previewOpen && (
                       <tr className="bg-[#3d6a8a]/[0.06] dark:bg-[#6fa8d0]/[0.04]">
                         <td colSpan={6} className="px-3 py-2.5">
                           {previewLoadingId === row.id ? (
@@ -457,9 +583,11 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
 
 /* ============================================================
    Saved Records search row -- one clearly-labeled input per field
-   (Invoice No., Buyer, PO, Style, Model, Item Code/PDM, Color),
-   all sitting on a single horizontally-scrollable line so nothing
-   gets confused with anything else.
+   (Invoice No., Buyer [dropdown], PO, Style, Model, Item Code/PDM,
+   Color), all sitting on a single horizontally-scrollable line.
+   Each field is sent to the backend as its own query param and
+   matched only against its own column there, so "Item Code/PDM"
+   never accidentally matches a "Color" value or vice versa.
    ============================================================ */
 
 function RecordFilterRow({ filters, setFilters }) {
@@ -473,13 +601,24 @@ function RecordFilterRow({ filters, setFilters }) {
           </span>
           <div className="relative">
             {i === 0 && <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#a08060]" />}
-            <input
-              type="text"
-              value={filters[f.key]}
-              onChange={(e) => setFilters((p) => ({ ...p, [f.key]: e.target.value }))}
-              placeholder={f.label}
-              className={`${inputCls} text-[11px] py-1 ${i === 0 ? "pl-6" : ""}`}
-            />
+            {f.type === "select" ? (
+              <select
+                value={filters[f.key]}
+                onChange={(e) => setFilters((p) => ({ ...p, [f.key]: e.target.value }))}
+                className={`${inputCls} text-[11px] py-1`}
+              >
+                <option value="">All Buyers</option>
+                {BUYERS.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={filters[f.key]}
+                onChange={(e) => setFilters((p) => ({ ...p, [f.key]: e.target.value }))}
+                placeholder={f.label}
+                className={`${inputCls} text-[11px] py-1 ${i === 0 ? "pl-6" : ""}`}
+              />
+            )}
           </div>
         </label>
       ))}
@@ -566,9 +705,7 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
                         </div>
                       </td>
                       <td className="px-3 py-2"><span className={chip}>{r.totalItems}</span></td>
-                      <td className="px-3 py-2">
-                        <span className={isApproved ? chipApproved : chipPending}>{isApproved ? "Approved" : "Pending"}</span>
-                      </td>
+                      <td className="px-3 py-2">{statusChip(isApproved ? "approved" : "pending")}</td>
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-2">
                           <button onClick={() => onEdit(r.id)} disabled={isApproved} title={isApproved ? "Fully approved receives can't be edited" : "Edit"}
@@ -612,19 +749,20 @@ export default function MaterialReceivePage() {
   const [success, setSuccess] = useState("");
   const [formOpen, setFormOpen] = useState(false);
 
-  // The backend's /material-receive?search= endpoint takes one fuzzy string
-  // that matches across invoice/buyer/PO/style/model/item-code/color. The UI
-  // now has one clearly-labeled input per field, so we just join whatever
-  // the user typed into those separate boxes into that single search string.
-  const combinedSearch = useMemo(
-    () => RECORD_FILTER_FIELDS.map((f) => recordFilters[f.key]).filter((v) => v && v.trim()).join(" "),
-    [recordFilters]
-  );
-
-  const fetchReceives = useCallback(async (searchTerm = "") => {
+  // Each filter box is sent to the backend as its OWN query param
+  // (invoiceNo=, buyer=, po=, style=, model=, itemCodePdm=, color=) and the
+  // backend matches each one only against its own column (AND across
+  // whichever fields are filled in). This is what fixes "Item Code/PDM =
+  // TEST-2" incorrectly matching a row whose Color happens to be TEST-2.
+  const fetchReceives = useCallback(async (filters = emptyRecordFilters) => {
     setLoading(true); setError("");
     try {
-      const url = searchTerm ? `${API_URL}/material-receive?search=${encodeURIComponent(searchTerm)}` : `${API_URL}/material-receive`;
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([k, v]) => {
+        if (v && v.trim()) params.set(k, v.trim());
+      });
+      const qs = params.toString();
+      const url = qs ? `${API_URL}/material-receive?${qs}` : `${API_URL}/material-receive`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load material receives");
       setReceives(await res.json());
@@ -632,7 +770,10 @@ export default function MaterialReceivePage() {
   }, []);
 
   useEffect(() => { fetchReceives(); }, [fetchReceives]);
-  useEffect(() => { const t = setTimeout(() => fetchReceives(combinedSearch), 400); return () => clearTimeout(t); }, [combinedSearch, fetchReceives]);
+  useEffect(() => {
+    const t = setTimeout(() => fetchReceives(recordFilters), 400);
+    return () => clearTimeout(t);
+  }, [recordFilters, fetchReceives]);
 
   const resetForm = () => {
     setForm(emptyForm); setStyleRows([newStyleRow()]); setItemCodes([newItemCode()]); setEditingId(null);
@@ -673,7 +814,7 @@ export default function MaterialReceivePage() {
       });
       if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to save material receive"); }
       setSuccess(editingId ? "Material receive updated." : "Material receive saved.");
-      resetForm(); fetchReceives(combinedSearch);
+      resetForm(); fetchReceives(recordFilters);
       setFormOpen(false);
     } catch (err) { setError(err.message); } finally { setSaving(false); }
   };
@@ -720,7 +861,7 @@ export default function MaterialReceivePage() {
     try {
       const res = await fetch(`${API_URL}/material-receive/${id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to delete material receive"); }
-      setSuccess("Material receive deleted."); fetchReceives(combinedSearch);
+      setSuccess("Material receive deleted."); fetchReceives(recordFilters);
     } catch (err) { setError(err.message); }
   };
 
@@ -740,7 +881,7 @@ export default function MaterialReceivePage() {
               </h1>
               <p className="text-xs text-[#7a6250] dark:text-[#a8917d]">
                 Record incoming fabric/material invoices, grouped by Item Code/PDM and Color. Expand a Saved Record
-                below to assign its Location/Rack.
+                below to split its quantity across one or more Locations/Racks.
               </p>
             </div>
           </div>
@@ -869,7 +1010,7 @@ export default function MaterialReceivePage() {
               toggleExpanded={toggleExpanded}
               onEdit={handleEdit}
               onDelete={handleDelete}
-              onAssigned={() => fetchReceives(combinedSearch)}
+              onAssigned={() => fetchReceives(recordFilters)}
             />
           </div>
         </div>

@@ -1,73 +1,126 @@
 // backend/src/controllers/materialReceive.controllers.js
 
 import { db, schema } from "../db/db.js";
-import { eq, like, or, and, inArray, desc } from "drizzle-orm";
+import { eq, like, and, inArray, desc, ne } from "drizzle-orm";
 
-const { materialReceives, materialReceiveStyles, materialReceiveItems, stockHistory } = schema;
+const { materialReceives, materialReceiveStyles, materialReceiveItems, materialReceiveItemLocations, stockHistory } = schema;
 
-/** Loads one Material Receive with its Style/Model rows and Item/Color batches. */
+/** Loads one Material Receive with its Style/Model rows, Item/Color batches,
+ * and each batch's rack allocations (locations[]). */
 async function getFullReceive(id) {
   const [receive] = await db.select().from(materialReceives).where(eq(materialReceives.id, id));
   if (!receive) return null;
   const styles = await db.select().from(materialReceiveStyles).where(eq(materialReceiveStyles.materialReceiveId, id));
   const items = await db.select().from(materialReceiveItems).where(eq(materialReceiveItems.materialReceiveId, id));
-  return { ...receive, styles, items, totalItems: items.length };
+
+  const locations = items.length
+    ? await db
+        .select()
+        .from(materialReceiveItemLocations)
+        .where(inArray(materialReceiveItemLocations.itemId, items.map((i) => i.id)))
+    : [];
+  const itemsWithLocations = items.map((it) => ({
+    ...it,
+    locations: locations.filter((l) => l.itemId === it.id),
+  }));
+
+  return { ...receive, styles, items: itemsWithLocations, totalItems: items.length };
 }
 
 /**
  * GET /material-receive
- * GET /material-receive?search=INV-1001
+ * GET /material-receive?invoiceNo=...&buyer=...&po=...&style=...&model=...&itemCodePdm=...&color=...
  *
  * Returns every Material Receive with its styles[] (Style + Model) and
- * items[] (Item Code/PDM, Color, Roll, Yds, Location, status). "search"
- * checks parent fields (including Remark), style/model rows, and item/color rows.
- * Newest Receive first (createdAt DESC), so the most recently saved
- * records always show at the top of the Saved Records list.
+ * items[] (Item Code/PDM, Color, Roll, Yds, unassignedRoll/Yds, status,
+ * locations[]).
+ *
+ * Each query field is matched ONLY against its own column (no more single
+ * fuzzy string matching every column at once):
+ *   - invoiceNo / buyer / po  -> matched on the parent Material Receive row,
+ *                                 combined with AND.
+ *   - style / model           -> matched on the SAME materialReceiveStyles
+ *                                 row (AND), so "Style=X, Model=Y" only
+ *                                 matches a row that has both.
+ *   - itemCodePdm / color     -> matched on the SAME materialReceiveItems
+ *                                 row (AND), so "Item Code=X, Color=Y" only
+ *                                 matches a row that has both -- an item
+ *                                 whose itemCodePdm happens to equal the
+ *                                 color you typed (or vice versa) will NOT
+ *                                 match anymore.
+ *
+ * All groups that were actually supplied are combined with AND (a Receive
+ * must satisfy every field the user filled in). Newest Receive first
+ * (createdAt DESC) when no filters are supplied; otherwise sorted the same
+ * way after filtering.
  */
 export const getAllMaterialReceives = async (req, res) => {
   try {
-    const search = req.query.search?.trim();
-    let receives;
+    const { invoiceNo, buyer, po, style, model, itemCodePdm, color } = req.query;
 
-    if (search) {
-      const term = `%${search}%`;
+    const has = (v) => typeof v === "string" && v.trim().length > 0;
+    const term = (v) => `%${v.trim()}%`;
 
-      const directMatches = await db
-        .select()
+    // null = no filter group has been applied yet (i.e. show everything).
+    // Once at least one group runs, this becomes the running intersection
+    // of matching materialReceive ids across all supplied groups.
+    let candidateIds = null;
+
+    const intersect = (ids) => {
+      const idSet = new Set(ids);
+      candidateIds = candidateIds === null ? idSet : new Set([...candidateIds].filter((id) => idSet.has(id)));
+    };
+
+    // --- Parent-level fields: Invoice No. / Buyer / PO (AND together) ---
+    if (has(invoiceNo) || has(buyer) || has(po)) {
+      const conditions = [];
+      if (has(invoiceNo)) conditions.push(like(materialReceives.invoiceNo, term(invoiceNo)));
+      if (has(buyer)) conditions.push(like(materialReceives.buyer, term(buyer)));
+      if (has(po)) conditions.push(like(materialReceives.po, term(po)));
+      const rows = await db
+        .select({ id: materialReceives.id })
         .from(materialReceives)
-        .where(
-          or(
-            like(materialReceives.invoiceNo, term),
-            like(materialReceives.buyer, term),
-            like(materialReceives.po, term),
-            like(materialReceives.item, term),
-            like(materialReceives.remark, term)
-          )
-        );
-
-      const styleMatches = await db
-        .select({ materialReceiveId: materialReceiveStyles.materialReceiveId })
-        .from(materialReceiveStyles)
-        .where(or(like(materialReceiveStyles.style, term), like(materialReceiveStyles.model, term)));
-
-      const itemMatches = await db
-        .select({ materialReceiveId: materialReceiveItems.materialReceiveId })
-        .from(materialReceiveItems)
-        .where(or(like(materialReceiveItems.itemCodePdm, term), like(materialReceiveItems.color, term)));
-
-      const idsFromChildren = [...styleMatches, ...itemMatches].map((r) => r.materialReceiveId);
-      const receivesFromChildren = idsFromChildren.length
-        ? await db.select().from(materialReceives).where(inArray(materialReceives.id, idsFromChildren))
-        : [];
-
-      const merged = [...directMatches, ...receivesFromChildren];
-      receives = Array.from(new Map(merged.map((r) => [r.id, r])).values());
-    } else {
-      receives = await db.select().from(materialReceives).orderBy(desc(materialReceives.createdAt));
+        .where(and(...conditions));
+      intersect(rows.map((r) => r.id));
     }
 
-    // Always end up newest-first, even for the search branch (which merges
-    // two separate queries and loses ordering along the way).
+    // --- Style + Model: must match on the SAME style row ---
+    if (has(style) || has(model)) {
+      const conditions = [];
+      if (has(style)) conditions.push(like(materialReceiveStyles.style, term(style)));
+      if (has(model)) conditions.push(like(materialReceiveStyles.model, term(model)));
+      const rows = await db
+        .select({ materialReceiveId: materialReceiveStyles.materialReceiveId })
+        .from(materialReceiveStyles)
+        .where(and(...conditions));
+      intersect(rows.map((r) => r.materialReceiveId));
+    }
+
+    // --- Item Code/PDM + Color: must match on the SAME item row ---
+    if (has(itemCodePdm) || has(color)) {
+      const conditions = [];
+      if (has(itemCodePdm)) conditions.push(like(materialReceiveItems.itemCodePdm, term(itemCodePdm)));
+      if (has(color)) conditions.push(like(materialReceiveItems.color, term(color)));
+      const rows = await db
+        .select({ materialReceiveId: materialReceiveItems.materialReceiveId })
+        .from(materialReceiveItems)
+        .where(and(...conditions));
+      intersect(rows.map((r) => r.materialReceiveId));
+    }
+
+    let receives;
+    if (candidateIds === null) {
+      // No filters supplied at all -- return everything.
+      receives = await db.select().from(materialReceives).orderBy(desc(materialReceives.createdAt));
+    } else {
+      const ids = Array.from(candidateIds);
+      receives = ids.length
+        ? await db.select().from(materialReceives).where(inArray(materialReceives.id, ids))
+        : [];
+    }
+
+    // Always end up newest-first, even for the filtered branch (which
+    // merges several separate queries and loses ordering along the way).
     receives = receives.slice().sort((a, b) => {
       const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -82,10 +135,16 @@ export const getAllMaterialReceives = async (req, res) => {
     const allItems = receiveIds.length
       ? await db.select().from(materialReceiveItems).where(inArray(materialReceiveItems.materialReceiveId, receiveIds))
       : [];
+    const allItemIds = allItems.map((i) => i.id);
+    const allLocations = allItemIds.length
+      ? await db.select().from(materialReceiveItemLocations).where(inArray(materialReceiveItemLocations.itemId, allItemIds))
+      : [];
 
     const withDetails = receives.map((r) => {
       const styles = allStyles.filter((s) => s.materialReceiveId === r.id);
-      const items = allItems.filter((i) => i.materialReceiveId === r.id);
+      const items = allItems
+        .filter((i) => i.materialReceiveId === r.id)
+        .map((it) => ({ ...it, locations: allLocations.filter((l) => l.itemId === it.id) }));
       return { ...r, styles, items, totalItems: items.length };
     });
 
@@ -119,12 +178,14 @@ export const getMaterialReceiveById = async (req, res) => {
  * "remark" is optional free text — not required, never validated.
  *
  * NOTE: Location/Rack is intentionally never accepted here. Every item row
- * is created as status "pending" with no location — that only happens on
- * the Location Assignment page. The whole record starts "pending" too.
+ * is created as status "pending" with its full quantity unassigned — racks
+ * only get set later on the Location Assignment page, and a single batch
+ * can be split across multiple racks there. The whole record starts
+ * "pending" too.
  *
  * Every batch created also gets a "receive" row in stock_history, so the
- * ledger has a record of it entering the system before any location is
- * ever assigned (needed for future FIFO / batch auditing in Cutting Issue).
+ * ledger has a record of it entering the system before any rack is ever
+ * assigned (needed for future FIFO / batch auditing in Cutting Issue).
  */
 export const createMaterialReceive = async (req, res) => {
   try {
@@ -163,9 +224,8 @@ export const createMaterialReceive = async (req, res) => {
           color: row.color,
           rollQty,
           yds,
-          availableRoll: rollQty, // batch starts fully available; Cutting Issue will decrement this later
-          availableYds: yds,
-          location: null,
+          unassignedRoll: rollQty, // nothing racked yet
+          unassignedYds: yds,
           status: "pending",
         };
       });
@@ -180,6 +240,7 @@ export const createMaterialReceive = async (req, res) => {
       if (insertedBatches.length) {
         const historyRows = insertedBatches.map((batch) => ({
           batchId: batch.id,
+          allocationId: null,
           materialReceiveId,
           action: "receive",
           location: null,
@@ -203,10 +264,9 @@ export const createMaterialReceive = async (req, res) => {
 /**
  * PATCH /material-receive/:id
  * Replaces styles + item batches, same "delete old, insert new" approach
- * as before — but only while the record is still pending. Once every batch
- * has a location assigned (status = "approved" on the parent), the record
- * is locked from editing here; changes at that point belong to stock
- * correction tooling, not the Receive form.
+ * as before — but only while the record is still pending (no item has any
+ * rack stock yet). Once every batch has been fully racked (status
+ * "approved" on the parent), the record is locked from editing here.
  *
  * Any pending batch that gets deleted here has its stock_history rows
  * cascade-deleted with it (FK ON DELETE CASCADE), and every newly inserted
@@ -222,7 +282,20 @@ export const updateMaterialReceive = async (req, res) => {
     if (!existing) return res.status(404).json({ message: "Material receive not found" });
     if (existing.status === "approved") {
       return res.status(400).json({
-        message: "This receive is fully approved and already has locations assigned; it can no longer be edited here.",
+        message: "This receive is fully approved and already has rack stock assigned; it can no longer be edited here.",
+      });
+    }
+
+    // Block edit if ANY item batch already has rack stock (partial or
+    // approved), since editing here deletes+recreates pending item rows
+    // and would otherwise silently orphan/duplicate racked stock.
+    const lockedItems = await db
+      .select()
+      .from(materialReceiveItems)
+      .where(and(eq(materialReceiveItems.materialReceiveId, id), ne(materialReceiveItems.status, "pending")));
+    if (lockedItems.length > 0) {
+      return res.status(400).json({
+        message: "Some batches on this receive already have rack stock assigned; remove that stock first before editing.",
       });
     }
 
@@ -238,8 +311,8 @@ export const updateMaterialReceive = async (req, res) => {
         .map((s) => ({ materialReceiveId: Number(id), style: s.style, model: s.model || null }));
       if (styleRows.length) await tx.insert(materialReceiveStyles).values(styleRows);
 
-      // Only pending batches are replaced — any batch that already has a
-      // location assigned (status "approved") is left untouched.
+      // Only pending batches exist at this point (guarded above), so it's
+      // safe to delete all of them and reinsert.
       await tx
         .delete(materialReceiveItems)
         .where(and(eq(materialReceiveItems.materialReceiveId, id), eq(materialReceiveItems.status, "pending")));
@@ -254,9 +327,8 @@ export const updateMaterialReceive = async (req, res) => {
             color: row.color,
             rollQty,
             yds,
-            availableRoll: rollQty,
-            availableYds: yds,
-            location: null,
+            unassignedRoll: rollQty,
+            unassignedYds: yds,
             status: "pending",
           };
         });
@@ -270,6 +342,7 @@ export const updateMaterialReceive = async (req, res) => {
         if (insertedBatches.length) {
           const historyRows = insertedBatches.map((batch) => ({
             batchId: batch.id,
+            allocationId: null,
             materialReceiveId: Number(id),
             action: "receive",
             location: null,
@@ -291,9 +364,10 @@ export const updateMaterialReceive = async (req, res) => {
 
 /**
  * DELETE /material-receive/:id
- * Blocked once any item batch already has a location/stock assigned, so a
- * Receive can't be deleted out from under stock that Location Assignment
- * (or, later, Cutting Issue) already relies on.
+ * Blocked once any item batch already has rack stock assigned (status
+ * "partial" or "approved"), so a Receive can't be deleted out from under
+ * stock that Location Assignment (or, later, Cutting Issue) already
+ * relies on.
  */
 export const deleteMaterialReceive = async (req, res) => {
   try {
@@ -302,14 +376,14 @@ export const deleteMaterialReceive = async (req, res) => {
     const [existing] = await db.select().from(materialReceives).where(eq(materialReceives.id, id));
     if (!existing) return res.status(404).json({ message: "Material receive not found" });
 
-    const approvedItems = await db
+    const lockedItems = await db
       .select()
       .from(materialReceiveItems)
-      .where(and(eq(materialReceiveItems.materialReceiveId, id), eq(materialReceiveItems.status, "approved")));
+      .where(and(eq(materialReceiveItems.materialReceiveId, id), ne(materialReceiveItems.status, "pending")));
 
-    if (approvedItems.length > 0) {
+    if (lockedItems.length > 0) {
       return res.status(400).json({
-        message: "Cannot delete: some batches already have an assigned location. Remove them from stock first.",
+        message: "Cannot delete: some batches already have rack stock assigned. Remove that stock first.",
       });
     }
 

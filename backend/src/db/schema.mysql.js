@@ -32,16 +32,18 @@ export const users = mysqlTable("users", {
 
 // ================= Material Warehouse: Material Receive =================
 //
-// Workflow: Receive (pending, no location) -> Location Assignment (per
-// Item Code/PDM + Color batch, sets location + flips to approved) ->
-// Available Stock / Stock Search (reads only approved batches).
+// Workflow: Receive (pending, nothing racked) -> Location Assignment (a
+// batch's roll/yds can be split across MULTIPLE racks, each tracked as its
+// own row in material_receive_item_locations) -> Available Stock / Stock
+// Search (reads only rack allocations, i.e. quantity that has actually
+// been placed somewhere).
 //
-// A "batch" = one row in material_receive_items. Because it is tied to one
-// parent Receive (one Date/Invoice) + one Item Code/PDM + one Color, two
-// receives of the same Item Code/PDM + Color on different dates naturally
-// stay as separate batches/rows — they are never summed together. This is
-// also what will let a future Cutting Issue module walk batches oldest
-// Date first (FIFO), and optionally target one specific Location + Batch.
+// A "batch" = one row in material_receive_items, tied to one parent
+// Receive (one Date/Invoice) + one Item Code/PDM + one Color. Two receives
+// of the same Item Code/PDM + Color on different dates stay as separate
+// batches/rows — never summed together. This is also what lets a future
+// Cutting Issue module walk batches oldest Date first (FIFO), and target
+// one specific Location + Batch.
 
 // Parent table — one row per "Material Receive" form submission
 export const materialReceives = mysqlTable("material_receives", {
@@ -83,13 +85,19 @@ export const materialReceiveStyles = mysqlTable(
   })
 );
 
-// Child table — one row per Item Code/PDM + Color = one Stock Batch.
-// "Item Code" and "PDM" are the same thing, so there is only itemCodePdm.
-// No Location is set here (Receive never assigns Location/Rack). Location
-// is added later by the Location Assignment step, which also flips
-// status to "approved". availableRoll/availableYds start out equal to
-// rollQty/yds and are the only fields a future Cutting Issue module should
-// decrement — rollQty/yds stay as the immutable "as received" record.
+// Child table — one row per Item Code/PDM + Color = one Stock Batch (as
+// received). Location is NOT stored here — a batch can be split across
+// many racks, each tracked as its own row in material_receive_item_locations
+// below. unassignedRoll/unassignedYds = how much of this batch has NOT yet
+// been put on a rack; they start out equal to rollQty/yds and are
+// decremented every time a new rack allocation is created (and incremented
+// back if an allocation is edited down or removed). rollQty/yds stay
+// immutable "as received".
+//
+// status:
+//   "pending"  -> unassignedRoll/Yds === rollQty/yds (nothing racked yet)
+//   "partial"  -> some racked, some still unassigned
+//   "approved" -> unassignedRoll/Yds === 0 (fully racked)
 export const materialReceiveItems = mysqlTable(
   "material_receive_items",
   {
@@ -102,11 +110,10 @@ export const materialReceiveItems = mysqlTable(
     color: varchar("color", { length: 100 }).notNull(),
     rollQty: int("roll_qty").notNull(), // as received, immutable
     yds: decimal("yds", { precision: 10, scale: 2 }).notNull(), // as received, immutable
-    availableRoll: int("available_roll").notNull(), // decremented by future Cutting Issue
-    availableYds: decimal("available_yds", { precision: 10, scale: 2 }).notNull(), // decremented by future Cutting Issue
-    location: varchar("location", { length: 100 }), // Rack/Location, null until approved
-    status: mysqlEnum("status", ["pending", "approved"]).notNull().default("pending"),
-    approvedAt: timestamp("approved_at"),
+    unassignedRoll: int("unassigned_roll").notNull(), // still needs a rack
+    unassignedYds: decimal("unassigned_yds", { precision: 10, scale: 2 }).notNull(),
+    status: mysqlEnum("status", ["pending", "partial", "approved"]).notNull().default("pending"),
+    approvedAt: timestamp("approved_at"), // set when status first reaches "approved", cleared otherwise
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => ({
@@ -118,20 +125,58 @@ export const materialReceiveItems = mysqlTable(
   })
 );
 
+// One row per (batch, rack) allocation — this is what lets a single batch
+// be split across multiple racks (e.g. 70 rolls -> Rack-1, 30 -> Rack-2).
+// rollQty/yds = how much of the batch was put on THIS rack (immutable
+// "as assigned" for this allocation, unless the allocation itself is
+// edited). availableRoll/availableYds = what's left on THIS specific rack
+// after future Cutting Issue decrements it — that's the true "available
+// stock" unit Material Stock search reads from.
+//
+// Editable/reassignable: an allocation's location or qty can be changed,
+// or the allocation removed entirely, as long as availableRoll/availableYds
+// still equal rollQty/yds (i.e. nothing has been issued from it yet).
+export const materialReceiveItemLocations = mysqlTable(
+  "material_receive_item_locations",
+  {
+    id: serial("id").primaryKey(),
+    itemId: bigint("item_id", { mode: "number", unsigned: true }).notNull(), // -> material_receive_items.id
+    materialReceiveId: bigint("material_receive_id", {
+      mode: "number",
+      unsigned: true,
+    }).notNull(),
+    location: varchar("location", { length: 100 }).notNull(),
+    rollQty: int("roll_qty").notNull(),
+    yds: decimal("yds", { precision: 10, scale: 2 }).notNull(),
+    availableRoll: int("available_roll").notNull(),
+    availableYds: decimal("available_yds", { precision: 10, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    itemFk: foreignKey({
+      columns: [table.itemId],
+      foreignColumns: [materialReceiveItems.id],
+      name: "mril_item_fk",
+    }).onDelete("cascade"),
+    receiveFk: foreignKey({
+      columns: [table.materialReceiveId],
+      foreignColumns: [materialReceives.id],
+      name: "mril_receive_fk",
+    }).onDelete("cascade"),
+  })
+);
+
 // Stock History — the ledger of every movement against a stock batch.
-// Written today for "receive" (batch created) and "location_assignment"
-// (batch approved with a Location/Rack). A future Cutting Issue module
-// will add "issue" rows here as it decrements availableRoll/availableYds
-// on material_receive_items — the batch row plus this ledger is what keeps
-// FIFO (oldest Receive Date issued first) and per-Location + per-Batch
-// issuing auditable from now on. History rows cascade away with their batch
-// or parent Receive, so correcting/deleting a still-pending Receive never
-// leaves orphaned history.
+// "receive" = batch created (no allocation yet, allocationId null).
+// "location_assignment" = qty put on a rack (new allocation created).
+// "adjustment" = an existing allocation was edited/moved/removed.
+// "issue" = future Cutting Issue decrement of an allocation's available qty.
 export const stockHistory = mysqlTable(
   "stock_history",
   {
     id: serial("id").primaryKey(),
     batchId: bigint("batch_id", { mode: "number", unsigned: true }).notNull(), // -> material_receive_items.id
+    allocationId: bigint("allocation_id", { mode: "number", unsigned: true }), // -> material_receive_item_locations.id, nullable
     materialReceiveId: bigint("material_receive_id", {
       mode: "number",
       unsigned: true,
@@ -150,6 +195,11 @@ export const stockHistory = mysqlTable(
       columns: [table.batchId],
       foreignColumns: [materialReceiveItems.id],
       name: "sh_batch_fk",
+    }).onDelete("cascade"),
+    allocationFk: foreignKey({
+      columns: [table.allocationId],
+      foreignColumns: [materialReceiveItemLocations.id],
+      name: "sh_allocation_fk",
     }).onDelete("cascade"),
     receiveFk: foreignKey({
       columns: [table.materialReceiveId],

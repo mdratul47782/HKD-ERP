@@ -3,7 +3,7 @@
 import { db, schema } from "../db/db.js";
 import { eq, asc } from "drizzle-orm";
 
-const { materialReceives, materialReceiveItems, materialReceiveStyles } = schema;
+const { materialReceives, materialReceiveItems, materialReceiveItemLocations, materialReceiveStyles } = schema;
 
 /**
  * GET /material-stock
@@ -11,13 +11,14 @@ const { materialReceives, materialReceiveItems, materialReceiveStyles } = schema
  *   itemCodePdm, style, color, model, season, buyer, invoiceNo, item,
  *   warehouse, location
  *
- * Only reads batches that have been through Location Assignment
- * (status = "approved"). Every row is one Date + Item Code/PDM + Color +
- * Location batch — nothing is merged, so two batches of the same Item
- * Code/PDM + Color + Location from different Receive dates show as two
- * rows. Ordered oldest Receive Date first (FIFO). A "summary" array gives
- * the Total Available Roll/Yds per Item Code/PDM + Color across all its
- * batches, for the headline "Total Available" figure.
+ * Reads from the rack allocations table (material_receive_item_locations),
+ * NOT the batch table — so every row here is one Date + Item Code/PDM +
+ * Color + Rack combination. A batch split across two racks now shows as
+ * two rows, each with its own Roll/Yds and Available Roll/Yds, which is
+ * exactly "which rack has how many rolls, and how many are still
+ * available". Ordered oldest Receive Date first (FIFO). A "summary" array
+ * gives Total Available Roll/Yds per Item Code/PDM + Color across ALL its
+ * racks combined, for the headline "Total Available" figure.
  */
 export const searchMaterialStock = async (req, res) => {
   try {
@@ -26,15 +27,16 @@ export const searchMaterialStock = async (req, res) => {
 
     const rows = await db
       .select({
-        itemId: materialReceiveItems.id,
+        allocationId: materialReceiveItemLocations.id,
+        batchItemId: materialReceiveItems.id,
         materialReceiveId: materialReceiveItems.materialReceiveId,
         itemCodePdm: materialReceiveItems.itemCodePdm,
         color: materialReceiveItems.color,
-        rollQty: materialReceiveItems.rollQty,
-        yds: materialReceiveItems.yds,
-        availableRoll: materialReceiveItems.availableRoll,
-        availableYds: materialReceiveItems.availableYds,
-        location: materialReceiveItems.location,
+        rollQty: materialReceiveItemLocations.rollQty, // roll placed on THIS rack
+        yds: materialReceiveItemLocations.yds, // yds placed on THIS rack
+        availableRoll: materialReceiveItemLocations.availableRoll,
+        availableYds: materialReceiveItemLocations.availableYds,
+        location: materialReceiveItemLocations.location,
         date: materialReceives.date,
         invoiceNo: materialReceives.invoiceNo,
         buyer: materialReceives.buyer,
@@ -44,9 +46,9 @@ export const searchMaterialStock = async (req, res) => {
         item: materialReceives.item,
         buy: materialReceives.buy,
       })
-      .from(materialReceiveItems)
+      .from(materialReceiveItemLocations)
+      .innerJoin(materialReceiveItems, eq(materialReceiveItemLocations.itemId, materialReceiveItems.id))
       .innerJoin(materialReceives, eq(materialReceiveItems.materialReceiveId, materialReceives.id))
-      .where(eq(materialReceiveItems.status, "approved"))
       .orderBy(asc(materialReceives.date));
 
     const styleRows = await db.select().from(materialReceiveStyles);
@@ -70,7 +72,7 @@ export const searchMaterialStock = async (req, res) => {
         if (model && !r.styles.some((s) => q(s.model).includes(q(model)))) return false;
         return true;
       })
-      // Keep only batches that still have stock left — zero-quantity
+      // Keep only rack allocations that still have stock left — zero-quantity
       // history stays in the DB for FIFO/audit but isn't "available stock".
       .filter((r) => Number(r.availableRoll) > 0 || Number(r.availableYds) > 0);
 
@@ -88,7 +90,13 @@ export const searchMaterialStock = async (req, res) => {
       summaryMap.set(key, cur);
     }
 
-    res.json({ rows: results, summary: Array.from(summaryMap.values()) });
+    // itemId in the response = allocationId, so the frontend (which keys
+    // table rows off r.itemId) gets a unique key per rack row, and each
+    // row's Roll/Yds/Available already reflect that specific rack.
+    res.json({
+      rows: results.map((r) => ({ ...r, itemId: r.allocationId })),
+      summary: Array.from(summaryMap.values()),
+    });
   } catch (error) {
     console.error("searchMaterialStock error:", error);
     res.status(500).json({ message: "Failed to search material stock" });
