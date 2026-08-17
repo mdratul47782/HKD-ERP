@@ -7,9 +7,10 @@
     "start": "node server.js",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-     "seed:material": "node src/db/seed.material.js"
+    "seed:material": "node src/db/seed.material.js"
   },
   "dependencies": {
+    "@faker-js/faker": "^10.6.0",
     "@neondatabase/serverless": "^1.1.0",
     "cloudinary": "^2.10.0",
     "cors": "^2.8.6",

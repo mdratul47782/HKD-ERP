@@ -42,42 +42,106 @@ const STOCK_FILTER_FIELDS = [
 ];
 
 /* ============================================================
-   Summary cards -- Total Available Roll/Yds per Item Code/PDM + Color.
-   Each value is now explicitly labeled ("Item Code/PDM:", "Color:")
-   so it's unambiguous which part of the card is which. Note this
-   card aggregates across ALL invoices for that Item Code/PDM + Color
-   combination (that's the whole point of "Total Available"), so
-   there's no single Invoice No. shown here -- it's a total, not a
-   per-invoice batch. Per-invoice, date-wise batches are in the
-   table below.
+   Summary table -- Total Available Roll/Yds per Item Code/PDM +
+   Color, rendered as a real table (not cards) so it stays compact
+   and readable even with lots of combinations. Aggregates across
+   ALL invoices for that Item Code/PDM + Color combination (that's
+   the whole point of "Total Available"), so there's no single
+   Invoice No. shown here -- it's a total, not a per-invoice batch.
+   Per-invoice, date-wise batches are in the table below.
+
+   Adds:
+   - A Hide/Show toggle so the whole block can be collapsed out of
+     the way once you've seen it.
+   - Its own search box (Item Code/PDM or Color) that filters the
+     summary rows client-side, independent of the main Filters bar
+     above -- handy for a quick "what's the total for X" lookup
+     without re-running the full batch search.
    ============================================================ */
 
 function SummaryStrip({ summary }) {
+  const [hidden, setHidden] = useState(true);
+  const [query, setQuery] = useState("");
+
   if (!summary?.length) return null;
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? summary.filter(
+        (s) =>
+          s.itemCodePdm?.toLowerCase().includes(q) ||
+          s.color?.toLowerCase().includes(q)
+      )
+    : summary;
+
   return (
     <div className={`${card} p-3`}>
-      <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc] mb-2">
-        Total Available <span className="text-[11px] font-sans font-normal text-[#a08060]">(across all invoices, by Item Code/PDM + Color)</span>
-      </h2>
-      <div className="flex flex-wrap gap-2">
-        {summary.map((s) => (
-          <div
-            key={`${s.itemCodePdm}-${s.color}`}
-            className="rounded-lg border border-[#2c2417]/10 dark:border-[#e8ddd0]/10 bg-white dark:bg-[#2a241b] px-3 py-2 min-w-[180px]"
-          >
-            <div className="text-[11px] leading-relaxed">
-              <span className="text-[#a08060]">Item Code/PDM:</span>{" "}
-              <span className="font-semibold text-[#8a4a24] dark:text-[#d4955e]">{s.itemCodePdm}</span>
-              <br />
-              <span className="text-[#a08060]">Color:</span>{" "}
-              <span className="font-semibold text-[#8a4a24] dark:text-[#d4955e]">{s.color}</span>
+      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+        <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">
+          Total Available{" "}
+          <span className="text-[11px] font-sans font-normal text-[#a08060]">
+            (across all invoices, by Item Code/PDM + Color)
+          </span>
+          <span className="ml-2 text-[11px] font-sans font-normal text-[#a08060]">
+            ({filtered.length}{q ? ` of ${summary.length}` : ""})
+          </span>
+        </h2>
+        <div className="flex items-center gap-2">
+          {!hidden && (
+            <div className="relative">
+              <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#a08060]" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search Item Code/PDM or Color..."
+                className={`${inputCls} !py-1 !pl-6 text-[11px] w-64`}
+              />
             </div>
-            <div className="text-xs text-[#2c2417] dark:text-[#e8ddd0] mt-1 pt-1 border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8">
-              {s.totalAvailableRoll} Roll &middot; {s.totalAvailableYds} Yds
-            </div>
-          </div>
-        ))}
+          )}
+          <button type="button" onClick={() => setHidden((h) => !h)} className={btnSecondary}>
+            {hidden ? "Show" : "Hide"}
+          </button>
+        </div>
       </div>
+
+      {!hidden && (
+        filtered.length === 0 ? (
+          <div className="text-[11px] italic text-[#a08060] px-1 py-2">No matches.</div>
+        ) : (
+          <div className="overflow-x-auto max-h-[40vh] overflow-y-auto rounded-lg border border-[#2c2417]/8 dark:border-[#e8ddd0]/8">
+            <table className="min-w-full text-[11px] border-collapse">
+              <thead className="sticky top-0 bg-[#e6e0d4]/70 dark:bg-[#221d16] text-[#7a6250] dark:text-[#a8917d] backdrop-blur">
+                <tr>
+                  <th className="px-3 py-2 text-left font-semibold">Item Code/PDM</th>
+                  <th className="px-3 py-2 text-left font-semibold">Color</th>
+                  <th className="px-3 py-2 text-right font-semibold">Available Roll</th>
+                  <th className="px-3 py-2 text-right font-semibold">Available Yds</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((s) => (
+                  <tr
+                    key={`${s.itemCodePdm}-${s.color}`}
+                    className="border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#b87a4a]/5"
+                  >
+                    <td className="px-3 py-2 font-semibold text-[#8a4a24] dark:text-[#d4955e] whitespace-nowrap">
+                      {s.itemCodePdm}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">{s.color}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-[#3d7a4a] dark:text-[#8fca9c]">
+                      {s.totalAvailableRoll}
+                    </td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-[#3d7a4a] dark:text-[#8fca9c]">
+                      {s.totalAvailableYds}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
     </div>
   );
 }

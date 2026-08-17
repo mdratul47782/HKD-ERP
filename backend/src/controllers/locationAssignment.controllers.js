@@ -103,7 +103,16 @@ async function recomputeItemStatus(tx, itemId) {
  * Assigns PART (or all) of a batch's still-unassigned quantity to one
  * rack. Can be called multiple times against the same batch with
  * different racks to split it (e.g. 70 -> Rack-1, then later 30 -> Rack-2).
- * Also writes a "location_assignment" row to stock_history.
+ *
+ * MERGE BEHAVIOR: if this exact batch (itemId) already has an allocation
+ * on the SAME rack (location), the new Roll/Yds are added into that
+ * existing allocation row instead of creating a second, duplicate row for
+ * the same batch + rack. This is what stops Material Stock search from
+ * showing the same batch on the same rack as two separate lines just
+ * because someone assigned to it in two calls (e.g. assigned some, then
+ * came back later and assigned the rest to the same rack).
+ *
+ * Also writes a "location_assignment" row to stock_history either way.
  */
 export const assignLocation = async (req, res) => {
   try {
@@ -115,8 +124,12 @@ export const assignLocation = async (req, res) => {
     }
     const roll = Number(rollQty) || 0;
     const y = Number(yds) || 0;
-    if (roll <= 0 && y <= 0) {
-      return res.status(400).json({ message: "Enter a Roll and/or Yds quantity to assign" });
+
+    // Both Roll AND Yds must be a positive quantity -- a rack assignment
+    // that only sets one of the two (leaving the other at 0) is no longer
+    // allowed, since a real rack placement always has both.
+    if (roll <= 0 || y <= 0) {
+      return res.status(400).json({ message: "Enter both a Roll and a Yds quantity greater than 0 to assign" });
     }
 
     const [item] = await db.select().from(materialReceiveItems).where(eq(materialReceiveItems.id, itemId));
@@ -133,16 +146,41 @@ export const assignLocation = async (req, res) => {
     const trimmedLocation = location.trim();
 
     await db.transaction(async (tx) => {
-      const [inserted] = await tx.insert(materialReceiveItemLocations).values({
-        itemId: Number(itemId),
-        materialReceiveId: item.materialReceiveId,
-        location: trimmedLocation,
-        rollQty: roll,
-        yds: y,
-        availableRoll: roll,
-        availableYds: y,
-      });
-      const allocationId = inserted.insertId;
+      // Look for an existing allocation of THIS batch on THIS exact rack.
+      const existingAllocs = await tx
+        .select()
+        .from(materialReceiveItemLocations)
+        .where(eq(materialReceiveItemLocations.itemId, Number(itemId)));
+      const existing = existingAllocs.find((a) => a.location === trimmedLocation);
+
+      let allocationId;
+
+      if (existing) {
+        // MERGE: add the new quantity into the existing rack row instead of
+        // creating a duplicate. availableRoll/Yds only track what hasn't
+        // been issued yet, so the new quantity is added there too.
+        await tx
+          .update(materialReceiveItemLocations)
+          .set({
+            rollQty: Number(existing.rollQty) + roll,
+            yds: Number(existing.yds) + y,
+            availableRoll: Number(existing.availableRoll) + roll,
+            availableYds: Number(existing.availableYds) + y,
+          })
+          .where(eq(materialReceiveItemLocations.id, existing.id));
+        allocationId = existing.id;
+      } else {
+        const [inserted] = await tx.insert(materialReceiveItemLocations).values({
+          itemId: Number(itemId),
+          materialReceiveId: item.materialReceiveId,
+          location: trimmedLocation,
+          rollQty: roll,
+          yds: y,
+          availableRoll: roll,
+          availableYds: y,
+        });
+        allocationId = inserted.insertId;
+      }
 
       await tx
         .update(materialReceiveItems)
@@ -160,7 +198,9 @@ export const assignLocation = async (req, res) => {
         location: trimmedLocation,
         rollQty: roll,
         yds: y,
-        note: `Assigned ${roll} Roll / ${y} Yds to ${trimmedLocation}`,
+        note: existing
+          ? `Added ${roll} Roll / ${y} Yds to existing allocation on ${trimmedLocation}`
+          : `Assigned ${roll} Roll / ${y} Yds to ${trimmedLocation}`,
       });
 
       await recomputeItemStatus(tx, Number(itemId));
@@ -186,6 +226,13 @@ export const assignLocation = async (req, res) => {
  * change how much sits on it). Only allowed while nothing has been issued
  * from it yet (availableRoll/Yds must still equal rollQty/yds). Writes an
  * "adjustment" row to stock_history.
+ *
+ * NOTE: if the person edits the Location field here to a rack that ALREADY
+ * has a separate allocation for this same batch, that's a genuine
+ * ambiguous case (which of the two rows should "win"?) so we deliberately
+ * do NOT silently merge on edit -- we block it and ask them to remove one
+ * of the two allocations first. Merging only happens automatically on the
+ * simpler, common path (assignLocation, i.e. the "Assign" button).
  */
 export const updateAllocation = async (req, res) => {
   try {
@@ -206,6 +253,22 @@ export const updateAllocation = async (req, res) => {
     const newRoll = rollQty !== undefined ? Number(rollQty) : Number(alloc.rollQty);
     const newYds = yds !== undefined ? Number(yds) : Number(alloc.yds);
     const newLocation = location?.trim() || alloc.location;
+
+    // Guard against creating a duplicate rack row via edit: if moving this
+    // allocation onto a rack that already holds another allocation for the
+    // same batch, block it (ambiguous which one should absorb the other).
+    if (newLocation !== alloc.location) {
+      const siblingAllocs = await db
+        .select()
+        .from(materialReceiveItemLocations)
+        .where(eq(materialReceiveItemLocations.itemId, alloc.itemId));
+      const conflict = siblingAllocs.find((a) => a.id !== alloc.id && a.location === newLocation);
+      if (conflict) {
+        return res.status(400).json({
+          message: `This batch already has a separate allocation on ${newLocation}. Remove one of them first, then re-assign to merge.`,
+        });
+      }
+    }
 
     // Headroom = whatever's currently unassigned on the item PLUS what this
     // allocation already holds (since we're about to replace its old qty).

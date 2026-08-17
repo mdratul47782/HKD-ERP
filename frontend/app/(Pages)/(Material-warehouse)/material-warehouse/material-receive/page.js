@@ -331,15 +331,29 @@ function AllocationList({ locations, onSaveEdit, onDelete, busyId }) {
         return (
           <div key={loc.id} className="flex items-center gap-1.5 bg-white dark:bg-[#2a241b] border border-[#2c4a63]/15 dark:border-[#6fa8d0]/15 rounded-md px-2 py-1">
             {isEditing ? (
-              <>
-                <select value={draft.location} onChange={(e) => setDraft((p) => ({ ...p, location: e.target.value }))} className={`${inputCls} !py-1 flex-1`}>
-                  {RACK_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
-                <input type="number" value={draft.roll} onChange={(e) => setDraft((p) => ({ ...p, roll: e.target.value }))} placeholder="Roll" className={`${inputCls} !py-1 w-16`} />
-                <input type="number" value={draft.yds} onChange={(e) => setDraft((p) => ({ ...p, yds: e.target.value }))} placeholder="Yds" className={`${inputCls} !py-1 w-16`} />
-                <button type="button" onClick={() => saveEdit(loc.id)} disabled={busyId === loc.id} className="text-[#3d7a4a] hover:opacity-70 shrink-0"><Check size={13} /></button>
-                <button type="button" onClick={() => setEditingId(null)} className="text-[#a04a3a] hover:opacity-70 shrink-0"><X size={13} /></button>
-              </>
+              <div className="w-full space-y-1">
+                {/* Rack select on its own full-width row -- on narrow
+                    screens, squeezing this into a row alongside two
+                    number inputs and two icon buttons left almost no
+                    width for it, so it rendered as just the browser's
+                    dropdown arrow with the selected rack name invisible. */}
+                <div className="relative">
+                  <MapPin size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#3d6a8a] dark:text-[#6fa8d0] pointer-events-none" />
+                  <select
+                    value={draft.location}
+                    onChange={(e) => setDraft((p) => ({ ...p, location: e.target.value }))}
+                    className={`${inputCls} !py-1 w-full !pl-6 font-semibold text-[#2c4a63] dark:text-[#6fa8d0]`}
+                  >
+                    {RACK_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input type="number" value={draft.roll} onChange={(e) => setDraft((p) => ({ ...p, roll: e.target.value }))} placeholder="Roll" className={`${inputCls} !py-1 flex-1`} />
+                  <input type="number" value={draft.yds} onChange={(e) => setDraft((p) => ({ ...p, yds: e.target.value }))} placeholder="Yds" className={`${inputCls} !py-1 flex-1`} />
+                  <button type="button" onClick={() => saveEdit(loc.id)} disabled={busyId === loc.id} className="text-[#3d7a4a] hover:opacity-70 shrink-0"><Check size={15} /></button>
+                  <button type="button" onClick={() => setEditingId(null)} className="text-[#a04a3a] hover:opacity-70 shrink-0"><X size={15} /></button>
+                </div>
+              </div>
             ) : (
               <>
                 <MapPin size={11} className="text-[#3d6a8a] dark:text-[#6fa8d0] shrink-0" />
@@ -378,6 +392,9 @@ function AllocationList({ locations, onSaveEdit, onDelete, busyId }) {
    orange/brown palette) with a left accent border + margin + shadow,
    so it's immediately obvious this whole block is the "Items under
    Invoice X" expansion and NOT just another striped table row.
+
+   NOTE: colSpan is 13 here to match the parent Saved Records table,
+   which now has 13 columns after the Remark column was added.
    ============================================================ */
 
 function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
@@ -389,7 +406,7 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
   const [previewLoadingId, setPreviewLoadingId] = useState(null);
 
   if (!items?.length) {
-    return <tr><td colSpan={12} className="px-3 py-2 text-[11px] italic text-[#a08060]">No item code / color rows found.</td></tr>;
+    return <tr><td colSpan={13} className="px-3 py-2 text-[11px] italic text-[#a08060]">No item code / color rows found.</td></tr>;
   }
 
   const getDraft = (itemId) => newAlloc[itemId] || { location: RACK_OPTIONS[0], roll: "", yds: "" };
@@ -461,7 +478,7 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
 
   return (
     <tr>
-      <td colSpan={12} className="p-0">
+      <td colSpan={13} className="p-0">
         {/* Distinct blue/slate "drawer" wrapper -- deliberately a different
             color family from the orange/brown page theme, plus margin,
             rounded corners, left accent border and an inner shadow, so it
@@ -523,23 +540,39 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
                           {/* Assign-more form, only while quantity remains unassigned */}
                           {!isLocked && (
                             <div className="space-y-1">
+                              {/* Rack select on its own full-width row -- on
+                                  narrow screens, squeezing this into a row
+                                  alongside Roll, Yds and the Assign button
+                                  left almost no width for it, so it rendered
+                                  as just the browser's dropdown arrow with
+                                  the selected rack name invisible. A visible
+                                  "Rack" label + pin icon + full width fixes
+                                  that and makes the current pick obvious. */}
+                              <label className="block">
+                                <span className="block mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#4a6578] dark:text-[#8fb0c4]">
+                                  Rack
+                                </span>
+                                <div className="relative">
+                                  <MapPin size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#2c4a63] dark:text-[#6fa8d0] pointer-events-none" />
+                                  <select
+                                    value={draft.location}
+                                    onChange={(e) => setDraft(row.id, "location", e.target.value)}
+                                    className={`${inputCls} w-full !pl-6 font-semibold text-[#2c4a63] dark:text-[#6fa8d0]`}
+                                  >
+                                    {RACK_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                                  </select>
+                                </div>
+                              </label>
                               <div className="flex items-center gap-1.5">
-                                <select
-                                  value={draft.location}
-                                  onChange={(e) => setDraft(row.id, "location", e.target.value)}
-                                  className={`${inputCls} flex-1`}
-                                >
-                                  {RACK_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                                </select>
                                 <input
                                   type="number" placeholder="Roll" value={draft.roll}
                                   onChange={(e) => setDraft(row.id, "roll", e.target.value)}
-                                  className={`${inputCls} w-16`}
+                                  className={`${inputCls} flex-1`}
                                 />
                                 <input
                                   type="number" placeholder="Yds" value={draft.yds}
                                   onChange={(e) => setDraft(row.id, "yds", e.target.value)}
-                                  className={`${inputCls} w-16`}
+                                  className={`${inputCls} flex-1`}
                                 />
                                 <button
                                   type="button"
@@ -551,7 +584,7 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
                                 </button>
                               </div>
                               <div className="text-[9px] text-[#a08060]">
-                                Up to {row.unassignedRoll} Roll / {row.unassignedYds} Yds left to place. Assign part of it to split across racks.
+                                Up to {row.unassignedRoll} Roll / {row.unassignedYds} Yds left to place. Assign part of it to split across racks — assigning to a Rack that already holds this batch merges into that same Rack instead of creating a duplicate.
                               </div>
                             </div>
                           )}
@@ -636,7 +669,9 @@ function RecordFilterRow({ filters, setFilters }) {
 }
 
 /* ============================================================
-   Records panel -- a real HTML table, sits beside the form
+   Records panel -- a real HTML table, sits beside the form.
+   Now includes a Remark column (right after Invoice No.), truncated
+   with an ellipsis and the full text available on hover via title.
    ============================================================ */
 
 function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, toggleExpanded, onEdit, onDelete, onAssigned }) {
@@ -665,6 +700,7 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
                 <th className="px-3 py-2 text-left font-semibold w-6"></th>
                 <th className="px-3 py-2 text-left font-semibold">Date</th>
                 <th className="px-3 py-2 text-left font-semibold">Invoice No.</th>
+                <th className="px-3 py-2 text-left font-semibold">Remark</th>
                 <th className="px-3 py-2 text-left font-semibold">From</th>
                 <th className="px-3 py-2 text-left font-semibold">Warehouse</th>
                 <th className="px-3 py-2 text-left font-semibold">Buyer</th>
@@ -684,7 +720,6 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
                   <Fragment key={r.id}>
                     <tr
                       onClick={() => toggleExpanded(r.id)}
-                      title={r.remark || undefined}
                       className="border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 cursor-pointer hover:bg-[#b87a4a]/5"
                     >
                       <td className="px-3 py-2 text-[#a08060]">
@@ -692,6 +727,9 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">{r.date?.slice(0, 10)}</td>
                       <td className="px-3 py-2 font-medium text-[#1a1208] dark:text-[#f0e8dc] whitespace-nowrap">{r.invoiceNo}</td>
+                      <td className="px-3 py-2 max-w-[160px] truncate text-[#7a6250] dark:text-[#a8917d]" title={r.remark || undefined}>
+                        {r.remark || <span className="italic text-[#a08060]">-</span>}
+                      </td>
                       <td className="px-3 py-2"><span className={chip}>{r.fromType}</span></td>
                       <td className="px-3 py-2"><span className={chip}>{r.warehouse}</span></td>
                       <td className="px-3 py-2 whitespace-nowrap">{r.buyer}</td>
@@ -899,16 +937,26 @@ export default function MaterialReceivePage() {
           FORM + RECORDS TABLE, side by side, each with its OWN
           independent scroll region:
 
-          - Outer wrapper (per column) is `sticky` at `top-6` and capped
-            to the viewport height with `max-h-[calc(100vh-3rem)]`.
-          - Inner content scrolls with `overflow-y-auto`.
+          - Outer wrapper (per column) is `sticky` at `top-6`.
+          - The RECORDS column now gets a *fixed* height
+            (`h-[calc(100vh-3rem)]`) instead of only a `max-h-...`.
+            `RecordsPanel` relies on `h-full` internally to size its
+            own `flex-1 overflow-auto` table body -- and `height: 100%`
+            can only resolve against an ancestor with a DEFINITE height.
+            `max-height` alone leaves the computed height as `auto`,
+            so `h-full` had nothing to measure against and the whole
+            panel just grew with the table instead of scrolling. A
+            fixed `h-[...]` fixes that.
+          - The FORM column doesn't need this: it applies
+            `overflow-y-auto` directly on itself with its own
+            `max-h-...`, so `max-height` alone is fine there.
           - Both scroll regions use the shared `scrollThin` thin,
             theme-colored scrollbar instead of the browser default.
 
-          Because each column's scroll container is separate and capped
-          to the viewport (not to each other's height), scrolling the
-          form never moves the table and scrolling the table never
-          moves the form.
+          Because each column's scroll container is separate, scrolling
+          the form never moves the table and scrolling the table never
+          moves the form -- and now the table actually scrolls once it
+          gets long instead of pushing the page down.
         */}
         <div className="flex items-start gap-4">
           {/* FORM COLUMN */}
@@ -999,8 +1047,10 @@ export default function MaterialReceivePage() {
             </div>
           </div>
 
-          {/* RECORDS COLUMN -- sticky + viewport-capped, own scroll region */}
-          <div className="flex-1 min-w-0 sticky top-6 max-h-[calc(100vh-3rem)] overflow-hidden">
+          {/* RECORDS COLUMN -- sticky + a FIXED viewport height (not just
+              max-height), so RecordsPanel's h-full/flex-1 scroll region has
+              something definite to size against and actually scrolls. */}
+          <div className="flex-1 min-w-0 sticky top-6 h-[calc(100vh-3rem)] overflow-hidden">
             <RecordsPanel
               filters={recordFilters}
               setFilters={setRecordFilters}
