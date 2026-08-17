@@ -49,13 +49,22 @@ const BUYERS = [
 // All free-text values are forced upper case as the user types.
 const up = (v) => (v || "").toUpperCase();
 
+// crypto.randomUUID() is only available in secure contexts (HTTPS or localhost).
+// On a plain-HTTP origin (e.g. http://192.169.11.38:3000) it is undefined, and
+// calling it during the initial render crashed the whole page. Use it when
+// available and fall back to a locally-generated unique id otherwise.
+const uid = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
 const emptyForm = {
   date: "", invoiceNo: "", fromType: "Overseas", warehouse: "K-2",
   buyer: "", season: "", po: "", item: "", buy: "", remark: "",
 };
-const newColor = () => ({ key: crypto.randomUUID(), color: "", roll: "", yds: "" });
-const newItemCode = () => ({ key: crypto.randomUUID(), itemCodePdm: "", colors: [newColor()] });
-const newStyleRow = () => ({ key: crypto.randomUUID(), style: "", model: "" });
+const newColor = () => ({ key: uid(), color: "", roll: "", yds: "" });
+const newItemCode = () => ({ key: uid(), itemCodePdm: "", colors: [newColor()] });
+const newStyleRow = () => ({ key: uid(), style: "", model: "" });
 
 // Separate, clearly-labeled Saved Records search fields -- each one is its
 // own small input (Buyer is a dropdown, same options as the form) so
@@ -876,15 +885,15 @@ export default function MaterialReceivePage() {
 
       setStyleRows(
         (data.styles || []).length
-          ? data.styles.map((s) => ({ key: crypto.randomUUID(), style: s.style, model: s.model || "" }))
+          ? data.styles.map((s) => ({ key: uid(), style: s.style, model: s.model || "" }))
           : [newStyleRow()]
       );
 
       const grouped = [];
       for (const row of data.items) {
         let g = grouped.find((g) => g.itemCodePdm === row.itemCodePdm);
-        if (!g) { g = { key: crypto.randomUUID(), itemCodePdm: row.itemCodePdm, colors: [] }; grouped.push(g); }
-        g.colors.push({ key: crypto.randomUUID(), color: row.color, roll: row.rollQty, yds: row.yds });
+        if (!g) { g = { key: uid(), itemCodePdm: row.itemCodePdm, colors: [] }; grouped.push(g); }
+        g.colors.push({ key: uid(), color: row.color, roll: row.rollQty, yds: row.yds });
       }
       setItemCodes(grouped.length ? grouped : [newItemCode()]);
       setEditingId(id);

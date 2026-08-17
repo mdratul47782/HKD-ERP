@@ -46,8 +46,17 @@ const BUYERS = [
 
 const up = (v) => (v || "").toUpperCase();
 
+// crypto.randomUUID() is only available in secure contexts (HTTPS or localhost).
+// On a plain-HTTP origin (e.g. http://192.169.11.38:3000) it is undefined, and
+// calling it during the initial render crashed the whole page. Use it when
+// available and fall back to a locally-generated unique id otherwise.
+const uid = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
 const emptyForm = { date: "", buyer: "", floor: "A-2", season: "", po: "", style: "", model: "" };
-const newItem = () => ({ key: crypto.randomUUID(), itemCodePdm: "", color: "", requestedRoll: "", requestedYds: "" });
+const newItem = () => ({ key: uid(), itemCodePdm: "", color: "", requestedRoll: "", requestedYds: "" });
 
 const emptyRecordFilters = { buyer: "", po: "", style: "", model: "", itemCodePdm: "", color: "", floor: "", status: "" };
 const RECORD_FILTER_FIELDS = [
@@ -354,7 +363,7 @@ export default function CuttingRequisitionPage() {
       });
       setItems(
         (data.items || []).length
-          ? data.items.map((i) => ({ key: crypto.randomUUID(), itemCodePdm: i.itemCodePdm, color: i.color, requestedRoll: i.requestedRoll, requestedYds: i.requestedYds }))
+          ? data.items.map((i) => ({ key: uid(), itemCodePdm: i.itemCodePdm, color: i.color, requestedRoll: i.requestedRoll, requestedYds: i.requestedYds }))
           : [newItem()]
       );
       setEditingId(id); setFormOpen(true);

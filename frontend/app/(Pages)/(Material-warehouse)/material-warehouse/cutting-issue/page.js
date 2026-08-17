@@ -8,6 +8,15 @@
 // how much Roll/Yds to issue from a chosen rack. Issuing decrements that
 // rack's available stock immediately. A History tab lists every issue
 // action ever made.
+//
+// UPDATE: the "Check stock (rack + date wise)" table now shows the full
+// context for every stock row -- Buyer, Season, Item, Item Code/PDM,
+// Color, Style/Model, Rack, Available -- not just Date/Rack/Available.
+// This lets the warehouse user visually confirm they're pulling from the
+// right batch (e.g. same Season as the requisition) before picking a
+// rack. The requisition's own Season is also shown as a banner above the
+// table, and any stock row whose Season differs from the requisition's
+// Season is highlighted in red so mismatches are obvious at a glance.
 
 "use client";
 
@@ -86,7 +95,7 @@ function NotificationBell({ notifications, unreadCount, onRefresh, onSelect }) {
                   <span className="ml-auto">{statusChip(n.status)}</span>
                 </div>
                 <div className="text-[10px] text-[#a08060] mt-0.5">
-                  PO {n.po} · Style {n.style}{n.model ? ` · ${n.model}` : ""} · {n.date?.slice(0, 10)}
+                  PO {n.po} · Style {n.style}{n.model ? ` · ${n.model}` : ""} · {n.season} · {n.date?.slice(0, 10)}
                 </div>
               </button>
             ))
@@ -98,15 +107,24 @@ function NotificationBell({ notifications, unreadCount, onRefresh, onSelect }) {
 }
 
 /* ============================================================
-   IssueForm -- for one requisition item: "Check stock" shows
-   Rack + Date-wise available breakdown. Clicking "Pick" on a rack
-   row ADDS it to a picked-racks list below (instead of immediately
-   issuing) -- so the user can pick several racks (e.g. Rack-1 +
-   Rack-3), type a Roll/Yds amount for EACH one, and hit "Issue All"
-   once to apply every row together in a single request/transaction.
+   IssueForm -- for one requisition item: "Check stock" shows a
+   FULL-CONTEXT breakdown of every rack allocation that matches this
+   Item Code/PDM + Color -- Date, Buyer, Season, Item, Item Code/PDM,
+   Color, Style/Model, Rack, Available -- so the warehouse user can
+   visually confirm they're pulling the right batch (right Season /
+   right Buyer / right Style) before picking a rack, not just the
+   right Item Code/PDM + Color. The requisition's own Season is shown
+   as a small banner above the table, and any stock row whose Season
+   differs from it is highlighted in red.
+
+   Clicking "Pick" on a rack row ADDS it to a picked-racks list below
+   (instead of immediately issuing) -- so the user can pick several
+   racks (e.g. Rack-1 + Rack-3), type a Roll/Yds amount for EACH one,
+   and hit "Issue All" once to apply every row together in a single
+   request/transaction.
    ============================================================ */
 
-function IssueForm({ item, onIssued }) {
+function IssueForm({ item, requisition, onIssued }) {
   const [stockOpen, setStockOpen] = useState(false);
   const [stockRows, setStockRows] = useState([]);
   const [loadingStock, setLoadingStock] = useState(false);
@@ -193,29 +211,76 @@ function IssueForm({ item, onIssued }) {
           <div className="text-[11px] italic text-[#a08060]">No available stock found for this Item Code/PDM + Color.</div>
         ) : (
           <div className="rounded-lg border border-[#3d6a8a]/20 dark:border-[#6fa8d0]/20 overflow-hidden">
-            <table className="w-full text-[10px]">
+            <div className="px-3 py-2 bg-[#2c4a63]/8 dark:bg-[#6fa8d0]/8 space-y-1">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-[#4a6578] dark:text-[#8fb0c4]">
+                You're issuing against this Requisition
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                <span className="text-[#2c4a63] dark:text-[#6fa8d0] font-semibold">Season : {requisition?.season || "-"}</span>
+                <span className="text-[#2c4a63] dark:text-[#6fa8d0] font-semibold">Style : {requisition?.style || "-"}</span>
+                <span className="text-[#2c4a63] dark:text-[#6fa8d0] font-semibold">Model : {requisition?.model || "-"}</span>
+                <span className="text-[#2c4a63] dark:text-[#6fa8d0] font-semibold">Buyer : {requisition?.buyer || "-"}</span>
+                <span className="text-[#8a4a24] dark:text-[#d4955e] font-semibold">Item Code : {item.itemCodePdm}</span>
+                <span className="text-[#8a4a24] dark:text-[#d4955e] font-semibold">Color : {item.color}</span>
+              </div>
+              <div className="text-[10px] text-[#a04a3a]">Rows below with a different Season are highlighted in red.</div>
+            </div>
+            <table className="w-full text-xs table-fixed">
+              <colgroup>
+                <col className="w-[9%]" />
+                <col className="w-[13%]" />
+                <col className="w-[9%]" />
+                <col className="w-[13%]" />
+                <col className="w-[11%]" />
+                <col className="w-[9%]" />
+                <col className="w-[13%]" />
+                <col className="w-[9%]" />
+                <col className="w-[10%]" />
+                <col className="w-[4%]" />
+              </colgroup>
               <thead>
                 <tr className="bg-[#dde8ef]/60 dark:bg-white/[0.03] text-[#4a6578] dark:text-[#8fb0c4]">
-                  <th className="px-2 py-1 text-left font-semibold">Date</th>
-                  <th className="px-2 py-1 text-left font-semibold">Rack</th>
-                  <th className="px-2 py-1 text-right font-semibold">Available</th>
-                  <th className="px-2 py-1"></th>
+                  <th className="px-3 py-2 text-left font-semibold">Date</th>
+                  <th className="px-3 py-2 text-left font-semibold">Buyer</th>
+                  <th className="px-3 py-2 text-left font-semibold">Season</th>
+                  <th className="px-3 py-2 text-left font-semibold">Item</th>
+                  <th className="px-3 py-2 text-left font-semibold">Item Code/PDM</th>
+                  <th className="px-3 py-2 text-left font-semibold">Color</th>
+                  <th className="px-3 py-2 text-left font-semibold">Style / Model</th>
+                  <th className="px-3 py-2 text-left font-semibold">Rack</th>
+                  <th className="px-3 py-2 text-right font-semibold">Available</th>
+                  <th className="px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {stockRows.map((r) => {
                   const alreadyPicked = picked.some((p) => p.allocationId === r.itemId);
+                  const seasonMismatch = requisition?.season && r.season && r.season !== requisition.season;
+                  const styleLabel = (r.styles || [])
+                    .map((s) => (s.model ? `${s.style} · ${s.model}` : s.style))
+                    .join(", ");
                   return (
-                    <tr key={r.itemId} className="border-t border-[#3d6a8a]/10 dark:border-[#6fa8d0]/10">
-                      <td className="px-2 py-1 whitespace-nowrap">{r.date?.slice(0, 10)}</td>
-                      <td className="px-2 py-1 whitespace-nowrap"><MapPin size={9} className="inline mr-0.5 text-[#3d6a8a] dark:text-[#6fa8d0]" />{r.location}</td>
-                      <td className="px-2 py-1 text-right whitespace-nowrap font-medium">{r.availableRoll} Roll / {r.availableYds} Yds</td>
-                      <td className="px-2 py-1 text-right">
+                    <tr
+                      key={r.itemId}
+                      className={`border-t border-[#3d6a8a]/10 dark:border-[#6fa8d0]/10 align-top ${seasonMismatch ? "bg-[#a04a3a]/8 dark:bg-[#a04a3a]/10" : ""}`}
+                    >
+                      <td className="px-3 py-2 break-words">{r.date?.slice(0, 10)}</td>
+                      <td className="px-3 py-2 break-words">{r.buyer}</td>
+                      <td className={`px-3 py-2 break-words font-semibold ${seasonMismatch ? "text-[#a04a3a]" : ""}`}>
+                        {r.season}
+                      </td>
+                      <td className="px-3 py-2 break-words">{r.item}</td>
+                      <td className="px-3 py-2 break-words font-semibold text-[#8a4a24] dark:text-[#d4955e]">{r.itemCodePdm}</td>
+                      <td className="px-3 py-2 break-words">{r.color}</td>
+                      <td className="px-3 py-2 break-words">{styleLabel || "-"}</td>
+                      <td className="px-3 py-2 break-words"><MapPin size={11} className="inline mr-0.5 text-[#3d6a8a] dark:text-[#6fa8d0]" />{r.location}</td>
+                      <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{r.availableRoll} Roll / {r.availableYds} Yds</td>
+                      <td className="px-3 py-2 text-right">
                         <button
                           type="button"
                           onClick={() => pickRack(r)}
                           disabled={alreadyPicked}
-                          className="text-[9px] font-semibold text-[#b87a4a] hover:underline disabled:opacity-40 disabled:pointer-events-none"
+                          className="text-[11px] font-semibold text-[#b87a4a] hover:underline disabled:opacity-40 disabled:pointer-events-none"
                         >
                           {alreadyPicked ? "Picked" : "Pick"}
                         </button>
@@ -297,7 +362,9 @@ function WorklistItem({ req, forceOpen, onAfterOpen, onIssued }) {
         {open ? <ChevronUp size={14} className="text-[#a08060]" /> : <ChevronDown size={14} className="text-[#a08060]" />}
         <span className="text-xs font-semibold text-[#1a1208] dark:text-[#f0e8dc]">{req.buyer}</span>
         <span className={chip}><MapPin size={10} className="mr-0.5" />{req.floor}</span>
-        <span className="text-[11px] text-[#7a6250] dark:text-[#a8917d]">PO {req.po} · Style {req.style}{req.model ? ` · ${req.model}` : ""}</span>
+        <span className="text-[11px] text-[#7a6250] dark:text-[#a8917d]">
+          PO {req.po} · Style {req.style}{req.model ? ` · ${req.model}` : ""} · {req.season}
+        </span>
         <span className="text-[10px] text-[#a08060] ml-2">{req.date?.slice(0, 10)}</span>
         <span className="ml-auto">{statusChip(req.status)}</span>
       </button>
@@ -317,7 +384,7 @@ function WorklistItem({ req, forceOpen, onAfterOpen, onIssued }) {
                 </span>
                 <span className="ml-auto">{statusChip(item.status)}</span>
               </div>
-              <IssueForm item={item} onIssued={onIssued} />
+              <IssueForm item={item} requisition={req} onIssued={onIssued} />
             </div>
           ))}
         </div>
@@ -368,6 +435,7 @@ function HistoryTab() {
                 <th className="px-3 py-2 text-left font-semibold">Req. Date</th>
                 <th className="px-3 py-2 text-left font-semibold">Buyer</th>
                 <th className="px-3 py-2 text-left font-semibold">Floor</th>
+                <th className="px-3 py-2 text-left font-semibold">Season</th>
                 <th className="px-3 py-2 text-left font-semibold">PO</th>
                 <th className="px-3 py-2 text-left font-semibold">Style / Model</th>
                 <th className="px-3 py-2 text-left font-semibold">Item Code/PDM</th>
@@ -383,6 +451,7 @@ function HistoryTab() {
                   <td className="px-3 py-2 whitespace-nowrap">{r.date?.slice(0, 10)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.buyer}</td>
                   <td className="px-3 py-2"><span className={chip}>{r.floor}</span></td>
+                  <td className="px-3 py-2 whitespace-nowrap">{r.season}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.po}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.style}{r.model ? ` · ${r.model}` : ""}</td>
                   <td className="px-3 py-2 text-[#8a4a24] dark:text-[#d4955e] font-medium whitespace-nowrap">{r.itemCodePdm}</td>
@@ -445,7 +514,7 @@ export default function CuttingIssuePage() {
 
   return (
     <div className="min-h-screen bg-[#f0ede6] dark:bg-[#1b1712]">
-      <div className="max-w-[1100px] mx-auto px-4 py-6 space-y-5">
+      <div className="max-w-[1700px] mx-auto px-4 py-6 space-y-5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <ClipboardList size={22} className="text-[#b87a4a]" />
