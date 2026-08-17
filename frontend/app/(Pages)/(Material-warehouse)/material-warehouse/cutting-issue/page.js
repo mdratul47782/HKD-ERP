@@ -1,0 +1,499 @@
+// frontend/app/(Pages)/(Material-warehouse)/material-warehouse/cutting-issue/page.js
+//
+// Material Warehouse side: incoming Requisitions from Cutting show up
+// here as bell-icon notifications (read/unread). Expanding a requisition
+// shows its requested Item Code/PDM + Color rows; "Check stock" pulls the
+// same rack-wise/date-wise breakdown used elsewhere (GET /material-stock)
+// so the user can see exactly which rack + date to pull from, then enters
+// how much Roll/Yds to issue from a chosen rack. Issuing decrements that
+// rack's available stock immediately. A History tab lists every issue
+// action ever made.
+
+"use client";
+
+import { useCallback, useEffect, useState, Fragment } from "react";
+import { Bell, PackageSearch, ChevronDown, ChevronUp, MapPin, Search, History as HistoryIcon, ClipboardList } from "lucide-react";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+const card = "bg-[#f7f5f0] dark:bg-[#221d16] border border-[#2c2417]/10 dark:border-[#e8ddd0]/10 rounded-xl shadow-sm";
+const inputCls =
+  "w-full rounded-md border-[1.5px] border-[#2c2417]/25 dark:border-[#e8ddd0]/25 bg-white dark:bg-[#2a241b] px-2.5 py-1.5 text-xs text-[#2c2417] dark:text-[#e8ddd0] placeholder:text-[#a08060] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#b87a4a]/30 focus:border-[#b87a4a] dark:focus:border-[#d4955e] transition-colors";
+const btnPrimary =
+  "inline-flex items-center gap-1.5 rounded-full bg-[#2c2417] dark:bg-[#e8ddd0] text-[#f0ede6] dark:text-[#1b1712] text-xs font-medium px-4 py-2 hover:bg-[#b87a4a] dark:hover:bg-[#d4955e] transition-colors disabled:opacity-50";
+const btnSecondary =
+  "inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#2c2417]/25 dark:border-[#e8ddd0]/25 bg-white dark:bg-[#2a241b] text-[#7a6250] dark:text-[#a8917d] text-xs font-medium px-3 py-1.5 hover:border-[#b87a4a] hover:text-[#b87a4a] dark:hover:border-[#d4955e] dark:hover:text-[#d4955e] transition-colors disabled:opacity-40 disabled:pointer-events-none";
+const chip = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]";
+const chipPending = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#b8933a]/15 text-[#8a6a1a] dark:bg-[#e0c068]/15 dark:text-[#e0c068]";
+const chipPartial = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#3d6a8a]/15 text-[#2c4a63] dark:bg-[#6fa8d0]/15 dark:text-[#6fa8d0]";
+const chipFulfilled = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#5ca068]/15 text-[#3d7a4a] dark:bg-[#8fca9c]/15 dark:text-[#8fca9c]";
+
+const scrollThin =
+  "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent " +
+  "[&::-webkit-scrollbar-thumb]:bg-[#b87a4a]/30 [&::-webkit-scrollbar-thumb]:rounded-full " +
+  "[&::-webkit-scrollbar-thumb:hover]:bg-[#b87a4a]/50 " +
+  "[scrollbar-width:thin] [scrollbar-color:#b87a4a4d_transparent]";
+
+function statusChip(status) {
+  if (status === "fulfilled") return <span className={chipFulfilled}>Fulfilled</span>;
+  if (status === "partial") return <span className={chipPartial}>Partially Issued</span>;
+  return <span className={chipPending}>Pending</span>;
+}
+
+/* ============================================================
+   Notification bell -- unread count + dropdown list. Clicking an
+   item marks it read and jumps to/expands it in the Worklist tab.
+   ============================================================ */
+
+function NotificationBell({ notifications, unreadCount, onRefresh, onSelect }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => { setOpen((o) => !o); if (!open) onRefresh(); }}
+        className="relative inline-flex items-center justify-center h-9 w-9 rounded-full bg-white dark:bg-[#2a241b] border border-[#2c2417]/15 dark:border-[#e8ddd0]/15 text-[#7a6250] dark:text-[#a8917d] hover:text-[#b87a4a] dark:hover:text-[#d4955e] transition-colors"
+        title="Requisition notifications"
+      >
+        <Bell size={16} />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-[#a04a3a] text-white text-[9px] font-bold flex items-center justify-center">
+            {unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className={`absolute right-0 mt-2 w-80 max-h-96 overflow-auto ${scrollThin} ${card} shadow-lg z-20 p-2 space-y-1`}>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-[#7a6250] dark:text-[#a8917d] px-1 pb-1">
+            Cutting Requisitions
+          </div>
+          {notifications.length === 0 ? (
+            <div className="text-[11px] italic text-[#a08060] px-1 py-2">No requisitions yet.</div>
+          ) : (
+            notifications.map((n) => (
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => { setOpen(false); onSelect(n.id); }}
+                className={`w-full text-left rounded-lg px-2.5 py-2 text-xs transition-colors hover:bg-[#b87a4a]/8 ${!n.isRead ? "bg-[#b87a4a]/10" : ""}`}
+              >
+                <div className="flex items-center gap-1.5">
+                  {!n.isRead && <span className="h-1.5 w-1.5 rounded-full bg-[#a04a3a] shrink-0" />}
+                  <span className="font-medium text-[#1a1208] dark:text-[#f0e8dc]">{n.buyer}</span>
+                  <span className="text-[#a08060]">· {n.floor}</span>
+                  <span className="ml-auto">{statusChip(n.status)}</span>
+                </div>
+                <div className="text-[10px] text-[#a08060] mt-0.5">
+                  PO {n.po} · Style {n.style}{n.model ? ` · ${n.model}` : ""} · {n.date?.slice(0, 10)}
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   IssueForm -- for one requisition item: "Check stock" shows
+   Rack + Date-wise available breakdown. Clicking "Pick" on a rack
+   row ADDS it to a picked-racks list below (instead of immediately
+   issuing) -- so the user can pick several racks (e.g. Rack-1 +
+   Rack-3), type a Roll/Yds amount for EACH one, and hit "Issue All"
+   once to apply every row together in a single request/transaction.
+   ============================================================ */
+
+function IssueForm({ item, onIssued }) {
+  const [stockOpen, setStockOpen] = useState(false);
+  const [stockRows, setStockRows] = useState([]);
+  const [loadingStock, setLoadingStock] = useState(false);
+  // Cart of racks picked for this issue action:
+  // [{ allocationId, location, availableRoll, availableYds, roll, yds }]
+  const [picked, setPicked] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const remainingRoll = Number(item.requestedRoll) - Number(item.issuedRoll);
+  const remainingYds = Number(item.requestedYds) - Number(item.issuedYds);
+  const isDone = item.status === "fulfilled";
+
+  const pickedTotalRoll = picked.reduce((s, p) => s + (Number(p.roll) || 0), 0);
+  const pickedTotalYds = picked.reduce((s, p) => s + (Number(p.yds) || 0), 0);
+
+  const checkStock = async () => {
+    if (stockOpen) { setStockOpen(false); return; }
+    setStockOpen(true);
+    setLoadingStock(true);
+    try {
+      const params = new URLSearchParams({ itemCodePdm: item.itemCodePdm, color: item.color });
+      const res = await fetch(`${API_URL}/material-stock?${params.toString()}`, { credentials: "include" });
+      const data = await res.json();
+      setStockRows(data.rows || []);
+    } catch {
+      setStockRows([]);
+    } finally {
+      setLoadingStock(false);
+    }
+  };
+
+  const pickRack = (row) => {
+    setErr("");
+    setPicked((p) => {
+      if (p.some((x) => x.allocationId === row.itemId)) return p; // already picked, don't duplicate
+      return [...p, { allocationId: row.itemId, location: row.location, availableRoll: row.availableRoll, availableYds: row.availableYds, roll: "", yds: "" }];
+    });
+  };
+
+  const removePicked = (allocationId) => setPicked((p) => p.filter((x) => x.allocationId !== allocationId));
+
+  const updatePicked = (allocationId, field, v) =>
+    setPicked((p) => p.map((x) => (x.allocationId === allocationId ? { ...x, [field]: v } : x)));
+
+  const handleIssueAll = async () => {
+    setErr("");
+    if (picked.length === 0) { setErr("Pick at least one rack first."); return; }
+    for (const p of picked) {
+      if (!p.roll || !p.yds || Number(p.roll) <= 0 || Number(p.yds) <= 0) {
+        setErr(`Enter both Roll and Yds for ${p.location}.`);
+        return;
+      }
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/cutting-issue/${item.id}/batch`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          allocations: picked.map((p) => ({ allocationId: p.allocationId, rollQty: p.roll, yds: p.yds })),
+        }),
+      });
+      if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to issue"); }
+      setPicked([]); setStockOpen(false);
+      onIssued?.();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <button type="button" onClick={checkStock} className="inline-flex items-center gap-1 text-[10px] font-medium text-[#4a6578] dark:text-[#8fb0c4] hover:underline">
+        <Search size={11} /> {stockOpen ? "Hide" : "Check"} stock (rack + date wise)
+      </button>
+
+      {stockOpen && (
+        loadingStock ? (
+          <div className="text-[11px] text-[#a08060] italic">Checking...</div>
+        ) : stockRows.length === 0 ? (
+          <div className="text-[11px] italic text-[#a08060]">No available stock found for this Item Code/PDM + Color.</div>
+        ) : (
+          <div className="rounded-lg border border-[#3d6a8a]/20 dark:border-[#6fa8d0]/20 overflow-hidden">
+            <table className="w-full text-[10px]">
+              <thead>
+                <tr className="bg-[#dde8ef]/60 dark:bg-white/[0.03] text-[#4a6578] dark:text-[#8fb0c4]">
+                  <th className="px-2 py-1 text-left font-semibold">Date</th>
+                  <th className="px-2 py-1 text-left font-semibold">Rack</th>
+                  <th className="px-2 py-1 text-right font-semibold">Available</th>
+                  <th className="px-2 py-1"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {stockRows.map((r) => {
+                  const alreadyPicked = picked.some((p) => p.allocationId === r.itemId);
+                  return (
+                    <tr key={r.itemId} className="border-t border-[#3d6a8a]/10 dark:border-[#6fa8d0]/10">
+                      <td className="px-2 py-1 whitespace-nowrap">{r.date?.slice(0, 10)}</td>
+                      <td className="px-2 py-1 whitespace-nowrap"><MapPin size={9} className="inline mr-0.5 text-[#3d6a8a] dark:text-[#6fa8d0]" />{r.location}</td>
+                      <td className="px-2 py-1 text-right whitespace-nowrap font-medium">{r.availableRoll} Roll / {r.availableYds} Yds</td>
+                      <td className="px-2 py-1 text-right">
+                        <button
+                          type="button"
+                          onClick={() => pickRack(r)}
+                          disabled={alreadyPicked}
+                          className="text-[9px] font-semibold text-[#b87a4a] hover:underline disabled:opacity-40 disabled:pointer-events-none"
+                        >
+                          {alreadyPicked ? "Picked" : "Pick"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {!isDone && (
+        <div className="bg-white dark:bg-[#2a241b] border border-[#2c2417]/8 dark:border-[#e8ddd0]/8 rounded-md p-1.5 space-y-1.5">
+          <div className="text-[9px] font-semibold uppercase tracking-wide text-[#4a6578] dark:text-[#8fb0c4]">
+            {picked.length === 0 ? "Pick one or more racks above to issue from" : `${picked.length} rack${picked.length > 1 ? "s" : ""} picked`}
+          </div>
+
+          {picked.length > 0 && (
+            <div className="space-y-1">
+              {picked.map((p) => (
+                <div key={p.allocationId} className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#2c4a63] dark:text-[#6fa8d0] w-16 shrink-0">
+                    <MapPin size={10} />{p.location}
+                  </span>
+                  <input
+                    type="number" placeholder="Roll" value={p.roll}
+                    onChange={(e) => updatePicked(p.allocationId, "roll", e.target.value)}
+                    className={`${inputCls} flex-1`}
+                  />
+                  <input
+                    type="number" placeholder="Yds" value={p.yds}
+                    onChange={(e) => updatePicked(p.allocationId, "yds", e.target.value)}
+                    className={`${inputCls} flex-1`}
+                  />
+                  <span className="text-[9px] text-[#a08060] w-24 shrink-0 whitespace-nowrap">
+                    max {p.availableRoll}/{p.availableYds}
+                  </span>
+                  <button type="button" onClick={() => removePicked(p.allocationId)} className="text-[10px] font-medium text-[#a04a3a] hover:underline shrink-0">
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <div className="flex items-center gap-2 pt-0.5">
+                <span className="text-[10px] text-[#7a6250] dark:text-[#a8917d]">
+                  Total: <b>{pickedTotalRoll} Roll / {pickedTotalYds} Yds</b>
+                </span>
+                <button
+                  type="button" onClick={handleIssueAll} disabled={busy}
+                  className="ml-auto inline-flex items-center gap-1 rounded-full bg-[#2c4a63] dark:bg-[#3d6a8a] text-white text-[10px] font-medium px-3 py-1.5 hover:bg-[#3d6a8a] dark:hover:bg-[#4a7a9a] transition-colors disabled:opacity-50 shrink-0"
+                >
+                  {busy ? "Issuing..." : `Issue All (${picked.length})`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="text-[9px] text-[#a08060]">Up to {remainingRoll} Roll / {remainingYds} Yds remaining to issue in total.</div>
+          {err && <div className="text-[10px] text-[#a04a3a]">{err}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   Worklist -- requisitions not yet fully fulfilled
+   ============================================================ */
+
+function WorklistItem({ req, forceOpen, onAfterOpen, onIssued }) {
+  const [open, setOpen] = useState(!!forceOpen);
+
+  useEffect(() => { if (forceOpen) { setOpen(true); onAfterOpen?.(); } }, [forceOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className={`${card} overflow-hidden`}>
+      <button type="button" onClick={() => setOpen((o) => !o)} className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-[#b87a4a]/5">
+        {open ? <ChevronUp size={14} className="text-[#a08060]" /> : <ChevronDown size={14} className="text-[#a08060]" />}
+        <span className="text-xs font-semibold text-[#1a1208] dark:text-[#f0e8dc]">{req.buyer}</span>
+        <span className={chip}><MapPin size={10} className="mr-0.5" />{req.floor}</span>
+        <span className="text-[11px] text-[#7a6250] dark:text-[#a8917d]">PO {req.po} · Style {req.style}{req.model ? ` · ${req.model}` : ""}</span>
+        <span className="text-[10px] text-[#a08060] ml-2">{req.date?.slice(0, 10)}</span>
+        <span className="ml-auto">{statusChip(req.status)}</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-[#2c2417]/10 dark:border-[#e8ddd0]/10 divide-y divide-[#2c2417]/8 dark:divide-[#e8ddd0]/8">
+          {req.items.map((item) => (
+            <div key={item.id} className="p-3 space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-[#8a4a24] dark:text-[#d4955e]">{item.itemCodePdm}</span>
+                <span className="text-xs font-medium">{item.color}</span>
+                <span className="text-[11px] text-[#7a6250] dark:text-[#a8917d]">
+                  Requested {item.requestedRoll} Roll / {item.requestedYds} Yds
+                </span>
+                <span className="text-[11px] text-[#3d7a4a] dark:text-[#8fca9c] font-medium">
+                  Issued {item.issuedRoll} Roll / {item.issuedYds} Yds
+                </span>
+                <span className="ml-auto">{statusChip(item.status)}</span>
+              </div>
+              <IssueForm item={item} onIssued={onIssued} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   History tab
+   ============================================================ */
+
+function HistoryTab() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_URL}/cutting-issue/history`, { credentials: "include" });
+        setRows(await res.json());
+      } catch {
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  return (
+    <div className={`${card} overflow-hidden`}>
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
+        <HistoryIcon size={16} className="text-[#b87a4a]" />
+        <h2 className="font-serif text-base text-[#1a1208] dark:text-[#f0e8dc]">Issue History</h2>
+        <span className="text-[11px] text-[#a08060]">({rows.length})</span>
+      </div>
+      <div className={`max-h-[70vh] overflow-auto ${scrollThin}`}>
+        {loading ? (
+          <div className="text-center py-8 text-[#a08060] text-xs">Loading...</div>
+        ) : rows.length === 0 ? (
+          <div className="text-center py-8 text-[#a08060] text-xs">No issues yet.</div>
+        ) : (
+          <table className="min-w-full text-[11px] border-collapse">
+            <thead className="sticky top-0 bg-[#e6e0d4]/70 dark:bg-[#221d16] text-[#7a6250] dark:text-[#a8917d] backdrop-blur">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold">Issued On</th>
+                <th className="px-3 py-2 text-left font-semibold">Req. Date</th>
+                <th className="px-3 py-2 text-left font-semibold">Buyer</th>
+                <th className="px-3 py-2 text-left font-semibold">Floor</th>
+                <th className="px-3 py-2 text-left font-semibold">PO</th>
+                <th className="px-3 py-2 text-left font-semibold">Style / Model</th>
+                <th className="px-3 py-2 text-left font-semibold">Item Code/PDM</th>
+                <th className="px-3 py-2 text-left font-semibold">Color</th>
+                <th className="px-3 py-2 text-left font-semibold">Rack</th>
+                <th className="px-3 py-2 text-left font-semibold">Issued Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#b87a4a]/5">
+                  <td className="px-3 py-2 whitespace-nowrap">{r.createdAt?.slice(0, 10)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{r.date?.slice(0, 10)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{r.buyer}</td>
+                  <td className="px-3 py-2"><span className={chip}>{r.floor}</span></td>
+                  <td className="px-3 py-2 whitespace-nowrap">{r.po}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{r.style}{r.model ? ` · ${r.model}` : ""}</td>
+                  <td className="px-3 py-2 text-[#8a4a24] dark:text-[#d4955e] font-medium whitespace-nowrap">{r.itemCodePdm}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{r.color}</td>
+                  <td className="px-3 py-2 whitespace-nowrap"><span className={chip}><MapPin size={10} className="mr-0.5" />{r.location}</span></td>
+                  <td className="px-3 py-2 whitespace-nowrap font-medium text-[#3d7a4a] dark:text-[#8fca9c]">{r.rollQty} Roll / {r.yds} Yds</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Main page
+   ============================================================ */
+
+export default function CuttingIssuePage() {
+  const [tab, setTab] = useState("worklist"); // "worklist" | "history"
+  const [worklist, setWorklist] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [openId, setOpenId] = useState(null);
+  const [error, setError] = useState("");
+
+  const fetchWorklist = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const res = await fetch(`${API_URL}/cutting-issue`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load worklist");
+      setWorklist(await res.json());
+    } catch (err) { setError(err.message); } finally { setLoading(false); }
+  }, []);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/cutting-issue/notifications`, { credentials: "include" });
+      const data = await res.json();
+      setNotifications(data.notifications || []);
+      setUnreadCount(data.unreadCount || 0);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { fetchWorklist(); fetchNotifications(); }, [fetchWorklist, fetchNotifications]);
+
+  const handleSelectNotification = async (id) => {
+    setTab("worklist");
+    setOpenId(id);
+    try {
+      await fetch(`${API_URL}/cutting-issue/${id}/read`, { method: "PATCH", credentials: "include" });
+      fetchNotifications();
+    } catch { /* ignore */ }
+  };
+
+  const refreshAll = () => { fetchWorklist(); fetchNotifications(); };
+
+  return (
+    <div className="min-h-screen bg-[#f0ede6] dark:bg-[#1b1712]">
+      <div className="max-w-[1100px] mx-auto px-4 py-6 space-y-5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <ClipboardList size={22} className="text-[#b87a4a]" />
+            <div>
+              <h1 className="font-serif text-2xl text-[#1a1208] dark:text-[#f0e8dc]">
+                Cutting <em className="italic text-[#b87a4a] dark:text-[#d4955e]">Issue</em>
+              </h1>
+              <p className="text-xs text-[#7a6250] dark:text-[#a8917d]">
+                Fulfill Requisitions sent by Cutting: check available rack stock and issue the requested quantity.
+              </p>
+            </div>
+          </div>
+          <NotificationBell notifications={notifications} unreadCount={unreadCount} onRefresh={fetchNotifications} onSelect={handleSelectNotification} />
+        </div>
+
+        {error && <div className="rounded-lg bg-[#b87a4a]/10 border border-[#b87a4a]/25 text-[#8a4a24] dark:text-[#e0a878] text-xs px-3 py-2"><b>Error:</b> {error}</div>}
+
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setTab("worklist")} className={tab === "worklist" ? btnPrimary : btnSecondary}>
+            <PackageSearch size={13} /> Worklist
+          </button>
+          <button type="button" onClick={() => setTab("history")} className={tab === "history" ? btnPrimary : btnSecondary}>
+            <HistoryIcon size={13} /> History
+          </button>
+        </div>
+
+        {tab === "worklist" ? (
+          loading ? (
+            <div className="text-center py-8 text-[#a08060] text-xs">Loading...</div>
+          ) : worklist.length === 0 ? (
+            <div className="text-center py-8 text-[#a08060] text-xs">No pending cutting requisitions.</div>
+          ) : (
+            <div className="space-y-2">
+              {worklist.map((req) => (
+                <WorklistItem
+                  key={req.id}
+                  req={req}
+                  forceOpen={openId === req.id}
+                  onAfterOpen={() => setOpenId(null)}
+                  onIssued={refreshAll}
+                />
+              ))}
+            </div>
+          )
+        ) : (
+          <HistoryTab />
+        )}
+      </div>
+    </div>
+  );
+}

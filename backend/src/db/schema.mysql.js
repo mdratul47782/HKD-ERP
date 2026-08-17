@@ -208,3 +208,108 @@ export const stockHistory = mysqlTable(
     }).onDelete("cascade"),
   })
 );
+// ================= Cutting: Requisition -> Cutting Issue =================
+//
+// Workflow: Cutting submits a Requisition (Date, Buyer, Floor, Season, PO,
+// Style, Model + one or more Item Code/PDM + Color + Requested Roll/Yds
+// rows) -> it shows up as a notification on the Material Warehouse's
+// "Cutting Issue" page -> the warehouse user picks which rack(s) to issue
+// from (reading the SAME material_receive_item_locations table Material
+// Stock reads from) -> issuing decrements that rack's availableRoll/Yds
+// (exactly like a Cutting Issue draws down real shelf stock) and
+// increments the requisition item's issuedRoll/Yds -> everything is
+// logged to cutting_issues (the "History" ledger for this module) AND to
+// the existing stock_history table (action "issue") so the master stock
+// ledger stays consistent with Location Assignment's audit trail.
+ 
+// Parent table -- one row per Requisition form submission from Cutting.
+export const cuttingRequisitions = mysqlTable("cutting_requisitions", {
+  id: serial("id").primaryKey(),
+  date: date("date", { mode: "string" }).notNull(),
+  buyer: varchar("buyer", { length: 150 }).notNull(),
+  floor: varchar("floor", { length: 10 }).notNull(), // "A-2" | "B-2" | "A-3" | "B-3" | "A-4" | "B-4" | "A-5" | "B-5" | "A-6" | "B-6"
+  season: varchar("season", { length: 100 }).notNull(),
+  po: varchar("po", { length: 150 }).notNull(),
+  style: varchar("style", { length: 100 }).notNull(),
+  model: varchar("model", { length: 150 }),
+  // pending -> nothing issued yet | partial -> some items issued, some not
+  // | fulfilled -> every item fully issued
+  status: mysqlEnum("status", ["pending", "partial", "fulfilled"]).notNull().default("pending"),
+  // Bell-icon notification read state on the Material Warehouse side.
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+ 
+// Child table -- one row per Item Code/PDM + Color requested on a
+// Requisition. issuedRoll/issuedYds accumulate every time the warehouse
+// issues against this row (possibly from multiple racks / multiple
+// visits); requestedRoll/requestedYds stay immutable "as requested".
+export const cuttingRequisitionItems = mysqlTable(
+  "cutting_requisition_items",
+  {
+    id: serial("id").primaryKey(),
+    cuttingRequisitionId: bigint("cutting_requisition_id", {
+      mode: "number",
+      unsigned: true,
+    }).notNull(),
+    itemCodePdm: varchar("item_code_pdm", { length: 150 }).notNull(),
+    color: varchar("color", { length: 100 }).notNull(),
+    requestedRoll: int("requested_roll").notNull(),
+    requestedYds: decimal("requested_yds", { precision: 10, scale: 2 }).notNull(),
+    issuedRoll: int("issued_roll").notNull().default(0),
+    issuedYds: decimal("issued_yds", { precision: 10, scale: 2 }).notNull().default(0),
+    status: mysqlEnum("status", ["pending", "partial", "fulfilled"]).notNull().default("pending"),
+    fulfilledAt: timestamp("fulfilled_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    requisitionFk: foreignKey({
+      columns: [table.cuttingRequisitionId],
+      foreignColumns: [cuttingRequisitions.id],
+      name: "cri_requisition_fk",
+    }).onDelete("cascade"),
+  })
+);
+ 
+// One row per actual "issue" action -- Requisition Item + which rack
+// allocation it was drawn from + how much. This is the real, readable
+// "History" ledger for the Cutting Issue page (who got how much, from
+// which rack, when). A single Requisition Item can end up with several
+// of these rows if it was issued from multiple racks and/or on multiple
+// occasions (partial issue).
+export const cuttingIssues = mysqlTable(
+  "cutting_issues",
+  {
+    id: serial("id").primaryKey(),
+    requisitionItemId: bigint("requisition_item_id", { mode: "number", unsigned: true }).notNull(),
+    cuttingRequisitionId: bigint("cutting_requisition_id", { mode: "number", unsigned: true }).notNull(),
+    allocationId: bigint("allocation_id", { mode: "number", unsigned: true }).notNull(), // -> material_receive_item_locations.id
+    itemId: bigint("item_id", { mode: "number", unsigned: true }).notNull(), // -> material_receive_items.id (the batch)
+    location: varchar("location", { length: 100 }).notNull(), // Rack it was pulled from, at time of issue
+    rollQty: int("roll_qty").notNull(),
+    yds: decimal("yds", { precision: 10, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    requisitionItemFk: foreignKey({
+      columns: [table.requisitionItemId],
+      foreignColumns: [cuttingRequisitionItems.id],
+      name: "ci_requisition_item_fk",
+    }).onDelete("cascade"),
+    requisitionFk: foreignKey({
+      columns: [table.cuttingRequisitionId],
+      foreignColumns: [cuttingRequisitions.id],
+      name: "ci_requisition_fk",
+    }).onDelete("cascade"),
+    allocationFk: foreignKey({
+      columns: [table.allocationId],
+      foreignColumns: [materialReceiveItemLocations.id],
+      name: "ci_allocation_fk",
+    }).onDelete("cascade"),
+    itemFk: foreignKey({
+      columns: [table.itemId],
+      foreignColumns: [materialReceiveItems.id],
+      name: "ci_item_fk",
+    }).onDelete("cascade"),
+  })
+);

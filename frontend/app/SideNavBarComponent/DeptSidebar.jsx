@@ -1,12 +1,10 @@
-// frontend/app/SideNavBarComponent/DeptSidebar.jsx
-
 "use client";
 
 import { useState } from "react";
 import { useSidebar } from "@/app/provider/SidebarContext";
 import {
   TrendingUp, Box, Wrench, Warehouse, PackageSearch, MapPin, Boxes,
-  PanelLeft, PanelLeftClose, FolderClosed, ChevronRight,
+  PanelLeft, PanelLeftClose, FolderClosed, ChevronRight, Scissors, ClipboardList,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -31,6 +29,26 @@ const DEPARTMENTS = [
         icon: FolderClosed,
         items: [
           { href: "/material-warehouse/material-stock", label: "Material Stock", icon: Boxes },
+        ],
+      },
+      {
+        label: "Cutting Issue",
+        icon: FolderClosed,
+        items: [
+          { href: "/material-warehouse/cutting-issue", label: "Cutting Issue", icon: ClipboardList },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Cutting",
+    icon: Scissors,
+    folders: [
+      {
+        label: "Requisition",
+        icon: FolderClosed,
+        items: [
+          { href: "/cutting-requisition", label: "Cutting Requisition", icon: ClipboardList },
         ],
       },
     ],

@@ -5,8 +5,10 @@ import dotenv from "dotenv";
 import express from "express";
 import authRoutes from "./routes/auth.routes.js";
 import materialReceiveRoutes from "./routes/materialReceive.routes.js";
-import locationAssignmentRoutes from "./routes/locationAssignment.routes.js"; // ← new
-import materialStockRoutes from "./routes/materialStock.routes.js"; // ← new
+import locationAssignmentRoutes from "./routes/locationAssignment.routes.js";
+import materialStockRoutes from "./routes/materialStock.routes.js";
+import cuttingRequisitionRoutes from "./routes/cuttingRequisition.routes.js"; // ← new
+import cuttingIssueRoutes from "./routes/cuttingIssue.routes.js"; // ← new
 
 dotenv.config();
 
@@ -18,8 +20,10 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 app.use("/auth", authRoutes);
 app.use("/material-receive", materialReceiveRoutes);
-app.use("/location-assignment", locationAssignmentRoutes); // ← new
-app.use("/material-stock", materialStockRoutes); // ← new
+app.use("/location-assignment", locationAssignmentRoutes);
+app.use("/material-stock", materialStockRoutes);
+app.use("/cutting-requisition", cuttingRequisitionRoutes); // ← new
+app.use("/cutting-issue", cuttingIssueRoutes); // ← new
 
 app.get("/", (req, res) => {
   res.json({ message: "API is running" });
