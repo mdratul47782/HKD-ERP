@@ -7,7 +7,8 @@
     "start": "node server.js",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "seed:material": "node src/db/seed.material.js"
+    "seed:material": "node src/db/seed.material.js",
+    "dbml": "tsx ./dbml.ts"
   },
   "dependencies": {
     "@faker-js/faker": "^10.6.0",
@@ -23,7 +24,9 @@
   },
   "devDependencies": {
     "@types/pg": "^8.20.0",
+    "drizzle-dbml-generator": "^0.10.0",
     "drizzle-kit": "^0.31.10",
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "tsx": "^4.23.12"
   }
 }
