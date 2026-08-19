@@ -3,7 +3,7 @@
 
 "use client";
 
-import { Boxes, RotateCcw, Search } from "lucide-react";
+import { Boxes, ChevronDown, ChevronUp, RotateCcw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -14,12 +14,12 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 const card = "bg-[#f7f5f0] dark:bg-[#221d16] border border-[#2c2417]/10 dark:border-[#e8ddd0]/10 rounded-xl shadow-sm";
 const inputCls =
-  "w-full rounded-md border-[1.5px] border-[#2c2417]/25 dark:border-[#e8ddd0]/25 bg-white dark:bg-[#2a241b] px-2.5 py-1.5 text-xs text-[#2c2417] dark:text-[#e8ddd0] placeholder:text-[#a08060] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#b87a4a]/30 focus:border-[#b87a4a] dark:focus:border-[#d4955e] transition-colors";
+  "w-full rounded-md border-[1.5px] border-[#2c2417]/25 dark:border-[#e8ddd0]/25 bg-white dark:bg-[#2a241b] px-2.5 py-1.5 text-sm text-[#2c2417] dark:text-[#e8ddd0] placeholder:text-[#a08060] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#b87a4a]/30 focus:border-[#b87a4a] dark:focus:border-[#d4955e] transition-colors";
 const btnPrimary =
-  "inline-flex items-center gap-1.5 rounded-full bg-[#2c2417] dark:bg-[#e8ddd0] text-[#f0ede6] dark:text-[#1b1712] text-xs font-medium px-4 py-2 hover:bg-[#b87a4a] dark:hover:bg-[#d4955e] transition-colors disabled:opacity-50";
+  "inline-flex items-center gap-1.5 rounded-full bg-[#2c2417] dark:bg-[#e8ddd0] text-[#f0ede6] dark:text-[#1b1712] text-sm font-semibold px-4 py-2 hover:bg-[#b87a4a] dark:hover:bg-[#d4955e] transition-colors disabled:opacity-50";
 const btnSecondary =
-  "inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#2c2417]/25 dark:border-[#e8ddd0]/25 bg-white dark:bg-[#2a241b] text-[#7a6250] dark:text-[#a8917d] text-xs font-medium px-3 py-1.5 hover:border-[#b87a4a] hover:text-[#b87a4a] dark:hover:border-[#d4955e] dark:hover:text-[#d4955e] transition-colors disabled:opacity-40 disabled:pointer-events-none";
-const chip = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]";
+  "inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#2c2417]/25 dark:border-[#e8ddd0]/25 bg-white dark:bg-[#2a241b] text-[#7a6250] dark:text-[#a8917d] text-sm font-semibold px-3 py-1.5 hover:border-[#b87a4a] hover:text-[#b87a4a] dark:hover:border-[#d4955e] dark:hover:text-[#d4955e] transition-colors disabled:opacity-40 disabled:pointer-events-none";
+const chip = "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]";
 
 const emptyFilters = {
   itemCodePdm: "", style: "", color: "", model: "", season: "",
@@ -78,12 +78,12 @@ function SummaryStrip({ summary }) {
   return (
     <div className={`${card} p-3`}>
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-        <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">
+        <h2 className="font-serif text-base text-[#1a1208] dark:text-[#f0e8dc] font-bold">
           Total Available{" "}
-          <span className="text-[11px] font-sans font-normal text-[#a08060]">
+          <span className="text-xs font-sans font-semibold text-[#a08060]">
             (across all invoices, by Item Code/PDM + Color)
           </span>
-          <span className="ml-2 text-[11px] font-sans font-normal text-[#a08060]">
+          <span className="ml-2 text-xs font-sans font-semibold text-[#a08060]">
             ({filtered.length}{q ? ` of ${summary.length}` : ""})
           </span>
         </h2>
@@ -96,7 +96,7 @@ function SummaryStrip({ summary }) {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search Item Code/PDM or Color..."
-                className={`${inputCls} !py-1 !pl-6 text-[11px] w-full sm:w-64`}
+                className={`${inputCls} !py-1 !pl-6 text-sm w-full sm:w-64`}
               />
             </div>
           )}
@@ -108,16 +108,16 @@ function SummaryStrip({ summary }) {
 
       {!hidden && (
         filtered.length === 0 ? (
-          <div className="text-[11px] italic text-[#a08060] px-1 py-2">No matches.</div>
+          <div className="text-sm font-semibold italic text-[#a08060] px-1 py-2">No matches.</div>
         ) : (
           <div className="overflow-x-auto max-h-[40vh] overflow-y-auto rounded-lg border border-[#2c2417]/8 dark:border-[#e8ddd0]/8">
-            <table className="min-w-full text-[11px] border-collapse">
+            <table className="min-w-full text-sm border-collapse">
               <thead className="sticky top-0 bg-[#e6e0d4]/70 dark:bg-[#221d16] text-[#7a6250] dark:text-[#a8917d] backdrop-blur">
                 <tr>
-                  <th className="px-3 py-2 text-left font-semibold">Item Code/PDM</th>
-                  <th className="px-3 py-2 text-left font-semibold">Color</th>
-                  <th className="px-3 py-2 text-right font-semibold">Available Roll</th>
-                  <th className="px-3 py-2 text-right font-semibold">Available Yds</th>
+                  <th className="px-3 py-2 text-left font-bold">Item Code/PDM</th>
+                  <th className="px-3 py-2 text-left font-bold">Color</th>
+                  <th className="px-3 py-2 text-right font-bold">Available Roll</th>
+                  <th className="px-3 py-2 text-right font-bold">Available Yds</th>
                 </tr>
               </thead>
               <tbody>
@@ -126,14 +126,14 @@ function SummaryStrip({ summary }) {
                     key={`${s.itemCodePdm}-${s.color}`}
                     className="border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#b87a4a]/5"
                   >
-                    <td className="px-3 py-2 font-semibold text-[#8a4a24] dark:text-[#d4955e] whitespace-nowrap">
+                    <td className="px-3 py-2 font-bold text-[#8a4a24] dark:text-[#d4955e] whitespace-nowrap">
                       {s.itemCodePdm}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{s.color}</td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-[#3d7a4a] dark:text-[#8fca9c]">
+                    <td className="px-3 py-2 font-semibold whitespace-nowrap">{s.color}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap text-base font-extrabold text-[#3d7a4a] dark:text-[#8fca9c]">
                       {s.totalAvailableRoll}
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-[#3d7a4a] dark:text-[#8fca9c]">
+                    <td className="px-3 py-2 text-right whitespace-nowrap text-base font-extrabold text-[#3d7a4a] dark:text-[#8fca9c]">
                       {s.totalAvailableYds}
                     </td>
                   </tr>
@@ -148,54 +148,126 @@ function SummaryStrip({ summary }) {
 }
 
 /* ============================================================
-   Filter Bar -- always visible (no click-to-expand). Fields sit in
-   a responsive grid that reflows into more rows as the screen gets
-   narrower, so every field is reachable without scrolling sideways.
+   Filter Bar -- collapsed ("Hide") by default so it stays out of
+   the way. Tap "Show Filters" to drop it open, fill in whatever's
+   needed, then Search. It auto-collapses back after a search so the
+   results have room, but can always be reopened.
    ============================================================ */
 
 function FilterBar({ filters, setFilters, loading, onSearch, onReset }) {
+  const [hidden, setHidden] = useState(true);
   const activeCount = Object.values(filters).filter((v) => v && v.trim()).length;
+
+  const handleSearch = (e) => {
+    onSearch(e);
+    setHidden(true);
+  };
+
+  const handleReset = () => {
+    onReset();
+  };
 
   return (
     <div className={`${card} p-3`}>
-      <div className="flex items-center gap-2 mb-2">
-        <Search size={16} className="text-[#b87a4a]" />
-        <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">Filters</h2>
-        {activeCount > 0 && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]">
-            {activeCount} active
-          </span>
-        )}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Search size={16} className="text-[#b87a4a]" />
+          <h2 className="font-serif text-base font-bold text-[#1a1208] dark:text-[#f0e8dc]">Filters</h2>
+          {activeCount > 0 && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]">
+              {activeCount} active
+            </span>
+          )}
+        </div>
+        <button type="button" onClick={() => setHidden((h) => !h)} className={btnSecondary}>
+          {hidden ? (
+            <>
+              <ChevronDown size={14} /> Show Filters
+            </>
+          ) : (
+            <>
+              <ChevronUp size={14} /> Hide Filters
+            </>
+          )}
+        </button>
       </div>
 
-      <form onSubmit={onSearch}>
-        <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-          {STOCK_FILTER_FIELDS.map((f) => (
-            <label key={f.key} className="min-w-0">
-              <span className="block mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#a08060] whitespace-nowrap">
-                {f.label}
-              </span>
-              <input
-                type="text"
-                value={filters[f.key]}
-                onChange={(e) => setFilters({ ...filters, [f.key]: e.target.value })}
-                placeholder={f.label}
-                className={`${inputCls} text-[11px] py-1`}
-              />
-            </label>
-          ))}
-        </div>
+      {!hidden && (
+        <form onSubmit={handleSearch} className="mt-3">
+          <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+            {STOCK_FILTER_FIELDS.map((f) => (
+              <label key={f.key} className="min-w-0">
+                <span className="block mb-0.5 text-[11px] font-bold uppercase tracking-wide text-[#a08060] whitespace-nowrap">
+                  {f.label}
+                </span>
+                <input
+                  type="text"
+                  value={filters[f.key]}
+                  onChange={(e) => setFilters({ ...filters, [f.key]: e.target.value })}
+                  placeholder={f.label}
+                  className={`${inputCls} text-sm py-1`}
+                />
+              </label>
+            ))}
+          </div>
 
-        <div className="flex flex-wrap justify-end gap-1.5 mt-3">
-          <button type="submit" disabled={loading} className={`${btnPrimary} px-4 whitespace-nowrap`}>
-            {loading ? "..." : "Search"}
-          </button>
-          <button type="button" onClick={onReset} className={`${btnSecondary} whitespace-nowrap`}>
-            <RotateCcw size={12} /> Reset
-          </button>
-        </div>
-      </form>
+          <div className="flex flex-wrap justify-end gap-1.5 mt-3">
+            <button type="submit" disabled={loading} className={`${btnPrimary} px-4 whitespace-nowrap`}>
+              {loading ? "..." : "Search"}
+            </button>
+            <button type="button" onClick={handleReset} className={`${btnSecondary} whitespace-nowrap`}>
+              <RotateCcw size={12} /> Reset
+            </button>
+          </div>
+        </form>
+      )}
     </div>
+  );
+}
+
+/* ============================================================
+   Mini donut/pie chart -- shows Available as a % slice of Received,
+   styled like a rack-capacity gauge ring: big, thick stroke, bold %
+   in the middle, and colored green/amber/red by how much stock is
+   left, so it's a quick visual read, not just a bare number.
+   ============================================================ */
+
+function donutColorClass(percent) {
+  if (percent >= 60) return "stroke-[#3d7a4a] dark:stroke-[#8fca9c]"; // healthy
+  if (percent >= 30) return "stroke-[#b87a4a] dark:stroke-[#d4955e]"; // watch
+  return "stroke-[#b8433a] dark:stroke-[#e08a80]"; // low
+}
+
+function MiniDonut({ percent, size = 60, strokeWidth = 9 }) {
+  const clamped = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - clamped / 100);
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+      <circle
+        cx={size / 2} cy={size / 2} r={radius} fill="none"
+        strokeWidth={strokeWidth}
+        className="stroke-[#2c2417]/12 dark:stroke-[#e8ddd0]/15"
+      />
+      <circle
+        cx={size / 2} cy={size / 2} r={radius} fill="none"
+        strokeWidth={strokeWidth}
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        className={`${donutColorClass(clamped)} transition-[stroke-dashoffset] duration-300`}
+      />
+      <text
+        x="50%" y="50%" textAnchor="middle" dominantBaseline="central"
+        className="fill-[#1a1208] dark:fill-[#f0e8dc]"
+        style={{ fontSize: size * 0.3, fontWeight: 800 }}
+      >
+        {Math.round(clamped)}%
+      </text>
+    </svg>
   );
 }
 
@@ -208,8 +280,8 @@ function ResultsTable({ rows, loading, searched }) {
     <div className={`${card} flex flex-col overflow-hidden`}>
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
         <Boxes size={16} className="text-[#b87a4a]" />
-        <h2 className="font-serif text-base text-[#1a1208] dark:text-[#f0e8dc]">Stock Batches</h2>
-        <span className="text-[11px] text-[#a08060]">({rows.length})</span>
+        <h2 className="font-serif text-lg font-bold text-[#1a1208] dark:text-[#f0e8dc]">Stock Batches</h2>
+        <span className="text-sm font-semibold text-[#a08060]">({rows.length})</span>
       </div>
 
       {/* This table genuinely needs its own horizontal scroll on small
@@ -218,37 +290,39 @@ function ResultsTable({ rows, loading, searched }) {
          longer require any scrolling. */}
       <div className="flex-1 overflow-auto max-h-[65vh]">
         {loading ? (
-          <div className="text-center py-8 text-[#a08060] text-xs">Loading...</div>
+          <div className="text-center py-8 text-[#a08060] text-sm font-semibold">Loading...</div>
         ) : rows.length === 0 ? (
-          <div className="text-center py-8 text-[#a08060] text-xs px-4">
+          <div className="text-center py-8 text-[#a08060] text-sm font-semibold px-4">
             {searched ? "No stock batches match these filters." : "Enter filters and search, or search with everything blank to see all available stock."}
           </div>
         ) : (
-          <table className="min-w-[1080px] w-full text-[11px] border-collapse">
+          <table className="min-w-[1340px] w-full text-sm border-collapse">
             <thead className="sticky top-0 bg-[#e6e0d4]/70 dark:bg-[#221d16] text-[#7a6250] dark:text-[#a8917d] backdrop-blur">
               <tr>
-                <th className="px-3 py-2 text-left font-semibold">Date</th>
-                <th className="px-3 py-2 text-left font-semibold">Invoice No.</th>
-                <th className="px-3 py-2 text-left font-semibold">Buyer</th>
-                <th className="px-3 py-2 text-left font-semibold">Season</th>
-                <th className="px-3 py-2 text-left font-semibold">Style / Model</th>
-                <th className="px-3 py-2 text-left font-semibold">W/H</th>
-                <th className="px-3 py-2 text-left font-semibold">Item Code/PDM</th>
-                <th className="px-3 py-2 text-left font-semibold">Color</th>
-                <th className="px-3 py-2 text-left font-semibold">Location</th>
-                <th className="px-3 py-2 text-right font-semibold">Received Roll</th>
-                <th className="px-3 py-2 text-right font-semibold">Received Yds</th>
-                <th className="px-3 py-2 text-right font-semibold">Available Roll</th>
-                <th className="px-3 py-2 text-right font-semibold">Available Yds</th>
+                <th className="px-3 py-2 text-left font-bold">Date</th>
+                <th className="px-3 py-2 text-left font-bold">Invoice No.</th>
+                <th className="px-3 py-2 text-left font-bold">Buyer</th>
+                <th className="px-3 py-2 text-left font-bold">Season</th>
+                <th className="px-3 py-2 text-left font-bold">Style / Model</th>
+                <th className="px-3 py-2 text-left font-bold">W/H</th>
+                <th className="px-3 py-2 text-left font-bold">Item Code/PDM</th>
+                <th className="px-3 py-2 text-left font-bold">Color</th>
+                <th className="px-3 py-2 text-left font-bold">Location</th>
+                <th className="px-3 py-2 text-right font-bold">Received Roll</th>
+                <th className="px-3 py-2 text-right font-bold">Received Yds</th>
+                <th className="px-3 py-2 text-right font-bold">Available Roll</th>
+                <th className="px-3 py-2 text-center font-bold">Roll Chart</th>
+                <th className="px-3 py-2 text-right font-bold">Available Yds</th>
+                <th className="px-3 py-2 text-center font-bold">Yds Chart</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.itemId} className="border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#b87a4a]/5">
-                  <td className="px-3 py-2 whitespace-nowrap">{r.date?.slice(0, 10)}</td>
-                  <td className="px-3 py-2 font-medium text-[#1a1208] dark:text-[#f0e8dc] whitespace-nowrap">{r.invoiceNo}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{r.buyer}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{r.season}</td>
+                  <td className="px-3 py-2 font-medium whitespace-nowrap">{r.date?.slice(0, 10)}</td>
+                  <td className="px-3 py-2 font-bold text-[#1a1208] dark:text-[#f0e8dc] whitespace-nowrap">{r.invoiceNo}</td>
+                  <td className="px-3 py-2 font-medium whitespace-nowrap">{r.buyer}</td>
+                  <td className="px-3 py-2 font-medium whitespace-nowrap">{r.season}</td>
                   {/* Style and Model are combined into a single chip per entry
                      (instead of two separate flex-wrap lists in two columns).
                      Previously, when an entry had no model, that column's chip
@@ -266,13 +340,23 @@ function ResultsTable({ rows, loading, searched }) {
                     </div>
                   </td>
                   <td className="px-3 py-2"><span className={chip}>{r.warehouse}</span></td>
-                  <td className="px-3 py-2 text-[#8a4a24] dark:text-[#d4955e] font-medium whitespace-nowrap">{r.itemCodePdm}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{r.color}</td>
+                  <td className="px-3 py-2 text-[#8a4a24] dark:text-[#d4955e] font-bold whitespace-nowrap">{r.itemCodePdm}</td>
+                  <td className="px-3 py-2 font-medium whitespace-nowrap">{r.color}</td>
                   <td className="px-3 py-2 whitespace-nowrap"><span className={chip}>{r.location}</span></td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">{r.rollQty}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">{r.yds}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-[#3d7a4a] dark:text-[#8fca9c]">{r.availableRoll}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-[#3d7a4a] dark:text-[#8fca9c]">{r.availableYds}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap text-base font-extrabold">{r.rollQty}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap text-base font-extrabold">{r.yds}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap text-base font-extrabold text-[#3d7a4a] dark:text-[#8fca9c]">{r.availableRoll}</td>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center justify-center" title={`${r.rollQty ? Math.round((r.availableRoll / r.rollQty) * 100) : 0}% of received roll still available`}>
+                      <MiniDonut percent={r.rollQty ? (r.availableRoll / r.rollQty) * 100 : 0} />
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap text-base font-extrabold text-[#3d7a4a] dark:text-[#8fca9c]">{r.availableYds}</td>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center justify-center" title={`${r.yds ? Math.round((r.availableYds / r.yds) * 100) : 0}% of received yds still available`}>
+                      <MiniDonut percent={r.yds ? (r.availableYds / r.yds) * 100 : 0} />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -321,14 +405,15 @@ export default function MaterialStockPage() {
       <div className="max-w-[1400px] mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
         <div className="flex items-center gap-2">
           <Search size={22} className="text-[#b87a4a] shrink-0" />
-          <h1 className="font-serif text-xl sm:text-2xl text-[#1a1208] dark:text-[#f0e8dc]">
+          <h1 className="font-serif text-xl sm:text-2xl font-bold text-[#1a1208] dark:text-[#f0e8dc]">
             Material Stock <em className="italic text-[#b87a4a] dark:text-[#d4955e]">Search</em>
           </h1>
         </div>
 
-        {error && <div className="rounded-lg bg-[#b87a4a]/10 border border-[#b87a4a]/25 text-[#8a4a24] dark:text-[#e0a878] text-xs px-3 py-2"><b>Error:</b> {error}</div>}
+        {error && <div className="rounded-lg bg-[#b87a4a]/10 border border-[#b87a4a]/25 text-[#8a4a24] dark:text-[#e0a878] text-sm font-semibold px-3 py-2"><b>Error:</b> {error}</div>}
 
-        {/* Always-visible filter bar, wraps responsively -- no scrolling needed */}
+        {/* Filter bar -- collapsed by default; tap "Show Filters" to
+           expand it downward, fill it in, and search. */}
         <FilterBar
           filters={filters}
           setFilters={setFilters}

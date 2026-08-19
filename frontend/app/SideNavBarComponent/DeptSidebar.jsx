@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSidebar } from "@/app/provider/SidebarContext";
 import {
   TrendingUp, Box, Wrench, Warehouse, PackageSearch, MapPin, Boxes,
@@ -8,6 +8,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+// Every 30s, plus an immediate refetch on every route change (so marking a
+// notification read on the Cutting Issue page itself is reflected in the
+// sidebar badge right away, instead of waiting for the next poll tick).
+const NOTIFICATION_POLL_MS = 30000;
 
 // Material Warehouse's pages are grouped into subfolders so the sidebar
 // stays organized as more pages (Cutting Issue, etc.) get added later.
@@ -35,7 +42,10 @@ const DEPARTMENTS = [
         label: "Cutting Issue",
         icon: FolderClosed,
         items: [
-          { href: "/material-warehouse/cutting-issue", label: "Cutting Issue", icon: ClipboardList },
+          // notificationKey ties this item to the live unread count fetched
+          // from GET /cutting-issue/notifications below -- badge only shows
+          // up on the item(s) that opt in with this key.
+          { href: "/material-warehouse/cutting-issue", label: "Cutting Issue", icon: ClipboardList, notificationKey: "cuttingIssue" },
         ],
       },
     ],
@@ -61,6 +71,19 @@ const DEPARTMENTS = [
 const flattenItems = (dept) =>
   dept.items ? dept.items : dept.folders.flatMap((f) => f.items);
 
+// Small red count pill, same visual language as the bell icon badge inside
+// the Cutting Issue page itself.
+function NotifBadge({ count, className = "" }) {
+  if (!count) return null;
+  return (
+    <span
+      className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-[#a04a3a] text-white text-[9px] font-bold ${className}`}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
 export default function DeptSidebar() {
   const { expanded, setExpanded } = useSidebar();
   const pathname = usePathname();
@@ -81,14 +104,44 @@ export default function DeptSidebar() {
   const isActive = (href) =>
     pathname === href || pathname?.startsWith(`${href}/`);
 
-  const renderLink = ({ href, icon: Icon, label }, indent = false) => {
+  // Live unread counts, keyed by notificationKey (only "cuttingIssue" for
+  // now, but keyed so more pages can opt in later without new state).
+  const [unreadCounts, setUnreadCounts] = useState({});
+
+  const fetchCuttingIssueUnread = async () => {
+    try {
+      const res = await fetch(`${API_URL}/cutting-issue/notifications`, { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setUnreadCounts((prev) => ({ ...prev, cuttingIssue: data.unreadCount || 0 }));
+    } catch {
+      /* ignore -- sidebar badge just stays at its last known value */
+    }
+  };
+
+  useEffect(() => {
+    fetchCuttingIssueUnread();
+    const interval = setInterval(fetchCuttingIssueUnread, NOTIFICATION_POLL_MS);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Refetch on every route change -- catches the case where the user just
+  // marked a notification read on the Cutting Issue page (or opened it,
+  // which also marks things read) and navigated elsewhere; the badge
+  // should reflect that immediately rather than up to 30s later.
+  useEffect(() => {
+    fetchCuttingIssueUnread();
+  }, [pathname]);
+
+  const renderLink = ({ href, icon: Icon, label, notificationKey }, indent = false) => {
     const active = isActive(href);
+    const unread = notificationKey ? unreadCounts[notificationKey] || 0 : 0;
     return (
       <Link
         key={href}
         href={href}
-        title={!expanded ? label : undefined}
-        className={`group flex items-center gap-3 h-8 rounded-md px-2 transition-all duration-150
+        title={!expanded ? `${label}${unread ? ` (${unread} unread)` : ""}` : undefined}
+        className={`group relative flex items-center gap-3 h-8 rounded-md px-2 transition-all duration-150
           ${
             active
               ? "bg-black/[0.08] dark:bg-white/[0.09] text-slate-900 dark:text-[#ececec]"
@@ -97,20 +150,42 @@ export default function DeptSidebar() {
           ${expanded ? (indent ? "ml-4" : "") : "justify-center"}`}
       >
         <Icon size={15} strokeWidth={active ? 2 : 1.75} className="flex-shrink-0" />
-        {expanded && <span className="text-[13px] font-medium truncate leading-none">{label}</span>}
+        {expanded ? (
+          <>
+            <span className="text-[13px] font-medium truncate leading-none">{label}</span>
+            {unread > 0 && <NotifBadge count={unread} className="ml-auto" />}
+          </>
+        ) : (
+          // Collapsed icon-only rail: no room for a pill, so a small red dot
+          // on the icon's corner signals "something's unread" instead.
+          unread > 0 && (
+            <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-[#a04a3a]" />
+          )
+        )}
       </Link>
     );
   };
 
   const renderDepartmentIcon = (dept) => {
     const Icon = dept.icon;
+    // Sum unread counts across every item in this department that opted
+    // into a notificationKey, so the collapsed department icon still
+    // signals "something needs attention" even though item-level links
+    // aren't shown in collapsed mode.
+    const deptUnread = flattenItems(dept).reduce(
+      (sum, item) => sum + (item.notificationKey ? unreadCounts[item.notificationKey] || 0 : 0),
+      0
+    );
     return (
       <div
         key={dept.label}
-        className="flex items-center justify-center h-8 w-8 rounded-md text-slate-600 dark:text-[#8a8a8a]"
-        title={dept.label}
+        className="relative flex items-center justify-center h-8 w-8 rounded-md text-slate-600 dark:text-[#8a8a8a]"
+        title={`${dept.label}${deptUnread ? ` (${deptUnread} unread)` : ""}`}
       >
         <Icon size={18} strokeWidth={1.75} className="flex-shrink-0" />
+        {deptUnread > 0 && (
+          <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-[#a04a3a]" />
+        )}
       </div>
     );
   };
@@ -161,6 +236,10 @@ export default function DeptSidebar() {
                 {dept.folders && dept.folders.map((folder) => {
                   const key = `${dept.label}::${folder.label}`;
                   const isOpen = openFolders[key];
+                  const folderUnread = folder.items.reduce(
+                    (sum, item) => sum + (item.notificationKey ? unreadCounts[item.notificationKey] || 0 : 0),
+                    0
+                  );
                   return (
                     <div key={key} className="flex flex-col gap-0.5">
                       <button
@@ -170,6 +249,7 @@ export default function DeptSidebar() {
                         <ChevronRight size={12} strokeWidth={2} className={`flex-shrink-0 transition-transform duration-150 ${isOpen ? "rotate-90" : ""}`} />
                         <folder.icon size={13} strokeWidth={1.75} className="flex-shrink-0" />
                         <span className="text-[11px] font-medium truncate">{folder.label}</span>
+                        {!isOpen && folderUnread > 0 && <NotifBadge count={folderUnread} className="ml-auto mr-1" />}
                       </button>
                       {isOpen && (
                         <div className="flex flex-col gap-0.5">
