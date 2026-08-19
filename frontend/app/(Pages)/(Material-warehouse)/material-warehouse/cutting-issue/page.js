@@ -2,26 +2,38 @@
 //
 // Material Warehouse side: incoming Requisitions from Cutting show up
 // here as bell-icon notifications (read/unread). Expanding a requisition
-// shows its requested Item Code/PDM + Color rows; "Check stock" pulls the
-// same rack-wise/date-wise breakdown used elsewhere (GET /material-stock)
-// so the user can see exactly which rack + date to pull from, then enters
-// how much Roll/Yds to issue from a chosen rack. Issuing decrements that
-// rack's available stock immediately. A History tab lists every issue
-// action ever made.
+// shows its requested Item Code/PDM + Color rows (Requested Yds only --
+// Cutting never sends a Roll, that's decided here); "Check stock" pulls
+// the same rack-wise/date-wise breakdown used elsewhere (GET
+// /material-stock) so the user can see exactly which rack + date to pull
+// from, then enters how much Roll/Yds to issue from a chosen rack.
+// Issuing decrements that rack's available stock immediately. A History
+// tab lists every issue action ever made.
 //
-// UPDATE: the "Check stock (rack + date wise)" table now shows the full
-// context for every stock row -- Buyer, Season, Item, Item Code/PDM,
-// Color, Style/Model, Rack, Available -- not just Date/Rack/Available.
-// This lets the warehouse user visually confirm they're pulling from the
-// right batch (e.g. same Season as the requisition) before picking a
-// rack. The requisition's own Season is also shown as a banner above the
-// table, and any stock row whose Season differs from the requisition's
-// Season is highlighted in red so mismatches are obvious at a glance.
+// There is no PO on a Cutting Requisition -- everything is tracked by
+// Buyer/Floor/Season/Style/Model instead. There is also no hard cap
+// stopping the warehouse from issuing MORE than the requested Yds (Roll
+// was never requested by Cutting to begin with, and Consumption-based Yds
+// estimates can be off) -- the frontend just confirms with the user
+// before an over-issue goes through.
+//
+// UPDATE 2: "What Cutting requested" and "What's available in stock" are
+// now two clearly separated, distinctly labeled blocks instead of being
+// visually blended together in small print:
+//   - Each requisition item now renders as a "Cutting Requested" card
+//     showing Item Code/PDM, Color, Pcs, Wastage %, Consumption, and the
+//     resulting Requested Yds (all labeled, larger text) -- previously
+//     only Requested Yds was shown even though Pcs/Wastage/Consumption
+//     were already coming back from the API.
+//   - The "Check stock" panel now opens with its own "Available Stock"
+//     heading, separate from a distinctly bordered/colored "You
+//     requested" banner above it, so it's obvious which numbers are the
+//     ask and which are what's on the shelf.
 
 "use client";
 
 import { useCallback, useEffect, useState, Fragment } from "react";
-import { Bell, PackageSearch, ChevronDown, ChevronUp, MapPin, Search, History as HistoryIcon, ClipboardList } from "lucide-react";
+import { Bell, PackageSearch, ChevronDown, ChevronUp, MapPin, Search, History as HistoryIcon, ClipboardList, ClipboardCheck, Boxes } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -47,6 +59,19 @@ function statusChip(status) {
   if (status === "fulfilled") return <span className={chipFulfilled}>Fulfilled</span>;
   if (status === "partial") return <span className={chipPartial}>Partially Issued</span>;
   return <span className={chipPending}>Pending</span>;
+}
+
+// Small labeled value used inside the "Cutting Requested" / "Available
+// Stock" blocks -- a tiny uppercase label above a larger value, so the
+// meaning of every number is unambiguous instead of relying on font color
+// alone to tell numbers apart.
+function Field({ label, value, valueClassName = "" }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[9px] font-semibold uppercase tracking-wide text-[#a08060]">{label}</div>
+      <div className={`text-sm font-bold text-[#1a1208] dark:text-[#f0e8dc] truncate ${valueClassName}`}>{value}</div>
+    </div>
+  );
 }
 
 /* ============================================================
@@ -90,12 +115,12 @@ function NotificationBell({ notifications, unreadCount, onRefresh, onSelect }) {
               >
                 <div className="flex items-center gap-1.5">
                   {!n.isRead && <span className="h-1.5 w-1.5 rounded-full bg-[#a04a3a] shrink-0" />}
-                  <span className="font-medium text-[#1a1208] dark:text-[#f0e8dc]">{n.buyer}</span>
+                  <span className="font-bold text-sm text-[#1a1208] dark:text-[#f0e8dc]">{n.buyer}</span>
                   <span className="text-[#a08060]">· {n.floor}</span>
                   <span className="ml-auto">{statusChip(n.status)}</span>
                 </div>
-                <div className="text-[10px] text-[#a08060] mt-0.5">
-                  PO {n.po} · Style {n.style}{n.model ? ` · ${n.model}` : ""} · {n.season} · {n.date?.slice(0, 10)}
+                <div className="text-[11px] font-medium text-[#7a6250] dark:text-[#a8917d] mt-0.5">
+                  Style {n.style}{n.model ? ` · ${n.model}` : ""} · {n.season} · {n.date?.slice(0, 10)}
                 </div>
               </button>
             ))
@@ -113,15 +138,28 @@ function NotificationBell({ notifications, unreadCount, onRefresh, onSelect }) {
    Color, Style/Model, Rack, Available -- so the warehouse user can
    visually confirm they're pulling the right batch (right Season /
    right Buyer / right Style) before picking a rack, not just the
-   right Item Code/PDM + Color. The requisition's own Season is shown
-   as a small banner above the table, and any stock row whose Season
-   differs from it is highlighted in red.
+   right Item Code/PDM + Color.
+
+   The panel is now split into two clearly separated, distinctly
+   colored blocks:
+     1. "You requested" (amber/orange, matches the request card above
+        it) -- a compact restatement of the Requisition's own
+        Season/Style/Model/Buyer + this item's Item Code/PDM + Color,
+        so it's obvious what's being matched against.
+     2. "Available Stock" (blue, matches the rest of the app's stock
+        styling) -- the rack-wise table itself, under its own heading,
+        with a red highlight on any row whose Season doesn't match the
+        Requisition's Season.
 
    Clicking "Pick" on a rack row ADDS it to a picked-racks list below
    (instead of immediately issuing) -- so the user can pick several
    racks (e.g. Rack-1 + Rack-3), type a Roll/Yds amount for EACH one,
    and hit "Issue All" once to apply every row together in a single
-   request/transaction.
+   request/transaction. Roll is entirely the warehouse's own call --
+   Cutting never asked for a specific Roll count, only a Yds total.
+   If the total Yds being issued would push the item's issued Yds
+   past its Requested Yds, the user is asked to confirm before it goes
+   through (there is no hard cap on the backend).
    ============================================================ */
 
 function IssueForm({ item, requisition, onIssued }) {
@@ -134,8 +172,7 @@ function IssueForm({ item, requisition, onIssued }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const remainingRoll = Number(item.requestedRoll) - Number(item.issuedRoll);
-  const remainingYds = Number(item.requestedYds) - Number(item.issuedYds);
+  const remainingYds = Math.max(0, Number(item.requestedYds) - Number(item.issuedYds));
   const isDone = item.status === "fulfilled";
 
   const pickedTotalRoll = picked.reduce((s, p) => s + (Number(p.roll) || 0), 0);
@@ -179,6 +216,18 @@ function IssueForm({ item, requisition, onIssued }) {
         return;
       }
     }
+
+    // No hard cap on issuing more than requested -- just confirm with the
+    // user first, since Cutting's Consumption-based Yds is an estimate and
+    // the warehouse is trusted to judge the real need on the floor.
+    if (pickedTotalYds > remainingYds) {
+      const over = Math.round((pickedTotalYds - remainingYds) * 100) / 100;
+      const proceed = window.confirm(
+        `This issues ${pickedTotalYds} Yds, which is ${over} Yds more than the ${remainingYds} Yds still remaining on the Requisition (Requested ${item.requestedYds} Yds total). Continue anyway?`
+      );
+      if (!proceed) return;
+    }
+
     setBusy(true);
     try {
       const res = await fetch(`${API_URL}/cutting-issue/${item.id}/batch`, {
@@ -199,150 +248,152 @@ function IssueForm({ item, requisition, onIssued }) {
   };
 
   return (
-    <div className="space-y-1.5">
-      <button type="button" onClick={checkStock} className="inline-flex items-center gap-1 text-[10px] font-medium text-[#4a6578] dark:text-[#8fb0c4] hover:underline">
-        <Search size={11} /> {stockOpen ? "Hide" : "Check"} stock (rack + date wise)
+    <div className="space-y-2">
+      <button type="button" onClick={checkStock} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#4a6578] dark:text-[#8fb0c4] hover:underline">
+        <Search size={13} /> {stockOpen ? "Hide" : "Check"} stock (rack + date wise)
       </button>
 
       {stockOpen && (
         loadingStock ? (
-          <div className="text-[11px] text-[#a08060] italic">Checking...</div>
+          <div className="text-xs text-[#a08060] italic">Checking...</div>
         ) : stockRows.length === 0 ? (
-          <div className="text-[11px] italic text-[#a08060]">No available stock found for this Item Code/PDM + Color.</div>
+          <div className="text-xs italic text-[#a08060]">No available stock found for this Item Code/PDM + Color.</div>
         ) : (
-          <div className="rounded-lg border border-[#3d6a8a]/20 dark:border-[#6fa8d0]/20 overflow-hidden">
-            <div className="px-3 py-2 bg-[#2c4a63]/8 dark:bg-[#6fa8d0]/8 space-y-1">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-[#4a6578] dark:text-[#8fb0c4]">
-                You're issuing against this Requisition
+          <div className="space-y-2">
+            {/* Everything about what Cutting requested (Buyer/Season/Style/
+               Model/Item Code/Color) already lives in the "Cutting
+               Requested" card above -- no need to restate it here. This
+               panel is purely "what's on the shelf". Blue theme, matches
+               the rest of the app's "stock" styling elsewhere. */}
+            <div className="rounded-lg border-2 border-[#3d6a8a]/25 dark:border-[#6fa8d0]/25 overflow-hidden">
+              <div className="flex items-center justify-between gap-2 flex-wrap px-3 py-2 bg-[#2c4a63]/10 dark:bg-[#6fa8d0]/10">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[#2c4a63] dark:text-[#6fa8d0]">
+                  <Boxes size={12} /> Available Stock ({stockRows.length} rack{stockRows.length > 1 ? "s" : ""})
+                </div>
+                <div className="text-[10px] text-[#a04a3a]">Rows with a different Season than requested are highlighted in red.</div>
               </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                <span className="text-[#2c4a63] dark:text-[#6fa8d0] font-semibold">Season : {requisition?.season || "-"}</span>
-                <span className="text-[#2c4a63] dark:text-[#6fa8d0] font-semibold">Style : {requisition?.style || "-"}</span>
-                <span className="text-[#2c4a63] dark:text-[#6fa8d0] font-semibold">Model : {requisition?.model || "-"}</span>
-                <span className="text-[#2c4a63] dark:text-[#6fa8d0] font-semibold">Buyer : {requisition?.buyer || "-"}</span>
-                <span className="text-[#8a4a24] dark:text-[#d4955e] font-semibold">Item Code : {item.itemCodePdm}</span>
-                <span className="text-[#8a4a24] dark:text-[#d4955e] font-semibold">Color : {item.color}</span>
-              </div>
-              <div className="text-[10px] text-[#a04a3a]">Rows below with a different Season are highlighted in red.</div>
+              <table className="w-full text-xs table-fixed">
+                <colgroup>
+                  <col className="w-[9%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[4%]" />
+                </colgroup>
+                <thead>
+                  <tr className="bg-[#dde8ef]/60 dark:bg-white/[0.03] text-[#4a6578] dark:text-[#8fb0c4]">
+                    <th className="px-3 py-2 text-left font-semibold">Date</th>
+                    <th className="px-3 py-2 text-left font-semibold">Buyer</th>
+                    <th className="px-3 py-2 text-left font-semibold">Season</th>
+                    <th className="px-3 py-2 text-left font-semibold">Item</th>
+                    <th className="px-3 py-2 text-left font-semibold">Item Code/PDM</th>
+                    <th className="px-3 py-2 text-left font-semibold">Color</th>
+                    <th className="px-3 py-2 text-left font-semibold">Style / Model</th>
+                    <th className="px-3 py-2 text-left font-semibold">Rack</th>
+                    <th className="px-3 py-2 text-right font-semibold">Available</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stockRows.map((r) => {
+                    const alreadyPicked = picked.some((p) => p.allocationId === r.itemId);
+                    const seasonMismatch = requisition?.season && r.season && r.season !== requisition.season;
+                    const styleLabel = (r.styles || [])
+                      .map((s) => (s.model ? `${s.style} / ${s.model}` : s.style))
+                      .join(", ");
+                    return (
+                      <tr
+                        key={r.itemId}
+                        className={`border-t border-[#3d6a8a]/10 dark:border-[#6fa8d0]/10 align-top ${seasonMismatch ? "bg-[#a04a3a]/8 dark:bg-[#a04a3a]/10" : ""}`}
+                      >
+                        <td className="px-3 py-2 break-words">{r.date?.slice(0, 10)}</td>
+                        <td className="px-3 py-2 break-words">{r.buyer}</td>
+                        <td className={`px-3 py-2 break-words font-semibold ${seasonMismatch ? "text-[#a04a3a]" : ""}`}>
+                          {r.season}
+                        </td>
+                        <td className="px-3 py-2 break-words">{r.item}</td>
+                        <td className="px-3 py-2 break-words font-semibold text-[#8a4a24] dark:text-[#d4955e]">{r.itemCodePdm}</td>
+                        <td className="px-3 py-2 break-words">{r.color}</td>
+                        <td className="px-3 py-2 break-words">{styleLabel || "-"}</td>
+                        <td className="px-3 py-2 break-words"><MapPin size={11} className="inline mr-0.5 text-[#3d6a8a] dark:text-[#6fa8d0]" />{r.location}</td>
+                        <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{r.availableRoll} Roll / {r.availableYds} Yds</td>
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => pickRack(r)}
+                            disabled={alreadyPicked}
+                            className="text-[11px] font-semibold text-[#b87a4a] hover:underline disabled:opacity-40 disabled:pointer-events-none"
+                          >
+                            {alreadyPicked ? "Picked" : "Pick"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-            <table className="w-full text-xs table-fixed">
-              <colgroup>
-                <col className="w-[9%]" />
-                <col className="w-[13%]" />
-                <col className="w-[9%]" />
-                <col className="w-[13%]" />
-                <col className="w-[11%]" />
-                <col className="w-[9%]" />
-                <col className="w-[13%]" />
-                <col className="w-[9%]" />
-                <col className="w-[10%]" />
-                <col className="w-[4%]" />
-              </colgroup>
-              <thead>
-                <tr className="bg-[#dde8ef]/60 dark:bg-white/[0.03] text-[#4a6578] dark:text-[#8fb0c4]">
-                  <th className="px-3 py-2 text-left font-semibold">Date</th>
-                  <th className="px-3 py-2 text-left font-semibold">Buyer</th>
-                  <th className="px-3 py-2 text-left font-semibold">Season</th>
-                  <th className="px-3 py-2 text-left font-semibold">Item</th>
-                  <th className="px-3 py-2 text-left font-semibold">Item Code/PDM</th>
-                  <th className="px-3 py-2 text-left font-semibold">Color</th>
-                  <th className="px-3 py-2 text-left font-semibold">Style / Model</th>
-                  <th className="px-3 py-2 text-left font-semibold">Rack</th>
-                  <th className="px-3 py-2 text-right font-semibold">Available</th>
-                  <th className="px-3 py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {stockRows.map((r) => {
-                  const alreadyPicked = picked.some((p) => p.allocationId === r.itemId);
-                  const seasonMismatch = requisition?.season && r.season && r.season !== requisition.season;
-                  const styleLabel = (r.styles || [])
-                    .map((s) => (s.model ? `${s.style} · ${s.model}` : s.style))
-                    .join(", ");
-                  return (
-                    <tr
-                      key={r.itemId}
-                      className={`border-t border-[#3d6a8a]/10 dark:border-[#6fa8d0]/10 align-top ${seasonMismatch ? "bg-[#a04a3a]/8 dark:bg-[#a04a3a]/10" : ""}`}
-                    >
-                      <td className="px-3 py-2 break-words">{r.date?.slice(0, 10)}</td>
-                      <td className="px-3 py-2 break-words">{r.buyer}</td>
-                      <td className={`px-3 py-2 break-words font-semibold ${seasonMismatch ? "text-[#a04a3a]" : ""}`}>
-                        {r.season}
-                      </td>
-                      <td className="px-3 py-2 break-words">{r.item}</td>
-                      <td className="px-3 py-2 break-words font-semibold text-[#8a4a24] dark:text-[#d4955e]">{r.itemCodePdm}</td>
-                      <td className="px-3 py-2 break-words">{r.color}</td>
-                      <td className="px-3 py-2 break-words">{styleLabel || "-"}</td>
-                      <td className="px-3 py-2 break-words"><MapPin size={11} className="inline mr-0.5 text-[#3d6a8a] dark:text-[#6fa8d0]" />{r.location}</td>
-                      <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{r.availableRoll} Roll / {r.availableYds} Yds</td>
-                      <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => pickRack(r)}
-                          disabled={alreadyPicked}
-                          className="text-[11px] font-semibold text-[#b87a4a] hover:underline disabled:opacity-40 disabled:pointer-events-none"
-                        >
-                          {alreadyPicked ? "Picked" : "Pick"}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
           </div>
         )
       )}
 
-      {!isDone && (
-        <div className="bg-white dark:bg-[#2a241b] border border-[#2c2417]/8 dark:border-[#e8ddd0]/8 rounded-md p-1.5 space-y-1.5">
-          <div className="text-[9px] font-semibold uppercase tracking-wide text-[#4a6578] dark:text-[#8fb0c4]">
-            {picked.length === 0 ? "Pick one or more racks above to issue from" : `${picked.length} rack${picked.length > 1 ? "s" : ""} picked`}
-          </div>
+      <div className="bg-white dark:bg-[#2a241b] border border-[#2c2417]/8 dark:border-[#e8ddd0]/8 rounded-md p-2 space-y-1.5">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#4a6578] dark:text-[#8fb0c4]">
+          {picked.length === 0 ? "Pick one or more racks above to issue from" : `${picked.length} rack${picked.length > 1 ? "s" : ""} picked`}
+        </div>
 
-          {picked.length > 0 && (
-            <div className="space-y-1">
-              {picked.map((p) => (
-                <div key={p.allocationId} className="flex items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#2c4a63] dark:text-[#6fa8d0] w-16 shrink-0">
-                    <MapPin size={10} />{p.location}
-                  </span>
-                  <input
-                    type="number" placeholder="Roll" value={p.roll}
-                    onChange={(e) => updatePicked(p.allocationId, "roll", e.target.value)}
-                    className={`${inputCls} flex-1`}
-                  />
-                  <input
-                    type="number" placeholder="Yds" value={p.yds}
-                    onChange={(e) => updatePicked(p.allocationId, "yds", e.target.value)}
-                    className={`${inputCls} flex-1`}
-                  />
-                  <span className="text-[9px] text-[#a08060] w-24 shrink-0 whitespace-nowrap">
-                    max {p.availableRoll}/{p.availableYds}
-                  </span>
-                  <button type="button" onClick={() => removePicked(p.allocationId)} className="text-[10px] font-medium text-[#a04a3a] hover:underline shrink-0">
-                    Remove
-                  </button>
-                </div>
-              ))}
-              <div className="flex items-center gap-2 pt-0.5">
-                <span className="text-[10px] text-[#7a6250] dark:text-[#a8917d]">
-                  Total: <b>{pickedTotalRoll} Roll / {pickedTotalYds} Yds</b>
+        {picked.length > 0 && (
+          <div className="space-y-1">
+            {picked.map((p) => (
+              <div key={p.allocationId} className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#2c4a63] dark:text-[#6fa8d0] w-16 shrink-0">
+                  <MapPin size={10} />{p.location}
                 </span>
-                <button
-                  type="button" onClick={handleIssueAll} disabled={busy}
-                  className="ml-auto inline-flex items-center gap-1 rounded-full bg-[#2c4a63] dark:bg-[#3d6a8a] text-white text-[10px] font-medium px-3 py-1.5 hover:bg-[#3d6a8a] dark:hover:bg-[#4a7a9a] transition-colors disabled:opacity-50 shrink-0"
-                >
-                  {busy ? "Issuing..." : `Issue All (${picked.length})`}
+                <input
+                  type="number" placeholder="Roll" value={p.roll}
+                  onChange={(e) => updatePicked(p.allocationId, "roll", e.target.value)}
+                  className={`${inputCls} flex-1`}
+                />
+                <input
+                  type="number" placeholder="Yds" value={p.yds}
+                  onChange={(e) => updatePicked(p.allocationId, "yds", e.target.value)}
+                  className={`${inputCls} flex-1`}
+                />
+                <span className="text-[10px] text-[#a08060] w-24 shrink-0 whitespace-nowrap">
+                  max {p.availableRoll}/{p.availableYds}
+                </span>
+                <button type="button" onClick={() => removePicked(p.allocationId)} className="text-[11px] font-medium text-[#a04a3a] hover:underline shrink-0">
+                  Remove
                 </button>
               </div>
+            ))}
+            <div className="flex items-center gap-2 pt-0.5">
+              <span className="text-[11px] text-[#7a6250] dark:text-[#a8917d]">
+                Total: <b>{pickedTotalRoll} Roll / {pickedTotalYds} Yds</b>
+              </span>
+              <button
+                type="button" onClick={handleIssueAll} disabled={busy}
+                className="ml-auto inline-flex items-center gap-1 rounded-full bg-[#2c4a63] dark:bg-[#3d6a8a] text-white text-[11px] font-medium px-3 py-1.5 hover:bg-[#3d6a8a] dark:hover:bg-[#4a7a9a] transition-colors disabled:opacity-50 shrink-0"
+              >
+                {busy ? "Issuing..." : `Issue All (${picked.length})`}
+              </button>
             </div>
-          )}
+          </div>
+        )}
 
-          <div className="text-[9px] text-[#a08060]">Up to {remainingRoll} Roll / {remainingYds} Yds remaining to issue in total.</div>
-          {err && <div className="text-[10px] text-[#a04a3a]">{err}</div>}
+        <div className="text-[10px] text-[#a08060]">
+          Up to {remainingYds} Yds remaining against the {item.requestedYds} Yds requested. Roll is entirely your
+          call -- Cutting didn't request a Roll count. You can also issue more than requested if needed (you'll be
+          asked to confirm).
+          {isDone && <span className="text-[#3d7a4a] dark:text-[#8fca9c] font-medium"> This item is already marked Fulfilled.</span>}
         </div>
-      )}
+        {err && <div className="text-[11px] text-[#a04a3a]">{err}</div>}
+      </div>
     </div>
   );
 }
@@ -360,30 +411,51 @@ function WorklistItem({ req, forceOpen, onAfterOpen, onIssued }) {
     <div className={`${card} overflow-hidden`}>
       <button type="button" onClick={() => setOpen((o) => !o)} className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-[#b87a4a]/5">
         {open ? <ChevronUp size={14} className="text-[#a08060]" /> : <ChevronDown size={14} className="text-[#a08060]" />}
-        <span className="text-xs font-semibold text-[#1a1208] dark:text-[#f0e8dc]">{req.buyer}</span>
+        <span className="text-sm font-bold text-[#1a1208] dark:text-[#f0e8dc]">{req.buyer}</span>
         <span className={chip}><MapPin size={10} className="mr-0.5" />{req.floor}</span>
-        <span className="text-[11px] text-[#7a6250] dark:text-[#a8917d]">
-          PO {req.po} · Style {req.style}{req.model ? ` · ${req.model}` : ""} · {req.season}
+        <span className="text-xs font-semibold text-[#7a6250] dark:text-[#a8917d]">
+          Style {req.style}{req.model ? ` · ${req.model}` : ""} · {req.season}
         </span>
-        <span className="text-[10px] text-[#a08060] ml-2">{req.date?.slice(0, 10)}</span>
+        <span className="text-[11px] font-medium text-[#a08060] ml-2">{req.date?.slice(0, 10)}</span>
         <span className="ml-auto">{statusChip(req.status)}</span>
       </button>
 
       {open && (
         <div className="border-t border-[#2c2417]/10 dark:border-[#e8ddd0]/10 divide-y divide-[#2c2417]/8 dark:divide-[#e8ddd0]/8">
           {req.items.map((item) => (
-            <div key={item.id} className="p-3 space-y-1.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-bold text-[#8a4a24] dark:text-[#d4955e]">{item.itemCodePdm}</span>
-                <span className="text-xs font-medium">{item.color}</span>
-                <span className="text-[11px] text-[#7a6250] dark:text-[#a8917d]">
-                  Requested {item.requestedRoll} Roll / {item.requestedYds} Yds
-                </span>
-                <span className="text-[11px] text-[#3d7a4a] dark:text-[#8fca9c] font-medium">
-                  Issued {item.issuedRoll} Roll / {item.issuedYds} Yds
-                </span>
-                <span className="ml-auto">{statusChip(item.status)}</span>
+            <div key={item.id} className="p-3 space-y-2.5">
+              {/* "Cutting Requested" card -- everything Cutting actually
+                 typed in (Pcs / Wastage % / Consumption) plus the Requested
+                 Yds calculated from them, and what's been Issued so far so
+                 far against it. This used to only show Item Code/PDM,
+                 Color, and Requested Yds in small mixed-color text; now
+                 every number has its own label and larger type. */}
+              <div className="rounded-lg border-2 border-[#b87a4a]/25 dark:border-[#d4955e]/25 bg-[#b87a4a]/6 dark:bg-[#d4955e]/6 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[#8a4a24] dark:text-[#d4955e]">
+                    <ClipboardList size={12} /> Cutting Requested
+                  </div>
+                  {statusChip(item.status)}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
+                  <Field label="Buyer" value={req.buyer} />
+                  <Field label="Floor" value={req.floor} />
+                  <Field label="Season" value={req.season} />
+                  <Field label="Style / Model" value={req.model ? `${req.style} / ${req.model}` : req.style} />
+                  <Field label="Item Code/PDM" value={item.itemCodePdm} valueClassName="text-[#8a4a24] dark:text-[#d4955e]" />
+                  <Field label="Color" value={item.color} />
+                  <Field label="Pcs" value={item.pcs} />
+                  <Field label="Wastage %" value={`${item.percentage}%`} />
+                  <Field label="Consumption" value={`${item.consumption} yds/pc`} />
+                  <Field label="Requested Yds" value={`${item.requestedYds} Yds`} valueClassName="text-base" />
+                  <Field
+                    label="Issued So Far"
+                    value={`${item.issuedRoll} Roll / ${item.issuedYds} Yds`}
+                    valueClassName="text-[#3d7a4a] dark:text-[#8fca9c]"
+                  />
+                </div>
               </div>
+
               <IssueForm item={item} requisition={req} onIssued={onIssued} />
             </div>
           ))}
@@ -436,10 +508,10 @@ function HistoryTab() {
                 <th className="px-3 py-2 text-left font-semibold">Buyer</th>
                 <th className="px-3 py-2 text-left font-semibold">Floor</th>
                 <th className="px-3 py-2 text-left font-semibold">Season</th>
-                <th className="px-3 py-2 text-left font-semibold">PO</th>
                 <th className="px-3 py-2 text-left font-semibold">Style / Model</th>
                 <th className="px-3 py-2 text-left font-semibold">Item Code/PDM</th>
                 <th className="px-3 py-2 text-left font-semibold">Color</th>
+                <th className="px-3 py-2 text-left font-semibold">Requested Yds</th>
                 <th className="px-3 py-2 text-left font-semibold">Rack</th>
                 <th className="px-3 py-2 text-left font-semibold">Issued Qty</th>
               </tr>
@@ -449,13 +521,13 @@ function HistoryTab() {
                 <tr key={r.id} className="border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#b87a4a]/5">
                   <td className="px-3 py-2 whitespace-nowrap">{r.createdAt?.slice(0, 10)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.date?.slice(0, 10)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{r.buyer}</td>
+                  <td className="px-3 py-2 font-semibold whitespace-nowrap">{r.buyer}</td>
                   <td className="px-3 py-2"><span className={chip}>{r.floor}</span></td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.season}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{r.po}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{r.style}{r.model ? ` · ${r.model}` : ""}</td>
-                  <td className="px-3 py-2 text-[#8a4a24] dark:text-[#d4955e] font-medium whitespace-nowrap">{r.itemCodePdm}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{r.color}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{r.style}{r.model ? ` / ${r.model}` : ""}</td>
+                  <td className="px-3 py-2 text-[#8a4a24] dark:text-[#d4955e] font-semibold whitespace-nowrap">{r.itemCodePdm}</td>
+                  <td className="px-3 py-2 font-semibold whitespace-nowrap">{r.color}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{r.requestedYds} Yds</td>
                   <td className="px-3 py-2 whitespace-nowrap"><span className={chip}><MapPin size={10} className="mr-0.5" />{r.location}</span></td>
                   <td className="px-3 py-2 whitespace-nowrap font-medium text-[#3d7a4a] dark:text-[#8fca9c]">{r.rollQty} Roll / {r.yds} Yds</td>
                 </tr>
@@ -523,7 +595,8 @@ export default function CuttingIssuePage() {
                 Cutting <em className="italic text-[#b87a4a] dark:text-[#d4955e]">Issue</em>
               </h1>
               <p className="text-xs text-[#7a6250] dark:text-[#a8917d]">
-                Fulfill Requisitions sent by Cutting: check available rack stock and issue the requested quantity.
+                Fulfill Requisitions sent by Cutting: check available rack stock and issue the requested Yds (Roll
+                is entirely your call).
               </p>
             </div>
           </div>

@@ -18,24 +18,24 @@ import {
 // Numeric targets so the stat row can count up on load instead of
 // just appearing — decimals/suffix control how each one is formatted.
 const STAT_DEFS = [
-  { target: 36, decimals: 0, suffix: "+", label: "Years Legacy" },
-  { target: 10, decimals: 0, suffix: "K+", label: "Workforce" },
-  { target: 4, decimals: 0, suffix: "", label: "Product Lines" },
-  { target: 3, decimals: 0, suffix: "", label: "KEPZ Sectors" },
+  { target: 500, decimals: 0, suffix: "+", label: "Factories" },
+  { target: 2, decimals: 0, suffix: "M+", label: "Orders / Yr" },
+  { target: 99.9, decimals: 1, suffix: "%", label: "Uptime" },
+  { target: 24, decimals: 0, suffix: "/7", label: "Support" },
 ];
 
 const pillars = [
-  { icon: Boxes, label: "Waterproof Rainwear" },
-  { icon: Factory, label: "Insulated Outerwear" },
-  { icon: ClipboardCheck, label: "Sportswear & Fleece" },
-  { icon: ShieldCheck, label: "Ski & Hunting Wear" },
+  { icon: Factory, label: "Real-Time Production Tracking" },
+  { icon: Boxes, label: "Smart Inventory & Sourcing" },
+  { icon: ClipboardCheck, label: "Automated Quality Control" },
+  { icon: ShieldCheck, label: "Compliance & Audit Ready" },
 ];
 
 const h1Lines = [
-  { text: "Engineered for", delay: "0.15s" },
-  { text: "Outdoor Apparel.", delay: "0.28s", emphasis: true },
-  { text: "Powering", delay: "0.41s" },
-  { text: "HKD Innovations.", delay: "0.54s" },
+  { text: "Engineered for the", delay: "0.15s" },
+  { text: "Factory Floor.", delay: "0.28s", emphasis: true },
+  { text: "Trusted by", delay: "0.41s" },
+  { text: "RMG Leaders.", delay: "0.54s" },
 ];
 
 // Loose "thread" particles that drift up the screen ambiently —
@@ -101,72 +101,26 @@ function useCountUp(defs, { duration = 1400, delay = 500 } = {}) {
   return values;
 }
 
-// Custom cursor: a small solid dot that tracks the mouse exactly, plus a
-// larger ring that eases toward it (classic "lag" cursor feel). Hovering
-// any link/button swaps it into a bigger "interactive" ring so the whole
-// page cursor visibly changes design, not just the hero image.
-function useCustomCursor() {
-  const dotRef = useRef(null);
-  const ringRef = useRef(null);
-  const target = useRef({ x: -100, y: -100 });
-  const ring = useRef({ x: -100, y: -100 });
-  const [active, setActive] = useState(false);
-  const [interactive, setInteractive] = useState(false);
-  const [pressed, setPressed] = useState(false);
-
-  useEffect(() => {
-    const prefersReducedMotion = window.matchMedia?.(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-    const isCoarsePointer = window.matchMedia?.("(pointer: coarse)").matches;
-    if (prefersReducedMotion || isCoarsePointer) return; // leave native cursor on touch/reduced-motion
-
-    const handleMove = (e) => {
-      target.current = { x: e.clientX, y: e.clientY };
-      setActive(true);
-      if (dotRef.current) {
-        dotRef.current.style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%, -50%)`;
-      }
-      const el = e.target.closest?.("a, button, [role='button']");
-      setInteractive(Boolean(el));
-    };
-    const handleLeave = () => setActive(false);
-    const handleDown = () => setPressed(true);
-    const handleUp = () => setPressed(false);
-
-    window.addEventListener("mousemove", handleMove);
-    document.documentElement.addEventListener("mouseleave", handleLeave);
-    window.addEventListener("mousedown", handleDown);
-    window.addEventListener("mouseup", handleUp);
-
-    let raf;
-    const tick = () => {
-      ring.current.x += (target.current.x - ring.current.x) * 0.18;
-      ring.current.y += (target.current.y - ring.current.y) * 0.18;
-      if (ringRef.current) {
-        ringRef.current.style.transform = `translate(${ring.current.x}px, ${ring.current.y}px) translate(-50%, -50%)`;
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-
-    return () => {
-      window.removeEventListener("mousemove", handleMove);
-      document.documentElement.removeEventListener("mouseleave", handleLeave);
-      window.removeEventListener("mousedown", handleDown);
-      window.removeEventListener("mouseup", handleUp);
-      cancelAnimationFrame(raf);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { dotRef, ringRef, active, interactive, pressed };
-}
-
 export default function HomePage() {
   const { user } = useAuth();
   const counts = useCountUp(STAT_DEFS);
-  const cursor = useCustomCursor();
+
+  // page-wide cursor spotlight — updated via ref directly (not React
+  // state) so mousemove doesn't trigger a re-render on every pixel.
+  const spotlightRef = useRef(null);
+  const handlePageMouseMove = (e) => {
+    const el = spotlightRef.current;
+    if (!el) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    el.style.background = `radial-gradient(650px circle at ${x}% ${y}%, rgba(184,122,74,0.16), rgba(92,160,104,0.05) 35%, transparent 65%)`;
+    el.style.opacity = "1";
+  };
+  const handlePageMouseLeave = () => {
+    const el = spotlightRef.current;
+    if (el) el.style.opacity = "0";
+  };
 
   // magnetic pull for the primary CTA
   const ctaRef = useRef(null);
@@ -182,9 +136,6 @@ export default function HomePage() {
   const resetMagnet = () => setMagnet({ x: 0, y: -1 });
 
   const particles = useMemo(() => PARTICLES, []);
-
-  // ring sizing: bigger over links/buttons, slightly smaller while pressed
-  const ringSize = cursor.interactive ? 46 : cursor.pressed ? 22 : 28;
 
   return (
     <>
@@ -271,56 +222,21 @@ export default function HomePage() {
           from { width: 0; }
           to   { width: 100%; }
         }
-        /* Ambient auto zoom-in / zoom-out on the hero image — smooth,
-           continuous "breathing" loop, always on. */
-        @keyframes hkd-auto-zoom {
-          0%, 100% { transform: scale(1.04); }
-          50%      { transform: scale(1.13); }
-        }
-
-        /* Custom homepage cursor: hide the native cursor everywhere on
-           this page — our own dot + ring stand in for it instead. */
-        .hkd-cursor-zone, .hkd-cursor-zone * {
-          cursor: none !important;
-        }
       `}</style>
 
-      <div className="hkd-cursor-zone relative grid h-dvh w-full grid-cols-1 grid-rows-[1fr_auto] overflow-hidden bg-[#f0ede6] text-[#2c2417] [font-family:'DM_Sans',sans-serif] dark:bg-[#1b1712] dark:text-[#e8ddd0] md:h-screen md:grid-cols-2 md:grid-rows-1">
+      <div
+        onMouseMove={handlePageMouseMove}
+        onMouseLeave={handlePageMouseLeave}
+        className="relative grid h-dvh w-full grid-cols-1 grid-rows-[1fr_auto] overflow-hidden bg-[#f0ede6] text-[#2c2417] [font-family:'DM_Sans',sans-serif] dark:bg-[#1b1712] dark:text-[#e8ddd0] md:h-screen md:grid-cols-2 md:grid-rows-1"
+      >
 
-        {/* custom cursor: small solid dot, exact position, hides once
-           the ring grows for interactive elements */}
+        {/* cursor spotlight — different warm/green glow follows the mouse
+           anywhere on the page, fades in on hover, out on leave */}
         <div
-          ref={cursor.dotRef}
           aria-hidden="true"
-          className="pointer-events-none fixed left-0 top-0 z-[9999] rounded-full bg-[#2c2417] transition-[opacity,width,height] duration-150 ease-out dark:bg-[#f0ede6]"
-          style={{
-            width: cursor.interactive ? 0 : 6,
-            height: cursor.interactive ? 0 : 6,
-            opacity: cursor.active ? 1 : 0,
-          }}
+          className="pointer-events-none absolute inset-0 z-[1] opacity-0 transition-opacity duration-300 ease-out motion-reduce:hidden"
+          ref={spotlightRef}
         />
-        {/* custom cursor: larger ring that eases/lags behind the dot,
-           swelling and changing color+icon over links/buttons */}
-        <div
-          ref={cursor.ringRef}
-          aria-hidden="true"
-          className="pointer-events-none fixed left-0 top-0 z-[9998] flex items-center justify-center rounded-full border transition-[width,height,border-color,background-color,opacity] duration-200 ease-out"
-          style={{
-            width: ringSize,
-            height: ringSize,
-            borderColor: cursor.interactive ? "#b87a4a" : "rgba(184,122,74,0.55)",
-            backgroundColor: cursor.interactive ? "rgba(184,122,74,0.14)" : "transparent",
-            opacity: cursor.active ? 1 : 0,
-          }}
-        >
-          {cursor.interactive && (
-            <ArrowUpRight
-              size={15}
-              strokeWidth={2}
-              className="text-[#b87a4a] [animation:hkd-fade-in_0.15s_ease_both]"
-            />
-          )}
-        </div>
 
         {/* film-grain overlay — kept as an inline style since the encoded
            SVG data URI isn't safe to embed inside a Tailwind arbitrary value */}
@@ -401,7 +317,7 @@ export default function HomePage() {
               className="mb-[1.1rem] inline-flex items-center gap-[5px] text-[10.5px] font-medium uppercase tracking-[0.13em] text-[#b87a4a] opacity-0 [animation:hkd-rise_0.7s_cubic-bezier(0.22,1,0.36,1)_0.15s_forwards] motion-reduce:opacity-100 motion-reduce:[animation:none] dark:text-[#d4955e]"
             >
               <MapPin size={10} strokeWidth={2.5} className="[animation:hkd-bob_2.4s_ease-in-out_infinite] motion-reduce:animate-none" />
-              KEPZ, Chattogram · Since 1990
+              Built in Bangladesh · For the RMG Industry
             </span>
 
             <h1 className="mb-[1.1rem] [font-family:'Playfair_Display',serif] text-[clamp(2.1rem,5vw,3.4rem)] font-normal leading-[1.07] tracking-[-0.01em] text-[#1a1208] dark:text-[#f0e8dc]">
@@ -429,10 +345,9 @@ export default function HomePage() {
             <p
               className="mb-7 max-w-[360px] text-[13.5px] font-light leading-[1.75] text-[#7a6250] opacity-0 [animation:hkd-rise_0.7s_cubic-bezier(0.22,1,0.36,1)_0.55s_forwards] motion-reduce:opacity-100 motion-reduce:[animation:none] dark:text-[#a8917d]"
             >
-              Built for HKD Outdoor Innovations Ltd. — a venture of South
-              Korea&apos;s HKD Group, manufacturing premium waterproof
-              rainwear, insulated outerwear, sportswear and ski &amp; hunting
-              apparel from its Karnaphuli EPZ campus.
+              One ERP for garment manufacturing — production planning, inventory,
+              quality control &amp; compliance, unified on a single factory floor
+              across 60+ countries.
             </p>
 
             <div
@@ -491,20 +406,16 @@ export default function HomePage() {
         {/* RIGHT */}
         <div className="relative z-[2] flex max-h-[45vh] flex-col overflow-hidden md:max-h-none">
           <div
-            style={{ perspective: "900px" }}
             className="relative min-h-0 flex-1 overflow-hidden [animation:hkd-clip-reveal_1.1s_cubic-bezier(0.65,0,0.35,1)_0.1s_both] motion-reduce:[animation:none] motion-reduce:[clip-path:none]"
           >
-            {/* hero image: always slowly zooms in and out, smooth loop */}
-            <div className="h-full w-full [animation:hkd-auto-zoom_9s_ease-in-out_infinite] motion-reduce:animate-none motion-reduce:[transform:scale(1.06)]">
-              <Image
-                src="/HKD_Building_image.jpeg"
-                alt="Garment factory production floor running on StitchFlow ERP"
-                fill
-                sizes="50vw"
-                className="object-cover object-center [filter:sepia(15%)_contrast(1.06)_brightness(0.94)] dark:[filter:sepia(20%)_contrast(0.95)_brightness(0.78)]"
-                priority
-              />
-            </div>
+            <Image
+              src="/HKD_Building_image.jpeg"
+              alt="Garment factory production floor running on StitchFlow ERP"
+              fill
+              sizes="50vw"
+              className="scale-110 object-cover object-center [filter:sepia(15%)_contrast(1.06)_brightness(0.94)] transition-transform duration-[9000ms] ease-out hover:scale-125 dark:[filter:sepia(20%)_contrast(0.95)_brightness(0.78)]"
+              priority
+            />
             <div
               aria-hidden="true"
               className="pointer-events-none absolute inset-0 [background:linear-gradient(to_bottom,transparent_55%,rgba(26,18,8,0.22)_100%)] dark:[background:linear-gradient(to_bottom,transparent_55%,rgba(20,14,8,0.4)_100%)]"
@@ -517,7 +428,7 @@ export default function HomePage() {
                 className="h-[6px] w-[6px] flex-shrink-0 rounded-full bg-[#5ca068] shadow-[0_0_0_3px_rgba(92,160,104,0.22)] [animation:hkd-pulse-ring_2.5s_ease_infinite] motion-reduce:animate-none"
               />
               <span className="text-[10.5px] font-medium tracking-[0.01em] text-[#2c2417] dark:text-[#e8ddd0]">
-                Live Production · KEPZ, Chattogram
+                Live Production · 500+ Factories
                 <span aria-hidden="true" className="ml-[1px] [animation:hkd-blink_1.1s_step-end_infinite] motion-reduce:hidden">|</span>
               </span>
             </div>

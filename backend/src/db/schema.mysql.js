@@ -210,18 +210,30 @@ export const stockHistory = mysqlTable(
 );
 // ================= Cutting: Requisition -> Cutting Issue =================
 //
-// Workflow: Cutting submits a Requisition (Date, Buyer, Floor, Season, PO,
-// Style, Model + one or more Item Code/PDM + Color + Requested Roll/Yds
-// rows) -> it shows up as a notification on the Material Warehouse's
-// "Cutting Issue" page -> the warehouse user picks which rack(s) to issue
-// from (reading the SAME material_receive_item_locations table Material
-// Stock reads from) -> issuing decrements that rack's availableRoll/Yds
-// (exactly like a Cutting Issue draws down real shelf stock) and
-// increments the requisition item's issuedRoll/Yds -> everything is
-// logged to cutting_issues (the "History" ledger for this module) AND to
-// the existing stock_history table (action "issue") so the master stock
-// ledger stays consistent with Location Assignment's audit trail.
- 
+// Workflow: Cutting submits a Requisition (Date, Buyer, Floor, Season,
+// Style, Model + one or more Item Code/PDM + Color + Pcs + Wastage % +
+// Consumption rows) -> it shows up as a notification on the Material
+// Warehouse's "Cutting Issue" page -> the warehouse user picks which
+// rack(s) to issue from (reading the SAME material_receive_item_locations
+// table Material Stock reads from) -> issuing decrements that rack's
+// availableRoll/Yds (exactly like a Cutting Issue draws down real shelf
+// stock) and increments the requisition item's issuedRoll/Yds ->
+// everything is logged to cutting_issues (the "History" ledger for this
+// module) AND to the existing stock_history table (action "issue") so the
+// master stock ledger stays consistent with Location Assignment's audit
+// trail.
+//
+// NOTE: Cutting only ever thinks in Pcs/Consumption/Yds -- it has no idea
+// how many Rolls a given Yds figure needs (that depends on what's
+// physically on the shelf), so there is no "Requested Roll" anymore.
+// Requested Yds is calculated automatically:
+//     requestedYds = Pcs x Consumption x (1 + WastagePercentage/100)
+// Roll is entirely a Material Warehouse decision made at issue time, and
+// issuedRoll simply accumulates whatever Roll quantity was actually pulled
+// off the racks to cover the requested Yds. PO is intentionally NOT part
+// of a Requisition -- Cutting requisitions are tracked by Buyer/Floor/
+// Season/Style/Model instead.
+
 // Parent table -- one row per Requisition form submission from Cutting.
 export const cuttingRequisitions = mysqlTable("cutting_requisitions", {
   id: serial("id").primaryKey(),
@@ -229,21 +241,25 @@ export const cuttingRequisitions = mysqlTable("cutting_requisitions", {
   buyer: varchar("buyer", { length: 150 }).notNull(),
   floor: varchar("floor", { length: 10 }).notNull(), // "A-2" | "B-2" | "A-3" | "B-3" | "A-4" | "B-4" | "A-5" | "B-5" | "A-6" | "B-6"
   season: varchar("season", { length: 100 }).notNull(),
-  po: varchar("po", { length: 150 }).notNull(),
   style: varchar("style", { length: 100 }).notNull(),
   model: varchar("model", { length: 150 }),
   // pending -> nothing issued yet | partial -> some items issued, some not
-  // | fulfilled -> every item fully issued
+  // | fulfilled -> every item's issued Yds has reached (or passed) its
+  // requested Yds
   status: mysqlEnum("status", ["pending", "partial", "fulfilled"]).notNull().default("pending"),
   // Bell-icon notification read state on the Material Warehouse side.
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
- 
+
 // Child table -- one row per Item Code/PDM + Color requested on a
-// Requisition. issuedRoll/issuedYds accumulate every time the warehouse
-// issues against this row (possibly from multiple racks / multiple
-// visits); requestedRoll/requestedYds stay immutable "as requested".
+// Requisition. pcs/percentage(wastage %)/consumption are what Cutting
+// actually enters; requestedYds is calculated from them server-side and
+// stored immutable "as requested". issuedRoll/issuedYds accumulate every
+// time the warehouse issues against this row (possibly from multiple
+// racks / multiple visits, and the warehouse is free to issue MORE than
+// requestedYds if needed -- there is no hard cap, only a confirmation
+// prompt on the frontend).
 export const cuttingRequisitionItems = mysqlTable(
   "cutting_requisition_items",
   {
@@ -254,9 +270,11 @@ export const cuttingRequisitionItems = mysqlTable(
     }).notNull(),
     itemCodePdm: varchar("item_code_pdm", { length: 150 }).notNull(),
     color: varchar("color", { length: 100 }).notNull(),
-    requestedRoll: int("requested_roll").notNull(),
-    requestedYds: decimal("requested_yds", { precision: 10, scale: 2 }).notNull(),
-    issuedRoll: int("issued_roll").notNull().default(0),
+    pcs: int("pcs").notNull(),
+    percentage: decimal("percentage", { precision: 5, scale: 2 }).notNull().default("0"), // wastage %
+    consumption: decimal("consumption", { precision: 10, scale: 3 }).notNull(), // yds per pcs
+    requestedYds: decimal("requested_yds", { precision: 10, scale: 2 }).notNull(), // = pcs * consumption * (1 + percentage/100)
+    issuedRoll: int("issued_roll").notNull().default(0), // Roll is a Warehouse-side decision, no requested counterpart
     issuedYds: decimal("issued_yds", { precision: 10, scale: 2 }).notNull().default(0),
     status: mysqlEnum("status", ["pending", "partial", "fulfilled"]).notNull().default("pending"),
     fulfilledAt: timestamp("fulfilled_at"),
@@ -270,7 +288,7 @@ export const cuttingRequisitionItems = mysqlTable(
     }).onDelete("cascade"),
   })
 );
- 
+
 // One row per actual "issue" action -- Requisition Item + which rack
 // allocation it was drawn from + how much. This is the real, readable
 // "History" ledger for the Cutting Issue page (who got how much, from

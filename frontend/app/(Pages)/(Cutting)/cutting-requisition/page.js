@@ -1,11 +1,19 @@
 // frontend/app/(Pages)/(Cutting)/cutting-requisition/page.js
 //
 // Cutting side: submit a Requisition to Material Warehouse asking for
-// specific Item Code/PDM + Color + Roll/Yds to be issued from stock, and
-// track the status (Pending / Partially Issued / Fulfilled) of everything
-// already sent. Fulfillment itself happens on the Material Warehouse's
-// "Cutting Issue" page -- this page is read-only once a requisition has
-// anything issued against it.
+// specific Item Code/PDM + Color + Pcs/Wastage%/Consumption to be issued
+// from stock, and track the status (Pending / Partially Issued /
+// Fulfilled) of everything already sent. Fulfillment itself happens on
+// the Material Warehouse's "Cutting Issue" page -- this page is read-only
+// once a requisition has anything issued against it.
+//
+// Cutting never enters a PO or a Roll count here. Cutting only knows
+// Pcs (how many pieces are being cut), the Consumption (yds of fabric per
+// piece) and a Wastage % -- the actual Requested Yds is calculated
+// automatically from those three numbers:
+//     Requested Yds = Pcs x Consumption x (1 + Wastage % / 100)
+// Roll is entirely a Material Warehouse decision made when they issue
+// stock (they know how many yds sit on a given roll, Cutting doesn't).
 
 "use client";
 
@@ -55,13 +63,23 @@ const uid = () =>
     ? crypto.randomUUID()
     : `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
-const emptyForm = { date: "", buyer: "", floor: "A-2", season: "", po: "", style: "", model: "" };
-const newItem = () => ({ key: uid(), itemCodePdm: "", color: "", requestedRoll: "", requestedYds: "" });
+const emptyForm = { date: "", buyer: "", floor: "A-2", season: "", style: "", model: "" };
+const newItem = () => ({ key: uid(), itemCodePdm: "", color: "", pcs: "", percentage: "", consumption: "" });
 
-const emptyRecordFilters = { buyer: "", po: "", style: "", model: "", itemCodePdm: "", color: "", floor: "", status: "" };
+// Requested Yds = Pcs x Consumption x (1 + Wastage% / 100). Purely a
+// display-side preview -- the backend always recomputes this itself from
+// the same three numbers before saving, so it can never be spoofed.
+function calcYds(item) {
+  const pcs = Number(item.pcs);
+  const consumption = Number(item.consumption);
+  const percentage = item.percentage === "" ? 0 : Number(item.percentage);
+  if (!(pcs > 0) || !(consumption > 0) || Number.isNaN(percentage)) return 0;
+  return Math.round(pcs * consumption * (1 + percentage / 100) * 100) / 100;
+}
+
+const emptyRecordFilters = { buyer: "", style: "", model: "", itemCodePdm: "", color: "", floor: "", status: "" };
 const RECORD_FILTER_FIELDS = [
   { key: "buyer", label: "Buyer", type: "select" },
-  { key: "po", label: "PO" },
   { key: "style", label: "Style" },
   { key: "model", label: "Model" },
   { key: "itemCodePdm", label: "Item Code/PDM" },
@@ -85,14 +103,16 @@ function statusChip(status) {
 }
 
 /* ============================================================
-   ItemRow -- Item Code/PDM, Color, Requested Roll/Yds + a live
-   "already in stock" check (rack-wise) so Cutting can see what's
-   actually available before sending the requisition.
+   ItemRow -- Item Code/PDM, Color, Pcs, Wastage % and Consumption,
+   with the resulting Requested Yds calculated live and shown read-only.
+   Also keeps a live "already in stock" check (rack-wise) so Cutting can
+   see what's actually available before sending the requisition.
    ============================================================ */
 
 function ItemRow({ item, canRemove, onRemove, onChange }) {
   const [preview, setPreview] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const requestedYds = calcYds(item);
 
   const checkStock = async () => {
     const code = (item.itemCodePdm || "").trim();
@@ -122,11 +142,26 @@ function ItemRow({ item, canRemove, onRemove, onChange }) {
           <button type="button" onClick={() => onRemove(item.key)} className="text-[10px] font-medium text-[#b87a4a] hover:underline shrink-0">×</button>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-1.5">
-        <input type="number" placeholder="Requested Roll" value={item.requestedRoll}
-          onChange={(e) => onChange(item.key, "requestedRoll", e.target.value)} className={inputCls} />
-        <input type="number" placeholder="Requested Yds" value={item.requestedYds}
-          onChange={(e) => onChange(item.key, "requestedYds", e.target.value)} className={inputCls} />
+      <div className="grid grid-cols-3 gap-1.5">
+        <label className="block">
+          <span className="block mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#a08060]">Pcs</span>
+          <input type="number" placeholder="Pcs" value={item.pcs}
+            onChange={(e) => onChange(item.key, "pcs", e.target.value)} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className="block mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#a08060]">Wastage %</span>
+          <input type="number" placeholder="Wastage %" value={item.percentage}
+            onChange={(e) => onChange(item.key, "percentage", e.target.value)} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className="block mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#a08060]">Consumption</span>
+          <input type="number" placeholder="Yds/Pcs" value={item.consumption}
+            onChange={(e) => onChange(item.key, "consumption", e.target.value)} className={inputCls} />
+        </label>
+      </div>
+      <div className="rounded-md bg-[#b87a4a]/10 dark:bg-[#d4955e]/10 px-2 py-1 text-[11px] text-[#8a4a24] dark:text-[#d4955e]">
+        Requested Yds (auto): <b>{requestedYds || 0}</b>
+        <span className="text-[#a08060] font-normal"> — Roll is decided by Material Warehouse at issue time.</span>
       </div>
       <button type="button" onClick={checkStock} disabled={loadingPreview} className="text-[10px] font-medium text-[#3d6a8a] dark:text-[#6fa8d0] hover:underline">
         {loadingPreview ? "Checking..." : "Check total available stock"}
@@ -153,25 +188,34 @@ function ItemsBreakdown({ items }) {
           <tr className="text-[#4a6578] dark:text-[#8fb0c4] border-b-2 border-[#3d6a8a]/20 dark:border-[#6fa8d0]/20 bg-[#dde8ef]/60 dark:bg-white/[0.03]">
             <th className="px-3 py-2 text-left font-semibold">Item Code / PDM</th>
             <th className="px-3 py-2 text-left font-semibold">Color</th>
-            <th className="px-3 py-2 text-left font-semibold">Requested</th>
+            <th className="px-3 py-2 text-left font-semibold">Pcs</th>
+            <th className="px-3 py-2 text-left font-semibold">Wastage %</th>
+            <th className="px-3 py-2 text-left font-semibold">Consumption</th>
+            <th className="px-3 py-2 text-left font-semibold">Requested Yds</th>
             <th className="px-3 py-2 text-left font-semibold">Issued</th>
-            <th className="px-3 py-2 text-left font-semibold">Remaining</th>
+            <th className="px-3 py-2 text-left font-semibold">Remaining Yds</th>
             <th className="px-3 py-2 text-left font-semibold">Status</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((row, idx) => (
-            <tr key={row.id} className={`border-b border-[#3d6a8a]/10 dark:border-[#6fa8d0]/10 last:border-b-0 ${idx % 2 === 1 ? "bg-[#3d6a8a]/[0.04] dark:bg-[#6fa8d0]/[0.04]" : ""}`}>
-              <td className="px-3 py-2 text-[#2c4a63] dark:text-[#8fb0c4] font-bold">{row.itemCodePdm}</td>
-              <td className="px-3 py-2 font-medium">{row.color}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{row.requestedRoll} Roll / {row.requestedYds} Yds</td>
-              <td className="px-3 py-2 whitespace-nowrap text-[#3d7a4a] dark:text-[#8fca9c] font-medium">{row.issuedRoll} Roll / {row.issuedYds} Yds</td>
-              <td className="px-3 py-2 whitespace-nowrap font-semibold text-[#8a4a24] dark:text-[#d4955e]">
-                {(row.requestedRoll - row.issuedRoll)} Roll / {(row.requestedYds - row.issuedYds)} Yds
-              </td>
-              <td className="px-3 py-2">{statusChip(row.status)}</td>
-            </tr>
-          ))}
+          {items.map((row, idx) => {
+            const remainingYds = Number(row.requestedYds) - Number(row.issuedYds);
+            return (
+              <tr key={row.id} className={`border-b border-[#3d6a8a]/10 dark:border-[#6fa8d0]/10 last:border-b-0 ${idx % 2 === 1 ? "bg-[#3d6a8a]/[0.04] dark:bg-[#6fa8d0]/[0.04]" : ""}`}>
+                <td className="px-3 py-2 text-[#2c4a63] dark:text-[#8fb0c4] font-bold">{row.itemCodePdm}</td>
+                <td className="px-3 py-2 font-medium">{row.color}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{row.pcs}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{row.percentage}%</td>
+                <td className="px-3 py-2 whitespace-nowrap">{row.consumption}</td>
+                <td className="px-3 py-2 whitespace-nowrap font-semibold">{row.requestedYds} Yds</td>
+                <td className="px-3 py-2 whitespace-nowrap text-[#3d7a4a] dark:text-[#8fca9c] font-medium">{row.issuedRoll} Roll / {row.issuedYds} Yds</td>
+                <td className="px-3 py-2 whitespace-nowrap font-semibold text-[#8a4a24] dark:text-[#d4955e]">
+                  {remainingYds > 0 ? `${remainingYds} Yds` : remainingYds < 0 ? `Over by ${Math.abs(remainingYds)} Yds` : "0 Yds"}
+                </td>
+                <td className="px-3 py-2">{statusChip(row.status)}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -237,7 +281,6 @@ function RecordsPanel({ filters, setFilters, requisitions, loading, expandedIds,
                 <th className="px-3 py-2 text-left font-semibold">Buyer</th>
                 <th className="px-3 py-2 text-left font-semibold">Floor</th>
                 <th className="px-3 py-2 text-left font-semibold">Season</th>
-                <th className="px-3 py-2 text-left font-semibold">PO</th>
                 <th className="px-3 py-2 text-left font-semibold">Style / Model</th>
                 <th className="px-3 py-2 text-left font-semibold">Items</th>
                 <th className="px-3 py-2 text-left font-semibold">Status</th>
@@ -256,7 +299,6 @@ function RecordsPanel({ filters, setFilters, requisitions, loading, expandedIds,
                       <td className="px-3 py-2 whitespace-nowrap">{r.buyer}</td>
                       <td className="px-3 py-2"><span className={chip}><MapPin size={10} className="mr-0.5" />{r.floor}</span></td>
                       <td className="px-3 py-2 whitespace-nowrap">{r.season}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">{r.po}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{r.style}{r.model ? ` · ${r.model}` : ""}</td>
                       <td className="px-3 py-2"><span className={chip}>{r.totalItems}</span></td>
                       <td className="px-3 py-2">{statusChip(r.status)}</td>
@@ -274,7 +316,7 @@ function RecordsPanel({ filters, setFilters, requisitions, loading, expandedIds,
                       </td>
                     </tr>
                     {isOpen && (
-                      <tr><td colSpan={10} className="p-0"><ItemsBreakdown items={r.items} /></td></tr>
+                      <tr><td colSpan={9} className="p-0"><ItemsBreakdown items={r.items} /></td></tr>
                     )}
                   </Fragment>
                 );
@@ -333,8 +375,11 @@ export default function CuttingRequisitionPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setError(""); setSuccess("");
-    const rows = items.filter((i) => i.itemCodePdm && i.color && i.requestedRoll && i.requestedYds);
-    if (rows.length === 0) { setError("Add at least one Item Code/PDM + Color + Requested Roll/Yds row."); return; }
+    const rows = items.filter((i) => i.itemCodePdm && i.color && Number(i.pcs) > 0 && Number(i.consumption) > 0);
+    if (rows.length === 0) {
+      setError("Add at least one Item Code/PDM + Color row with Pcs and Consumption filled in.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -359,11 +404,14 @@ export default function CuttingRequisitionPage() {
       const data = await res.json();
       setForm({
         date: data.date?.slice(0, 10) || "", buyer: data.buyer || "", floor: data.floor || "A-2",
-        season: data.season || "", po: data.po || "", style: data.style || "", model: data.model || "",
+        season: data.season || "", style: data.style || "", model: data.model || "",
       });
       setItems(
         (data.items || []).length
-          ? data.items.map((i) => ({ key: uid(), itemCodePdm: i.itemCodePdm, color: i.color, requestedRoll: i.requestedRoll, requestedYds: i.requestedYds }))
+          ? data.items.map((i) => ({
+              key: uid(), itemCodePdm: i.itemCodePdm, color: i.color,
+              pcs: i.pcs, percentage: i.percentage, consumption: i.consumption,
+            }))
           : [newItem()]
       );
       setEditingId(id); setFormOpen(true);
@@ -394,8 +442,9 @@ export default function CuttingRequisitionPage() {
                 Cutting <em className="italic text-[#b87a4a] dark:text-[#d4955e]">Requisition</em>
               </h1>
               <p className="text-xs text-[#7a6250] dark:text-[#a8917d]">
-                Request Item Code/PDM + Color + Roll/Yds from Material Warehouse. Sent requisitions show up as
-                notifications on the warehouse's Cutting Issue page.
+                Request Item Code/PDM + Color from Material Warehouse by Pcs, Wastage % and Consumption -- the
+                Requested Yds is calculated automatically. Roll is decided by the warehouse when they issue. Sent
+                requisitions show up as notifications on the warehouse's Cutting Issue page.
               </p>
             </div>
           </div>
@@ -434,14 +483,15 @@ export default function CuttingRequisitionPage() {
                     </Field>
                   </div>
                   <Field text="Season" required><input type="text" required value={form.season} onChange={(e) => setForm({ ...form, season: up(e.target.value) })} className={inputCls} /></Field>
-                  <Field text="PO" required><input type="text" required value={form.po} onChange={(e) => setForm({ ...form, po: up(e.target.value) })} className={inputCls} /></Field>
                   <Field text="Style" required><input type="text" required value={form.style} onChange={(e) => setForm({ ...form, style: up(e.target.value) })} className={inputCls} /></Field>
-                  <Field text="Model"><input type="text" value={form.model} onChange={(e) => setForm({ ...form, model: up(e.target.value) })} className={inputCls} /></Field>
+                  <div className="col-span-2">
+                    <Field text="Model"><input type="text" value={form.model} onChange={(e) => setForm({ ...form, model: up(e.target.value) })} className={inputCls} /></Field>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between pb-1 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
-                    <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">Item Code / PDM, Color &amp; Qty</h2>
+                    <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">Item Code / PDM, Color &amp; Consumption</h2>
                   </div>
                   <div className="space-y-1.5">
                     {items.map((it) => (

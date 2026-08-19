@@ -3,6 +3,13 @@
 // Used by the CUTTING side page (Cutting -> Cutting Requisition).
 // Cutting creates a Requisition here; the Material Warehouse side
 // (cuttingIssue.controllers.js) reads/fulfills it.
+//
+// Cutting never enters a Roll or a PO on a Requisition. Each item row is
+// Item Code/PDM + Color + Pcs + Wastage % + Consumption, and the Yds
+// actually requested is ALWAYS computed server-side from those three
+// numbers (never trusted from the client) as:
+//     requestedYds = Pcs x Consumption x (1 + WastagePercentage / 100)
+// Roll is a Material Warehouse-only concept, decided at issue time.
 
 import { db, schema } from "../db/db.js";
 import { eq, like, and, inArray, desc, ne } from "drizzle-orm";
@@ -17,21 +24,60 @@ async function getFullRequisition(id) {
 }
 
 /**
+ * Validates and normalizes the raw item rows coming from the request body
+ * into rows ready for insertion, computing requestedYds server-side so it
+ * can never be spoofed/mismatched from the client.
+ * Throws a { status, message } style error object on invalid input.
+ */
+function buildItemRows(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    const err = new Error("At least one Item Code/PDM + Color row is required");
+    err.status = 400;
+    throw err;
+  }
+
+  return items.map((row) => {
+    const pcs = Number(row.pcs);
+    const consumption = Number(row.consumption);
+    const percentage =
+      row.percentage === "" || row.percentage === undefined || row.percentage === null ? 0 : Number(row.percentage);
+
+    if (!row.itemCodePdm || !row.color || !(pcs > 0) || !(consumption > 0) || Number.isNaN(percentage) || percentage < 0) {
+      const err = new Error(
+        "Every item row needs an Item Code/PDM, Color, Pcs (>0), Consumption (>0), and a valid Wastage % (0 or more)"
+      );
+      err.status = 400;
+      throw err;
+    }
+
+    const requestedYds = Math.round(pcs * consumption * (1 + percentage / 100) * 100) / 100;
+
+    return {
+      itemCodePdm: row.itemCodePdm,
+      color: row.color,
+      pcs,
+      percentage,
+      consumption,
+      requestedYds,
+    };
+  });
+}
+
+/**
  * GET /cutting-requisition
- * GET /cutting-requisition?buyer=...&po=...&style=...&model=...&itemCodePdm=...&color=...&floor=...&status=...
+ * GET /cutting-requisition?buyer=...&style=...&model=...&itemCodePdm=...&color=...&floor=...&status=...
  *
  * Each field matched only against its own column, same AND-across-groups
  * pattern as GET /material-receive.
  */
 export const getAllRequisitions = async (req, res) => {
   try {
-    const { buyer, po, style, model, floor, status, itemCodePdm, color } = req.query;
+    const { buyer, style, model, floor, status, itemCodePdm, color } = req.query;
     const has = (v) => typeof v === "string" && v.trim().length > 0;
     const term = (v) => `%${v.trim()}%`;
 
     const conditions = [];
     if (has(buyer)) conditions.push(like(cuttingRequisitions.buyer, term(buyer)));
-    if (has(po)) conditions.push(like(cuttingRequisitions.po, term(po)));
     if (has(style)) conditions.push(like(cuttingRequisitions.style, term(style)));
     if (has(model)) conditions.push(like(cuttingRequisitions.model, term(model)));
     if (has(floor)) conditions.push(like(cuttingRequisitions.floor, term(floor)));
@@ -86,41 +132,44 @@ export const getRequisitionById = async (req, res) => {
 
 /**
  * POST /cutting-requisition
- * Body: { date, buyer, floor, season, po, style, model,
- *         items: [{ itemCodePdm, color, requestedRoll, requestedYds }] }
+ * Body: { date, buyer, floor, season, style, model,
+ *         items: [{ itemCodePdm, color, pcs, percentage, consumption }] }
  *
- * Always created fresh with isRead=false so it immediately shows up as an
- * unread notification on the Material Warehouse's Cutting Issue page.
+ * requestedYds is always (re)computed here from pcs/percentage/consumption
+ * -- never taken as-is from the client. Always created fresh with
+ * isRead=false so it immediately shows up as an unread notification on
+ * the Material Warehouse's Cutting Issue page.
  */
 export const createRequisition = async (req, res) => {
   try {
-    const { date, buyer, floor, season, po, style, model, items } = req.body;
+    const { date, buyer, floor, season, style, model, items } = req.body;
 
-    if (!date || !buyer || !floor || !season || !po || !style) {
+    if (!date || !buyer || !floor || !season || !style) {
       return res.status(400).json({ message: "Missing required fields" });
     }
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: "At least one Item Code/PDM + Color row is required" });
-    }
-    for (const row of items) {
-      if (!row.itemCodePdm || !row.color || Number(row.requestedRoll) <= 0 || Number(row.requestedYds) <= 0) {
-        return res.status(400).json({ message: "Every item row needs an Item Code/PDM, Color, and Roll/Yds greater than 0" });
-      }
+
+    let rows;
+    try {
+      rows = buildItemRows(items);
+    } catch (err) {
+      return res.status(err.status || 400).json({ message: err.message });
     }
 
     const newId = await db.transaction(async (tx) => {
       const [inserted] = await tx.insert(cuttingRequisitions).values({
-        date, buyer, floor, season, po, style, model: model || null,
+        date, buyer, floor, season, style, model: model || null,
         status: "pending", isRead: false,
       });
       const cuttingRequisitionId = inserted.insertId;
 
-      const itemRows = items.map((row) => ({
+      const itemRows = rows.map((row) => ({
         cuttingRequisitionId,
         itemCodePdm: row.itemCodePdm,
         color: row.color,
-        requestedRoll: Number(row.requestedRoll) || 0,
-        requestedYds: row.requestedYds || 0,
+        pcs: row.pcs,
+        percentage: row.percentage,
+        consumption: row.consumption,
+        requestedYds: row.requestedYds,
         issuedRoll: 0,
         issuedYds: 0,
         status: "pending",
@@ -147,7 +196,7 @@ export const createRequisition = async (req, res) => {
 export const updateRequisition = async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, buyer, floor, season, po, style, model, items } = req.body;
+    const { date, buyer, floor, season, style, model, items } = req.body;
 
     const [existing] = await db.select().from(cuttingRequisitions).where(eq(cuttingRequisitions.id, id));
     if (!existing) return res.status(404).json({ message: "Requisition not found" });
@@ -162,23 +211,34 @@ export const updateRequisition = async (req, res) => {
       });
     }
 
+    let rows = [];
+    if (Array.isArray(items) && items.length > 0) {
+      try {
+        rows = buildItemRows(items);
+      } catch (err) {
+        return res.status(err.status || 400).json({ message: err.message });
+      }
+    }
+
     await db.transaction(async (tx) => {
       await tx
         .update(cuttingRequisitions)
-        .set({ date, buyer, floor, season, po, style, model: model || null })
+        .set({ date, buyer, floor, season, style, model: model || null })
         .where(eq(cuttingRequisitions.id, id));
 
       await tx
         .delete(cuttingRequisitionItems)
         .where(and(eq(cuttingRequisitionItems.cuttingRequisitionId, id), eq(cuttingRequisitionItems.status, "pending")));
 
-      if (Array.isArray(items) && items.length > 0) {
-        const itemRows = items.map((row) => ({
+      if (rows.length > 0) {
+        const itemRows = rows.map((row) => ({
           cuttingRequisitionId: Number(id),
           itemCodePdm: row.itemCodePdm,
           color: row.color,
-          requestedRoll: Number(row.requestedRoll) || 0,
-          requestedYds: row.requestedYds || 0,
+          pcs: row.pcs,
+          percentage: row.percentage,
+          consumption: row.consumption,
+          requestedYds: row.requestedYds,
           issuedRoll: 0,
           issuedYds: 0,
           status: "pending",

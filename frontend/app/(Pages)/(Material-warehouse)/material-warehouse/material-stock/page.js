@@ -26,8 +26,9 @@ const emptyFilters = {
   buyer: "", invoiceNo: "", item: "", warehouse: "", location: "",
 };
 
-// One clearly-labeled field per filter, all rendered on a single
-// horizontally-scrollable line (no click-to-open/close anymore).
+// One clearly-labeled field per filter. Rendered in a responsive grid
+// (wraps to more rows on narrow screens) instead of a fixed-width
+// horizontally-scrolling line, so nothing needs to be scrolled to reach.
 const STOCK_FILTER_FIELDS = [
   { key: "itemCodePdm", label: "Item Code/PDM" },
   { key: "style", label: "Style" },
@@ -86,16 +87,16 @@ function SummaryStrip({ summary }) {
             ({filtered.length}{q ? ` of ${summary.length}` : ""})
           </span>
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           {!hidden && (
-            <div className="relative">
+            <div className="relative flex-1 sm:flex-none">
               <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#a08060]" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search Item Code/PDM or Color..."
-                className={`${inputCls} !py-1 !pl-6 text-[11px] w-64`}
+                className={`${inputCls} !py-1 !pl-6 text-[11px] w-full sm:w-64`}
               />
             </div>
           )}
@@ -147,8 +148,9 @@ function SummaryStrip({ summary }) {
 }
 
 /* ============================================================
-   Filter Bar -- always visible (no click-to-expand), every field
-   on one scrollable line with its own small label above it.
+   Filter Bar -- always visible (no click-to-expand). Fields sit in
+   a responsive grid that reflows into more rows as the screen gets
+   narrower, so every field is reachable without scrolling sideways.
    ============================================================ */
 
 function FilterBar({ filters, setFilters, loading, onSearch, onReset }) {
@@ -167,9 +169,9 @@ function FilterBar({ filters, setFilters, loading, onSearch, onReset }) {
       </div>
 
       <form onSubmit={onSearch}>
-        <div className="flex items-end gap-1.5 overflow-x-auto pb-1">
+        <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
           {STOCK_FILTER_FIELDS.map((f) => (
-            <label key={f.key} className="shrink-0 w-[132px]">
+            <label key={f.key} className="min-w-0">
               <span className="block mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#a08060] whitespace-nowrap">
                 {f.label}
               </span>
@@ -182,15 +184,15 @@ function FilterBar({ filters, setFilters, loading, onSearch, onReset }) {
               />
             </label>
           ))}
+        </div>
 
-          <div className="shrink-0 flex gap-1.5 pb-[1px]">
-            <button type="submit" disabled={loading} className={`${btnPrimary} px-4 whitespace-nowrap`}>
-              {loading ? "..." : "Search"}
-            </button>
-            <button type="button" onClick={onReset} className={`${btnSecondary} whitespace-nowrap`}>
-              <RotateCcw size={12} /> Reset
-            </button>
-          </div>
+        <div className="flex flex-wrap justify-end gap-1.5 mt-3">
+          <button type="submit" disabled={loading} className={`${btnPrimary} px-4 whitespace-nowrap`}>
+            {loading ? "..." : "Search"}
+          </button>
+          <button type="button" onClick={onReset} className={`${btnSecondary} whitespace-nowrap`}>
+            <RotateCcw size={12} /> Reset
+          </button>
         </div>
       </form>
     </div>
@@ -210,15 +212,19 @@ function ResultsTable({ rows, loading, searched }) {
         <span className="text-[11px] text-[#a08060]">({rows.length})</span>
       </div>
 
+      {/* This table genuinely needs its own horizontal scroll on small
+         screens (10 columns of tabular data) -- that's normal table
+         behavior, distinct from the filter fields above which no
+         longer require any scrolling. */}
       <div className="flex-1 overflow-auto max-h-[65vh]">
         {loading ? (
           <div className="text-center py-8 text-[#a08060] text-xs">Loading...</div>
         ) : rows.length === 0 ? (
-          <div className="text-center py-8 text-[#a08060] text-xs">
+          <div className="text-center py-8 text-[#a08060] text-xs px-4">
             {searched ? "No stock batches match these filters." : "Enter filters and search, or search with everything blank to see all available stock."}
           </div>
         ) : (
-          <table className="min-w-full text-[11px] border-collapse">
+          <table className="min-w-[1080px] w-full text-[11px] border-collapse">
             <thead className="sticky top-0 bg-[#e6e0d4]/70 dark:bg-[#221d16] text-[#7a6250] dark:text-[#a8917d] backdrop-blur">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold">Date</th>
@@ -230,8 +236,10 @@ function ResultsTable({ rows, loading, searched }) {
                 <th className="px-3 py-2 text-left font-semibold">Item Code/PDM</th>
                 <th className="px-3 py-2 text-left font-semibold">Color</th>
                 <th className="px-3 py-2 text-left font-semibold">Location</th>
-                <th className="px-3 py-2 text-left font-semibold">Received Roll/Yds</th>
-                <th className="px-3 py-2 text-left font-semibold">Available Roll/Yds</th>
+                <th className="px-3 py-2 text-right font-semibold">Received Roll</th>
+                <th className="px-3 py-2 text-right font-semibold">Received Yds</th>
+                <th className="px-3 py-2 text-right font-semibold">Available Roll</th>
+                <th className="px-3 py-2 text-right font-semibold">Available Yds</th>
               </tr>
             </thead>
             <tbody>
@@ -241,10 +249,19 @@ function ResultsTable({ rows, loading, searched }) {
                   <td className="px-3 py-2 font-medium text-[#1a1208] dark:text-[#f0e8dc] whitespace-nowrap">{r.invoiceNo}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.buyer}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.season}</td>
+                  {/* Style and Model are combined into a single chip per entry
+                     (instead of two separate flex-wrap lists in two columns).
+                     Previously, when an entry had no model, that column's chip
+                     was skipped entirely -- shifting the chip indices between
+                     the two lists out of sync, so a style could visually line
+                     up with the wrong model. Pairing them in one chip makes
+                     that misalignment impossible. */}
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1 max-w-[180px]">
                       {(r.styles || []).map((s) => (
-                        <span key={s.id ?? s.style} className={chip}>{s.style}{s.model ? ` · ${s.model}` : ""}</span>
+                        <span key={s.id ?? `${s.style}-${s.model ?? ""}`} className={chip}>
+                          {s.style}{s.model ? ` / ${s.model}` : ""}
+                        </span>
                       ))}
                     </div>
                   </td>
@@ -252,8 +269,10 @@ function ResultsTable({ rows, loading, searched }) {
                   <td className="px-3 py-2 text-[#8a4a24] dark:text-[#d4955e] font-medium whitespace-nowrap">{r.itemCodePdm}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.color}</td>
                   <td className="px-3 py-2 whitespace-nowrap"><span className={chip}>{r.location}</span></td>
-                  <td className="px-3 py-2 whitespace-nowrap">{r.rollQty} / {r.yds}</td>
-                  <td className="px-3 py-2 whitespace-nowrap font-medium text-[#3d7a4a] dark:text-[#8fca9c]">{r.availableRoll} / {r.availableYds}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">{r.rollQty}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">{r.yds}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-[#3d7a4a] dark:text-[#8fca9c]">{r.availableRoll}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-[#3d7a4a] dark:text-[#8fca9c]">{r.availableYds}</td>
                 </tr>
               ))}
             </tbody>
@@ -299,17 +318,17 @@ export default function MaterialStockPage() {
 
   return (
     <div className="min-h-screen bg-[#f0ede6] dark:bg-[#1b1712]">
-      <div className="max-w-[1400px] mx-auto px-4 py-6 space-y-5">
+      <div className="max-w-[1400px] mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
         <div className="flex items-center gap-2">
-          <Search size={22} className="text-[#b87a4a]" />
-          <h1 className="font-serif text-2xl text-[#1a1208] dark:text-[#f0e8dc]">
+          <Search size={22} className="text-[#b87a4a] shrink-0" />
+          <h1 className="font-serif text-xl sm:text-2xl text-[#1a1208] dark:text-[#f0e8dc]">
             Material Stock <em className="italic text-[#b87a4a] dark:text-[#d4955e]">Search</em>
           </h1>
         </div>
 
         {error && <div className="rounded-lg bg-[#b87a4a]/10 border border-[#b87a4a]/25 text-[#8a4a24] dark:text-[#e0a878] text-xs px-3 py-2"><b>Error:</b> {error}</div>}
 
-        {/* Always-visible, single-line filter bar */}
+        {/* Always-visible filter bar, wraps responsively -- no scrolling needed */}
         <FilterBar
           filters={filters}
           setFilters={setFilters}

@@ -34,6 +34,14 @@ const scrollThin =
   "[&::-webkit-scrollbar-thumb:hover]:bg-[#b87a4a]/50 " +
   "[scrollbar-width:thin] [scrollbar-color:#b87a4a4d_transparent]";
 
+// Same scroll region, but the bar itself is fully hidden (Chrome/Safari via
+// ::-webkit-scrollbar, Firefox via scrollbar-width, old Edge/IE via
+// -ms-overflow-style). Scrolling still works with wheel/trackpad/touch/
+// keyboard -- only the visual track+thumb disappear. Used on the form
+// column, where a bar looked cluttered next to the compact 340px card.
+const scrollHidden =
+  "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
 // Dummy rack list used everywhere a Location/Rack needs to be picked.
 const RACK_OPTIONS = Array.from({ length: 10 }, (_, i) => `Rack-${i + 1}`);
 
@@ -974,7 +982,7 @@ export default function MaterialReceivePage() {
               formOpen ? "w-[340px] opacity-100 translate-x-0" : "w-0 opacity-0 -translate-x-6 pointer-events-none"
             }`}
           >
-            <div className={`sticky top-6 w-[340px] max-h-[calc(100vh-3rem)] overflow-y-auto overflow-x-hidden ${scrollThin}`}>
+            <div className={`sticky top-6 w-[340px] max-h-[calc(100vh-3rem)] overflow-y-auto overflow-x-hidden ${scrollHidden}`}>
               <form onSubmit={handleSubmit} className={`${card} p-3 space-y-3 w-[340px]`}>
                 <div className="flex items-center justify-between pb-1 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
                   <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">

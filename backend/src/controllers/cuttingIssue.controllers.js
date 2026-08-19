@@ -6,6 +6,15 @@
 // them from a specific rack (decrementing the SAME
 // material_receive_item_locations.availableRoll/Yds that Material Stock
 // reads from), and keeps a History ledger of every issue action.
+//
+// Cutting requisition items no longer carry a "requested Roll" (Roll is a
+// Material Warehouse-only decision, made freely at issue time based on
+// what's actually on the shelf) and there is NO hard cap stopping the
+// warehouse from issuing more Yds than was requested -- Cutting's
+// Consumption-based estimate can be off, and the warehouse is trusted to
+// judge that on the floor. The frontend shows a confirmation prompt when
+// an issue would exceed the requested Yds; the backend only guards against
+// issuing more than a rack physically has available.
 
 import { db, schema } from "../db/db.js";
 import { eq, desc, ne, inArray } from "drizzle-orm";
@@ -70,7 +79,7 @@ export const markRequisitionRead = async (req, res) => {
  *
  * Main worklist for the Cutting Issue page: every requisition that isn't
  * fully fulfilled yet, newest first, with its item rows (requested /
- * issued / remaining). Rack-wise available stock for a given Item
+ * issued / remaining Yds). Rack-wise available stock for a given Item
  * Code/PDM + Color is fetched separately by the frontend via the existing
  * GET /material-stock?itemCodePdm=...&color=... endpoint, so this
  * controller doesn't duplicate that lookup.
@@ -88,7 +97,7 @@ export const getWorklist = async (req, res) => {
 
     const filtered = search
       ? withItems.filter((r) =>
-          [r.buyer, r.po, r.style, r.model, r.floor, ...r.items.flatMap((i) => [i.itemCodePdm, i.color])]
+          [r.buyer, r.style, r.model, r.floor, ...r.items.flatMap((i) => [i.itemCodePdm, i.color])]
             .filter(Boolean)
             .some((v) => String(v).toLowerCase().includes(search))
         )
@@ -122,11 +131,11 @@ export const getIssueHistory = async (req, res) => {
         createdAt: cuttingIssues.createdAt,
         itemCodePdm: cuttingRequisitionItems.itemCodePdm,
         color: cuttingRequisitionItems.color,
+        requestedYds: cuttingRequisitionItems.requestedYds,
         date: cuttingRequisitions.date,
         buyer: cuttingRequisitions.buyer,
         floor: cuttingRequisitions.floor,
         season: cuttingRequisitions.season,
-        po: cuttingRequisitions.po,
         style: cuttingRequisitions.style,
         model: cuttingRequisitions.model,
       })
@@ -143,10 +152,13 @@ export const getIssueHistory = async (req, res) => {
 };
 
 /**
- * Recomputes a requisition item's status from issued vs requested, and
- * cascades the parent requisition's status: "fulfilled" once every item
- * is fully issued, "pending" if nothing on the requisition has been
- * touched yet, "partial" otherwise.
+ * Recomputes a requisition item's status from issued vs requested Yds
+ * (Roll has no requested counterpart, so it never factors into status),
+ * and cascades the parent requisition's status: "fulfilled" once every
+ * item's issued Yds has reached or passed its requested Yds, "pending" if
+ * nothing on the requisition has been touched yet, "partial" otherwise.
+ * Issuing MORE than requestedYds is allowed (no cap) and still counts as
+ * "fulfilled".
  */
 async function recomputeRequisitionStatus(tx, requisitionItemId) {
   const [item] = await tx
@@ -154,9 +166,10 @@ async function recomputeRequisitionStatus(tx, requisitionItemId) {
     .from(cuttingRequisitionItems)
     .where(eq(cuttingRequisitionItems.id, requisitionItemId));
 
-  const fullyIssued =
-    Number(item.issuedRoll) === Number(item.requestedRoll) && Number(item.issuedYds) === Number(item.requestedYds);
-  const nothingIssued = Number(item.issuedRoll) === 0 && Number(item.issuedYds) === 0;
+  const issuedYds = Number(item.issuedYds);
+  const requestedYds = Number(item.requestedYds);
+  const fullyIssued = requestedYds > 0 && issuedYds >= requestedYds;
+  const nothingIssued = issuedYds === 0;
   const status = fullyIssued ? "fulfilled" : nothingIssued ? "pending" : "partial";
 
   await tx
@@ -187,10 +200,14 @@ async function recomputeRequisitionStatus(tx, requisitionItemId) {
  * POST /cutting-issue/:requisitionItemId
  * Body: { allocationId, rollQty, yds }
  *
- * Issues PART (or all) of a requisition item's still-remaining quantity
- * from ONE specific rack allocation. Can be called multiple times against
- * the same requisition item with different allocations (splitting across
- * racks) and/or on different days (partial issue over time).
+ * Issues stock from ONE specific rack allocation against a requisition
+ * item. Can be called multiple times against the same requisition item
+ * with different allocations (splitting across racks) and/or on different
+ * days (partial issue over time), and there is NO cap tying this to the
+ * item's requestedYds -- the warehouse can issue more than requested if
+ * needed (the frontend confirms that with the user first). The only hard
+ * limit enforced here is the rack's own availableRoll/Yds, since you
+ * physically cannot issue more than what's on the shelf.
  *
  * This decrements the SAME material_receive_item_locations.availableRoll/
  * Yds that Material Stock search reads from -- i.e. this is the actual
@@ -212,15 +229,6 @@ export const issueStock = async (req, res) => {
 
     const [reqItem] = await db.select().from(cuttingRequisitionItems).where(eq(cuttingRequisitionItems.id, requisitionItemId));
     if (!reqItem) return res.status(404).json({ message: "Requisition item not found" });
-    if (reqItem.status === "fulfilled") {
-      return res.status(400).json({ message: "This requisition item is already fully issued" });
-    }
-
-    const remainingRoll = Number(reqItem.requestedRoll) - Number(reqItem.issuedRoll);
-    const remainingYds = Number(reqItem.requestedYds) - Number(reqItem.issuedYds);
-    if (roll > remainingRoll || y > remainingYds) {
-      return res.status(400).json({ message: `Only ${remainingRoll} Roll / ${remainingYds} Yds remain to be issued` });
-    }
 
     const [allocation] = await db
       .select()
@@ -280,7 +288,7 @@ export const issueStock = async (req, res) => {
         location: allocation.location,
         rollQty: roll,
         yds: y,
-        note: `Issued ${roll} Roll / ${y} Yds to Cutting (PO ${requisition?.po ?? ""}, Floor ${requisition?.floor ?? ""}) from ${allocation.location}`,
+        note: `Issued ${roll} Roll / ${y} Yds to Cutting (Buyer ${requisition?.buyer ?? ""}, Floor ${requisition?.floor ?? ""}) from ${allocation.location}`,
       });
 
       await recomputeRequisitionStatus(tx, Number(requisitionItemId));
@@ -305,10 +313,11 @@ export const issueStock = async (req, res) => {
  * every row succeeds or none of them do, so stock can't end up half
  * decremented if row 2 turns out invalid.
  *
- * Same rules as the single-rack issueStock: each row can't exceed its
- * rack's availableRoll/Yds, the rack must hold the same Item Code/PDM +
- * Color as the requisition item, and the TOTAL across all rows can't
- * exceed what's still remaining on the requisition item. The same rack
+ * There is NO cap tying the total issued to the requisition item's
+ * requestedYds -- the warehouse can issue more than requested (the
+ * frontend confirms this with the user before calling). Each row still
+ * can't exceed its own rack's availableRoll/Yds, the rack must hold the
+ * same Item Code/PDM + Color as the requisition item, and the same rack
  * can't be picked twice in one batch (combine it into a single row
  * instead -- otherwise which row "wins" is ambiguous).
  */
@@ -343,17 +352,9 @@ export const issueStockBatch = async (req, res) => {
 
     const [reqItem] = await db.select().from(cuttingRequisitionItems).where(eq(cuttingRequisitionItems.id, requisitionItemId));
     if (!reqItem) return res.status(404).json({ message: "Requisition item not found" });
-    if (reqItem.status === "fulfilled") {
-      return res.status(400).json({ message: "This requisition item is already fully issued" });
-    }
 
     const totalRoll = rows.reduce((s, r) => s + r.roll, 0);
     const totalYds = rows.reduce((s, r) => s + r.yds, 0);
-    const remainingRoll = Number(reqItem.requestedRoll) - Number(reqItem.issuedRoll);
-    const remainingYds = Number(reqItem.requestedYds) - Number(reqItem.issuedYds);
-    if (totalRoll > remainingRoll || totalYds > remainingYds) {
-      return res.status(400).json({ message: `Only ${remainingRoll} Roll / ${remainingYds} Yds remain to be issued in total` });
-    }
 
     const allocationIds = rows.map((r) => r.allocationId);
     const allocs = await db
@@ -420,7 +421,7 @@ export const issueStockBatch = async (req, res) => {
           location: alloc.location,
           rollQty: r.roll,
           yds: r.yds,
-          note: `Issued ${r.roll} Roll / ${r.yds} Yds to Cutting (PO ${requisition?.po ?? ""}, Floor ${requisition?.floor ?? ""}) from ${alloc.location}`,
+          note: `Issued ${r.roll} Roll / ${r.yds} Yds to Cutting (Buyer ${requisition?.buyer ?? ""}, Floor ${requisition?.floor ?? ""}) from ${alloc.location}`,
         });
       }
 
