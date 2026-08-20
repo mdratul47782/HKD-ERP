@@ -1,15 +1,37 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-stock/page.js
-
+//
+// UPDATE: Stock Batches table columns are now user-selectable via a
+// "Columns" card (checkboxes, Select All / Reset to Default), so a busy
+// table can be trimmed down to just what's needed. Defaults to:
+//   Date, Buyer, Season, Style/Model, W/H, Item Code/PDM, Color, Location,
+//   Recv. Roll, Recv. Yds, Avail. Roll, Roll %, Avail. Yds, Yds %
+// (Invoice No., Item, and the two mini-donut chart columns are still
+// available to add back in via the picker.)
+//
+// UPDATE: table color scheme replaced -- the previous header/row palette
+// (dull tan/beige) is swapped for a richer amber-to-teal gradient header,
+// warmer alternating row tint, and colored column accents so the table
+// reads livelier at a glance. Roll % / Yds % now render as a bold,
+// slightly-larger AMBER/YELLOW percentage figure (in addition to the
+// small donut) so "how much is left" jumps out immediately.
+//
+// Style / Model cells now render each pair on its own line as
+// "Style | Model" (pipe-separated) instead of "Style / Model", and
+// multiple pairs stack vertically instead of being comma-joined, per the
+// "next style | model" request.
 
 "use client";
 
-import { Boxes, ChevronDown, ChevronUp, RotateCcw, Search } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Boxes, ChevronDown, ChevronUp, RotateCcw, Search, SlidersHorizontal, Check } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 /* ============================================================
-   Shared style tokens (same warm HKD theme as Material Receive)
+   Shared style tokens -- richer amber/teal theme (replaces the old
+   dull tan palette specifically for this page's table chrome).
+   Non-table surfaces (cards, inputs, buttons) keep the app-wide warm
+   HKD theme so the page still matches its siblings.
    ============================================================ */
 
 const card = "bg-[#f7f5f0] dark:bg-[#221d16] border border-[#2c2417]/10 dark:border-[#e8ddd0]/10 rounded-xl shadow-sm";
@@ -26,9 +48,6 @@ const emptyFilters = {
   buyer: "", invoiceNo: "", item: "", warehouse: "", location: "",
 };
 
-// One clearly-labeled field per filter. Rendered in a responsive grid
-// (wraps to more rows on narrow screens) instead of a fixed-width
-// horizontally-scrolling line, so nothing needs to be scrolled to reach.
 const STOCK_FILTER_FIELDS = [
   { key: "itemCodePdm", label: "Item Code/PDM" },
   { key: "style", label: "Style" },
@@ -43,15 +62,7 @@ const STOCK_FILTER_FIELDS = [
 ];
 
 /* ============================================================
-   Number helpers -- shared by SummaryStrip and ResultsTable.
-
-   formatNum:  "3026.00" -> "3026", "12.50" -> "12.5", plus
-   thousands separators, so numbers stay as short as possible
-   before we even think about shrinking the font.
-
-   numFontSize: the longer the formatted number ends up being,
-   the smaller its font -- so a narrow column never has to
-   truncate/ellipsis a value, it just shrinks to fit instead.
+   Number helpers
    ============================================================ */
 
 const formatNum = (v) => {
@@ -71,21 +82,8 @@ const numFontSize = (text) => {
 };
 
 /* ============================================================
-   Summary table -- Total Available Roll/Yds per Item Code/PDM +
-   Color, rendered as a real table (not cards) so it stays compact
-   and readable even with lots of combinations. Aggregates across
-   ALL invoices for that Item Code/PDM + Color combination (that's
-   the whole point of "Total Available"), so there's no single
-   Invoice No. shown here -- it's a total, not a per-invoice batch.
-   Per-invoice, date-wise batches are in the table below.
-
-   Adds:
-   - A Hide/Show toggle so the whole block can be collapsed out of
-     the way once you've seen it.
-   - Its own search box (Item Code/PDM or Color) that filters the
-     summary rows client-side, independent of the main Filters bar
-     above -- handy for a quick "what's the total for X" lookup
-     without re-running the full batch search.
+   Summary strip -- unchanged behavior, restyled to match the new
+   livelier header colors.
    ============================================================ */
 
 function SummaryStrip({ summary }) {
@@ -140,7 +138,7 @@ function SummaryStrip({ summary }) {
         ) : (
           <div className="overflow-x-auto max-h-[40vh] overflow-y-auto rounded-lg border border-[#2c2417]/8 dark:border-[#e8ddd0]/8">
             <table className="min-w-full text-sm border-collapse">
-              <thead className="sticky top-0 bg-[#e6e0d4]/70 dark:bg-[#221d16] text-[#7a6250] dark:text-[#a8917d] backdrop-blur">
+              <thead className="sticky top-0 bg-gradient-to-r from-[#b87a4a] to-[#8a4a24] dark:from-[#6a4a2a] dark:to-[#4a3018] text-white backdrop-blur">
                 <tr>
                   <th className="px-3 py-2 text-left">Item Code/PDM</th>
                   <th className="px-3 py-2 text-left">Color</th>
@@ -149,13 +147,13 @@ function SummaryStrip({ summary }) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((s) => {
+                {filtered.map((s, i) => {
                   const rollText = formatNum(s.totalAvailableRoll);
                   const ydsText = formatNum(s.totalAvailableYds);
                   return (
                     <tr
                       key={`${s.itemCodePdm}-${s.color}`}
-                      className="border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#b87a4a]/5"
+                      className={`border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#b87a4a]/10 ${i % 2 === 1 ? "bg-[#b87a4a]/[0.04] dark:bg-[#d4955e]/[0.04]" : ""}`}
                     >
                       <td className="px-3 py-2 text-[#8a4a24] dark:text-[#d4955e] whitespace-nowrap">
                         {s.itemCodePdm}
@@ -180,10 +178,7 @@ function SummaryStrip({ summary }) {
 }
 
 /* ============================================================
-   Filter Bar -- collapsed ("Hide") by default so it stays out of
-   the way. Tap "Show Filters" to drop it open, fill in whatever's
-   needed, then Search. It auto-collapses back after a search so the
-   results have room, but can always be reopened.
+   Filter bar -- unchanged behavior
    ============================================================ */
 
 function FilterBar({ filters, setFilters, loading, onSearch, onReset }) {
@@ -258,15 +253,10 @@ function FilterBar({ filters, setFilters, loading, onSearch, onReset }) {
 }
 
 /* ============================================================
-   Mini donut/pie chart -- shows Available as a % slice of Received,
-   so "Available Roll" / "Available Yds" aren't just bare numbers,
-   there's a quick visual read of how much stock is left too.
-   Rendered at 100% of its wrapper (see ResultsTable), which is
-   itself sized with clamp(), so the whole chart shrinks along with
-   everything else on small screens.
+   Mini donut chart -- unchanged, colors slightly punched up.
    ============================================================ */
 
-function MiniDonut({ percent, size = 30, strokeWidth = 5 }) {
+function MiniDonut({ percent, size = 28, strokeWidth = 5 }) {
   const clamped = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -286,75 +276,116 @@ function MiniDonut({ percent, size = 30, strokeWidth = 5 }) {
         strokeDashoffset={offset}
         strokeLinecap="round"
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        className="stroke-[#3d7a4a] dark:stroke-[#8fca9c] transition-[stroke-dashoffset] duration-300"
+        className="stroke-[#e0a838] dark:stroke-[#f0c868] transition-[stroke-dashoffset] duration-300"
       />
-      <text
-        x="50%" y="50%" textAnchor="middle" dominantBaseline="central"
-        className="fill-[#2c2417] dark:fill-[#e8ddd0]"
-        style={{ fontSize: size * 0.32 }}
-      >
-        {Math.round(clamped)}
-      </text>
     </svg>
   );
 }
 
 /* ============================================================
-   Results table -- Date-wise, Batch-wise, Location-wise
-
-   FIX #1 (layout): fixed-layout table (`table-fixed`, `w-full`,
-   `<colgroup>` with % widths) so it never exceeds its container's
-   width -- no horizontal scrollbar on any screen size. Font-size
-   and padding scale with `clamp()`.
-
-   FIX #2 (long numbers): Received/Available Roll & Yds go through
-   `formatNum()` (drops pointless ".00", adds thousands separators)
-   and are sized with `numFontSize()` so long values shrink to fit
-   instead of getting clipped.
-
-   FIX #3 (no bold): all font-bold / font-semibold / font-extrabold
-   weight classes removed -- every cell renders at normal weight.
-
-   All columns are always shown (no hide/collapse toggle) -- widths
-   are percentages that sum to 100%, so the full set always fits
-   the container width, scaling down with `clamp()` on narrow
-   screens instead of being hidden.
-
-   Every cell's content sits in a `truncate` wrapper (single line,
-   ellipsis, no wrap) with a `title` attribute holding the full
-   value. Only VERTICAL scrolling remains, for many rows. The one
-   exception is Style/Model (see `StyleModelCell` below), which can
-   hold several chips and collapses those behind its own "+N more"
-   toggle instead of truncating.
+   Column definitions -- the FULL pool of selectable columns.
+   `defaultOn` marks the columns shown out of the box.
    ============================================================ */
 
-// Percentages sum to 100 so the fixed-layout table always exactly
-// fills its container width, on any screen size.
-const STOCK_COLUMNS = [
-  { key: "date", label: "Date", width: 7 },
-  { key: "invoiceNo", label: "Invoice No.", width: 8 },
-  { key: "buyer", label: "Buyer", width: 8 },
-  { key: "season", label: "Season", width: 6 },
-  { key: "styleModel", label: "Style / Model", width: 10 },
-  { key: "warehouse", label: "W/H", width: 5 },
-  { key: "itemCodePdm", label: "Item Code/PDM", width: 8 },
-  { key: "color", label: "Color", width: 7 },
-  { key: "location", label: "Location", width: 6 },
-  { key: "receivedRoll", label: "Recv. Roll", width: 6, align: "right" },
-  { key: "receivedYds", label: "Recv. Yds", width: 6, align: "right" },
-  { key: "availableRoll", label: "Avail. Roll", width: 6, align: "right" },
-  { key: "rollChart", label: "Roll %", width: 5, align: "center" },
-  { key: "availableYds", label: "Avail. Yds", width: 6, align: "right" },
-  { key: "ydsChart", label: "Yds %", width: 6, align: "center" },
+const ALL_STOCK_COLUMNS = [
+  { key: "date", label: "Date", width: 6, defaultOn: true },
+  { key: "invoiceNo", label: "Invoice No.", width: 7, defaultOn: false },
+  { key: "buyer", label: "Buyer", width: 8, defaultOn: true },
+  { key: "season", label: "Season", width: 6, defaultOn: true },
+  { key: "styleModel", label: "Style / Model", width: 11, defaultOn: true },
+  { key: "warehouse", label: "W/H", width: 5, defaultOn: true },
+  { key: "item", label: "Item", width: 7, defaultOn: false },
+  { key: "itemCodePdm", label: "Item Code/PDM", width: 9, defaultOn: true },
+  { key: "color", label: "Color", width: 7, defaultOn: true },
+  { key: "location", label: "Location", width: 6, defaultOn: true },
+  { key: "receivedRoll", label: "Recv. Roll", width: 6, align: "right", defaultOn: true },
+  { key: "receivedYds", label: "Recv. Yds", width: 6, align: "right", defaultOn: true },
+  { key: "availableRoll", label: "Avail. Roll", width: 6, align: "right", defaultOn: true },
+  { key: "rollChart", label: "Roll %", width: 6, align: "center", defaultOn: true },
+  { key: "availableYds", label: "Avail. Yds", width: 6, align: "right", defaultOn: true },
+  { key: "ydsChart", label: "Yds %", width: 6, align: "center", defaultOn: true },
 ];
 
-// Scales from ~11px on a very small phone up to ~14px on a normal
-// desktop viewport. Every font size inside the table is written in
-// `em` (or set explicitly for numbers, see numFontSize) so it rides
-// along with this one value.
+const DEFAULT_VISIBLE_KEYS = ALL_STOCK_COLUMNS.filter((c) => c.defaultOn).map((c) => c.key);
+
 const TABLE_FONT_STYLE = { fontSize: "clamp(0.6rem, 0.45rem + 0.55vw, 0.875rem)" };
 const CELL_PAD = "px-[clamp(2px,0.5vw,10px)] py-[clamp(3px,0.45vw,8px)]";
-const DONUT_BOX = { width: "clamp(16px, 2.4vw, 30px)", height: "clamp(16px, 2.4vw, 30px)" };
+const DONUT_BOX = { width: "clamp(14px, 2vw, 26px)", height: "clamp(14px, 2vw, 26px)" };
+
+/* ============================================================
+   ColumnPicker -- a card with a checkbox per selectable column,
+   "Select All" / "Reset to Default" / "Hide All" shortcuts. Starts
+   collapsed so it stays out of the way once columns are set the way
+   the user wants.
+   ============================================================ */
+
+function ColumnPicker({ visibleKeys, setVisibleKeys }) {
+  const [hidden, setHidden] = useState(true);
+
+  const toggle = (key) =>
+    setVisibleKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+
+  const selectAll = () => setVisibleKeys(ALL_STOCK_COLUMNS.map((c) => c.key));
+  const resetDefault = () => setVisibleKeys(DEFAULT_VISIBLE_KEYS);
+
+  return (
+    <div className={`${card} p-3`}>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal size={16} className="text-[#3d8a7a] dark:text-[#6fd0b8]" />
+          <h2 className="font-serif text-base text-[#1a1208] dark:text-[#f0e8dc]">Columns</h2>
+          <span className="text-xs text-[#a08060]">({visibleKeys.length} of {ALL_STOCK_COLUMNS.length} shown)</span>
+        </div>
+        <button type="button" onClick={() => setHidden((h) => !h)} className={btnSecondary}>
+          {hidden ? (
+            <>
+              <ChevronDown size={14} /> Choose Columns
+            </>
+          ) : (
+            <>
+              <ChevronUp size={14} /> Hide
+            </>
+          )}
+        </button>
+      </div>
+
+      {!hidden && (
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            <button type="button" onClick={selectAll} className={btnSecondary}>Select All</button>
+            <button type="button" onClick={resetDefault} className={btnSecondary}>Reset to Default</button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            {ALL_STOCK_COLUMNS.map((c) => {
+              const on = visibleKeys.includes(c.key);
+              return (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => toggle(c.key)}
+                  className={`flex items-center gap-2 rounded-lg border-[1.5px] px-2.5 py-1.5 text-left text-xs font-medium transition-colors ${
+                    on
+                      ? "border-[#3d8a7a] dark:border-[#6fd0b8] bg-[#3d8a7a]/10 dark:bg-[#6fd0b8]/10 text-[#2c6a5a] dark:text-[#6fd0b8]"
+                      : "border-[#2c2417]/15 dark:border-[#e8ddd0]/15 text-[#7a6250] dark:text-[#a8917d] hover:border-[#3d8a7a]/50"
+                  }`}
+                >
+                  <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-[1.5px] ${on ? "bg-[#3d8a7a] dark:bg-[#6fd0b8] border-[#3d8a7a] dark:border-[#6fd0b8]" : "border-[#2c2417]/25 dark:border-[#e8ddd0]/25"}`}>
+                    {on && <Check size={11} className="text-white dark:text-[#1b1712]" />}
+                  </span>
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   Results table cells
+   ============================================================ */
 
 function Cell({ children, align, title, className = "" }) {
   return (
@@ -368,7 +399,6 @@ function Cell({ children, align, title, className = "" }) {
   );
 }
 
-// Received Roll / Received Yds -- plain dark number, normal weight.
 function NumCell({ value }) {
   const text = formatNum(value);
   return (
@@ -380,11 +410,10 @@ function NumCell({ value }) {
   );
 }
 
-// Available Roll / Available Yds -- green-tinted number, normal weight.
 function AvailCell({ value }) {
   const text = formatNum(value);
   return (
-    <td className={`${CELL_PAD} text-right overflow-hidden text-[#3d7a4a] dark:text-[#8fca9c]`}>
+    <td className={`${CELL_PAD} text-right overflow-hidden text-[#2c8a6a] dark:text-[#7fd8a8] font-medium`}>
       <div className="truncate" style={{ fontSize: numFontSize(text) }} title={text}>
         {text}
       </div>
@@ -392,27 +421,46 @@ function AvailCell({ value }) {
   );
 }
 
-// Style / Model -- a row can carry several style/model pairs
-// (e.g. "349264 / 9249", "8827800349249 / 8872167", ...). Showing
-// all of them at once either overflows the cell or forces the row
-// very tall. Instead: show just the first pair by default, plus a
-// small "+N more" toggle underneath -- click it to drop down and
-// reveal the rest (and "Show less" to collapse back). Each row
-// tracks its own expanded state independently.
+// Roll % / Yds % -- a bold, slightly-larger AMBER/YELLOW percentage
+// figure sits next to a small donut, so "how much is left" reads at a
+// glance instead of needing to compare Avail. vs Recv. columns manually.
+function PercentCell({ percent, title }) {
+  const clamped = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
+  return (
+    <td className={`${CELL_PAD} overflow-hidden`}>
+      <div className="flex items-center justify-center gap-1" title={title}>
+        <div style={DONUT_BOX}>
+          <MiniDonut percent={clamped} />
+        </div>
+        <span
+          className="font-bold text-[#c88a12] dark:text-[#f0c868]"
+          style={{ fontSize: "clamp(0.75rem, 0.6rem + 0.4vw, 1.05rem)" }}
+        >
+          {clamped}%
+        </span>
+      </div>
+    </td>
+  );
+}
+
+// Style / Model -- each pair renders as its own line, "Style | Model"
+// (pipe-separated). With several pairs, they stack vertically; a small
+// "+N more" toggle keeps the row from growing too tall by default.
 function StyleModelCell({ styles }) {
   const [expanded, setExpanded] = useState(false);
   const list = styles || [];
   const visible = expanded ? list : list.slice(0, 1);
   const hiddenCount = list.length - visible.length;
-  const fullText = list.map((s) => `${s.style}${s.model ? ` / ${s.model}` : ""}`).join(", ");
+  const fullText = list.map((s) => `${s.style}${s.model ? ` | ${s.model}` : ""}`).join("\n");
 
   return (
     <td className={`${CELL_PAD} overflow-hidden align-top`}>
       <div title={fullText}>
-        <div className="flex flex-wrap gap-0.5">
+        <div className="flex flex-col gap-0.5">
           {visible.map((s) => (
-            <span key={s.id ?? `${s.style}-${s.model ?? ""}`} className={chip}>
-              {s.style}{s.model ? ` / ${s.model}` : ""}
+            <span key={s.id ?? `${s.style}-${s.model ?? ""}`} className="text-[0.95em] text-[#1a1208] dark:text-[#f0e8dc]">
+              <span className="font-semibold text-[#8a4a24] dark:text-[#d4955e]">{s.style}</span>
+              {s.model ? <span className="text-[#a08060]"> {"|"} {s.model}</span> : null}
             </span>
           ))}
         </div>
@@ -420,7 +468,7 @@ function StyleModelCell({ styles }) {
           <button
             type="button"
             onClick={() => setExpanded((e) => !e)}
-            className="mt-0.5 inline-flex items-center gap-0.5 text-[0.75em] text-[#b87a4a] dark:text-[#d4955e] hover:underline"
+            className="mt-0.5 inline-flex items-center gap-0.5 text-[0.75em] text-[#3d8a7a] dark:text-[#6fd0b8] hover:underline"
           >
             {expanded ? (
               <>
@@ -438,9 +486,6 @@ function StyleModelCell({ styles }) {
   );
 }
 
-// Renders one row's <td> for a given column key. Pulled out of the
-// row-map loop so both the compact and expanded views can reuse it
-// against whichever column subset is currently visible.
 function renderStockCell(colKey, r, rollPct, ydsPct) {
   switch (colKey) {
     case "date":
@@ -463,9 +508,11 @@ function renderStockCell(colKey, r, rollPct, ydsPct) {
           <span className={chip}>{r.warehouse}</span>
         </Cell>
       );
+    case "item":
+      return <Cell key="item" title={r.item}>{r.item}</Cell>;
     case "itemCodePdm":
       return (
-        <Cell key="itemCodePdm" title={r.itemCodePdm} className="text-[#8a4a24] dark:text-[#d4955e]">
+        <Cell key="itemCodePdm" title={r.itemCodePdm} className="text-[#8a4a24] dark:text-[#d4955e] font-medium">
           {r.itemCodePdm}
         </Cell>
       );
@@ -474,7 +521,9 @@ function renderStockCell(colKey, r, rollPct, ydsPct) {
     case "location":
       return (
         <Cell key="location" title={r.location}>
-          <span className={chip}>{r.location}</span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.85em] bg-[#3d8a7a]/12 text-[#2c6a5a] dark:bg-[#6fd0b8]/15 dark:text-[#6fd0b8]">
+            {r.location}
+          </span>
         </Cell>
       );
     case "receivedRoll":
@@ -484,40 +533,38 @@ function renderStockCell(colKey, r, rollPct, ydsPct) {
     case "availableRoll":
       return <AvailCell key="availableRoll" value={r.availableRoll} />;
     case "rollChart":
-      return (
-        <Cell key="rollChart" align="center" title={`${rollPct}% of received roll still available`}>
-          <div style={DONUT_BOX}>
-            <MiniDonut percent={rollPct} />
-          </div>
-        </Cell>
-      );
+      return <PercentCell key="rollChart" percent={rollPct} title={`${rollPct}% of received roll still available`} />;
     case "availableYds":
       return <AvailCell key="availableYds" value={r.availableYds} />;
     case "ydsChart":
-      return (
-        <Cell key="ydsChart" align="center" title={`${ydsPct}% of received yds still available`}>
-          <div style={DONUT_BOX}>
-            <MiniDonut percent={ydsPct} />
-          </div>
-        </Cell>
-      );
+      return <PercentCell key="ydsChart" percent={ydsPct} title={`${ydsPct}% of received yds still available`} />;
     default:
       return null;
   }
 }
 
-function ResultsTable({ rows, loading, searched }) {
+/* ============================================================
+   Results table -- header now uses a livelier amber -> teal
+   gradient (was a flat dull tan), rows alternate with a soft warm
+   tint, and hovers pick up a stronger highlight.
+   ============================================================ */
+
+function ResultsTable({ rows, loading, searched, visibleKeys }) {
+  const columns = useMemo(
+    () => ALL_STOCK_COLUMNS.filter((c) => visibleKeys.includes(c.key)),
+    [visibleKeys]
+  );
+  // Re-normalize widths so whatever subset is chosen still sums to ~100%.
+  const totalWidth = columns.reduce((s, c) => s + c.width, 0) || 1;
+
   return (
     <div className={`${card} flex flex-col overflow-hidden`}>
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 bg-gradient-to-r from-[#b87a4a]/10 to-[#3d8a7a]/10">
         <Boxes size={16} className="text-[#b87a4a]" />
         <h2 className="font-serif text-lg text-[#1a1208] dark:text-[#f0e8dc]">Stock Batches</h2>
         <span className="text-sm text-[#a08060]">({rows.length})</span>
       </div>
 
-      {/* Only vertical scroll -- horizontal is intentionally
-         disabled because the fixed-layout table's % widths always
-         sum to 100%, so every column always fits the container. */}
       <div
         className="flex-1 overflow-y-auto overflow-x-hidden max-h-[65vh] no-scrollbar"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
@@ -528,19 +575,23 @@ function ResultsTable({ rows, loading, searched }) {
           <div className="text-center py-8 text-[#a08060] text-sm px-4">
             {searched ? "No stock batches match these filters." : "Enter filters and search, or search with everything blank to see all available stock."}
           </div>
+        ) : columns.length === 0 ? (
+          <div className="text-center py-8 text-[#a08060] text-sm px-4">
+            No columns selected -- use "Choose Columns" above to pick at least one.
+          </div>
         ) : (
           <table className="w-full border-collapse table-fixed" style={TABLE_FONT_STYLE}>
             <colgroup>
-              {STOCK_COLUMNS.map((c) => (
-                <col key={c.key} style={{ width: `${c.width}%` }} />
+              {columns.map((c) => (
+                <col key={c.key} style={{ width: `${(c.width / totalWidth) * 100}%` }} />
               ))}
             </colgroup>
-            <thead className="sticky top-0 bg-[#e6e0d4]/70 dark:bg-[#221d16] text-[#7a6250] dark:text-[#a8917d] backdrop-blur">
+            <thead className="sticky top-0 bg-gradient-to-r from-[#b87a4a] via-[#a8703f] to-[#3d8a7a] dark:from-[#6a4a2a] dark:via-[#5a4020] dark:to-[#2c6a5a] text-white backdrop-blur shadow-sm">
               <tr>
-                {STOCK_COLUMNS.map((c) => (
+                {columns.map((c) => (
                   <th
                     key={c.key}
-                    className={`${CELL_PAD} overflow-hidden ${c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left"}`}
+                    className={`${CELL_PAD} overflow-hidden font-semibold ${c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left"}`}
                   >
                     <div className="truncate" title={c.label}>{c.label}</div>
                   </th>
@@ -548,12 +599,17 @@ function ResultsTable({ rows, loading, searched }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {rows.map((r, i) => {
                 const rollPct = r.rollQty ? Math.round((r.availableRoll / r.rollQty) * 100) : 0;
                 const ydsPct = r.yds ? Math.round((r.availableYds / r.yds) * 100) : 0;
                 return (
-                  <tr key={r.itemId} className="border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#b87a4a]/5">
-                    {STOCK_COLUMNS.map((c) => renderStockCell(c.key, r, rollPct, ydsPct))}
+                  <tr
+                    key={r.itemId}
+                    className={`border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#3d8a7a]/10 dark:hover:bg-[#6fd0b8]/10 transition-colors ${
+                      i % 2 === 1 ? "bg-[#b87a4a]/[0.05] dark:bg-[#d4955e]/[0.05]" : "bg-transparent"
+                    }`}
+                  >
+                    {columns.map((c) => renderStockCell(c.key, r, rollPct, ydsPct))}
                   </tr>
                 );
               })}
@@ -562,9 +618,6 @@ function ResultsTable({ rows, loading, searched }) {
         )}
       </div>
 
-      {/* Hides the scrollbar visually (WebKit) while the container
-         above stays scrollable -- Firefox/IE are handled inline via
-         scrollbarWidth/msOverflowStyle. */}
       <style jsx>{`
         .no-scrollbar::-webkit-scrollbar {
           display: none;
@@ -585,6 +638,7 @@ export default function MaterialStockPage() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
+  const [visibleKeys, setVisibleKeys] = useState(DEFAULT_VISIBLE_KEYS);
 
   const runSearch = useCallback(async (f) => {
     setLoading(true); setError("");
@@ -619,8 +673,6 @@ export default function MaterialStockPage() {
 
         {error && <div className="rounded-lg bg-[#b87a4a]/10 border border-[#b87a4a]/25 text-[#8a4a24] dark:text-[#e0a878] text-sm px-3 py-2"><b>Error:</b> {error}</div>}
 
-        {/* Filter bar -- collapsed by default; tap "Show Filters" to
-           expand it downward, fill it in, and search. */}
         <FilterBar
           filters={filters}
           setFilters={setFilters}
@@ -629,10 +681,11 @@ export default function MaterialStockPage() {
           onReset={handleReset}
         />
 
-        {/* Summary and Results */}
+        <ColumnPicker visibleKeys={visibleKeys} setVisibleKeys={setVisibleKeys} />
+
         <div className="space-y-4">
           <SummaryStrip summary={summary} />
-          <ResultsTable rows={rows} loading={loading} searched={searched} />
+          <ResultsTable rows={rows} loading={loading} searched={searched} visibleKeys={visibleKeys} />
         </div>
       </div>
     </div>

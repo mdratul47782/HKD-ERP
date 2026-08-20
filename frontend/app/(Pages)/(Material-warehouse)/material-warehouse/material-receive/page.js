@@ -24,6 +24,11 @@ const chip = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font
 const chipPending = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#b8933a]/15 text-[#8a6a1a] dark:bg-[#e0c068]/15 dark:text-[#e0c068]";
 const chipPartial = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#3d6a8a]/15 text-[#2c4a63] dark:bg-[#6fa8d0]/15 dark:text-[#6fa8d0]";
 const chipApproved = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#5ca068]/15 text-[#3d7a4a] dark:bg-[#8fca9c]/15 dark:text-[#8fca9c]";
+// NEW: two extra statuses introduced by the Material Inspection workflow --
+// "pending_inspection" (just received, not looked at yet) and "rejected"
+// (inspection passed 0 Roll / 0 Yds).
+const chipInspection = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#7a4a8a]/15 text-[#5c3468] dark:bg-[#c68fd4]/15 dark:text-[#c68fd4]";
+const chipRejected = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#a04a3a]/15 text-[#7a3325] dark:bg-[#e08a78]/15 dark:text-[#e08a78]";
 
 // Thin, theme-matching scrollbar (webkit + firefox) instead of the browser's
 // default fat gray one. Applied to every independently-scrolling region so
@@ -107,9 +112,18 @@ function Field({ text, required, children }) {
   );
 }
 
+// Batch/item status chip. Five possible statuses now that Material
+// Inspection sits between Receive and Location Assignment:
+//   "pending_inspection" -> just received, nobody has inspected it yet
+//   "pending"             -> inspected, some/all passed, nothing racked yet
+//   "partial"             -> some racked, some still unassigned
+//   "approved"            -> fully racked
+//   "rejected"            -> inspection passed 0 Roll / 0 Yds
 function statusChip(status) {
   if (status === "approved") return <span className={chipApproved}>Approved</span>;
   if (status === "partial") return <span className={chipPartial}>Partially Assigned</span>;
+  if (status === "pending_inspection") return <span className={chipInspection}>Awaiting Inspection</span>;
+  if (status === "rejected") return <span className={chipRejected}>Rejected</span>;
   return <span className={chipPending}>Pending</span>;
 }
 
@@ -406,6 +420,13 @@ function AllocationList({ locations, onSaveEdit, onDelete, busyId }) {
    Code/PDM + Color already sits (Rack + Date-wise) before you
    commit to a rack.
 
+   NEW: a batch now sits in one of FIVE statuses instead of three --
+   "pending_inspection" (Material Inspection hasn't looked at it
+   yet) and "rejected" (inspection passed 0/0) are both dead ends
+   here: the Rack Assignment form is hidden and a short explanatory
+   note is shown instead, since Location Assignment can never place
+   stock that hasn't passed inspection.
+
    Rendered as a distinct blue/slate "drawer" panel (not the page's
    orange/brown palette) with a left accent border + margin + shadow,
    so it's immediately obvious this whole block is the "Items under
@@ -514,7 +535,8 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
               <tr className="text-[#4a6578] dark:text-[#8fb0c4] border-b-2 border-[#3d6a8a]/20 dark:border-[#6fa8d0]/20 bg-[#dde8ef]/60 dark:bg-white/[0.03]">
                 <th className="px-3 py-2 text-left font-semibold w-1/5">Item Code / PDM</th>
                 <th className="px-3 py-2 text-left font-semibold">Color</th>
-                <th className="px-3 py-2 text-left font-semibold">Total Roll/Yds</th>
+                <th className="px-3 py-2 text-left font-semibold">Received Roll/Yds</th>
+                <th className="px-3 py-2 text-left font-semibold">Passed / Rejected</th>
                 <th className="px-3 py-2 text-left font-semibold">Unassigned</th>
                 <th className="px-3 py-2 text-left font-semibold">Status</th>
                 <th className="px-3 py-2 text-left font-semibold w-96">Rack Assignment</th>
@@ -523,7 +545,12 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
             <tbody>
               {items.map((row, idx) => {
                 const rowId = row.id ?? row.key ?? `${row.itemCodePdm}-${row.color}`;
-                const isLocked = row.status === "approved";
+                // Only "pending" / "partial" (i.e. batches that have PASSED
+                // Material Inspection and aren't fully racked yet) can be
+                // targeted for a new rack assignment. "pending_inspection"
+                // and "rejected" have nothing available to place; "approved"
+                // is already fully placed.
+                const isLocked = row.status === "approved" || row.status === "pending_inspection" || row.status === "rejected";
                 const previewOpen = openPreviewId === row.id;
                 const draft = getDraft(row.id);
                 return (
@@ -532,6 +559,18 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
                       <td className="px-3 py-2 text-[#2c4a63] dark:text-[#8fb0c4] font-bold align-top">{row.itemCodePdm}</td>
                       <td className="px-3 py-2 font-medium align-top">{row.color}</td>
                       <td className="px-3 py-2 align-top whitespace-nowrap">{row.rollQty} Roll / {row.yds} Yds</td>
+                      <td className="px-3 py-2 align-top whitespace-nowrap">
+                        {row.status === "pending_inspection" ? (
+                          <span className="italic text-[#a08060]">not inspected</span>
+                        ) : (
+                          <>
+                            <span className="text-[#3d7a4a] dark:text-[#8fca9c] font-semibold">{row.passedRoll} Roll / {row.passedYds} Yds</span>
+                            {Number(row.rejectedRoll) > 0 || Number(row.rejectedYds) > 0 ? (
+                              <span className="block text-[#a04a3a]">{row.rejectedRoll} Roll / {row.rejectedYds} Yds rejected</span>
+                            ) : null}
+                          </>
+                        )}
+                      </td>
                       <td className="px-3 py-2 align-top whitespace-nowrap font-semibold text-[#8a4a24] dark:text-[#d4955e]">
                         {row.unassignedRoll} Roll / {row.unassignedYds} Yds
                       </td>
@@ -554,6 +593,19 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
                           >
                             <Search size={11} /> {previewOpen ? "Hide" : "Check"} existing stock
                           </button>
+
+                          {/* Batch-status explanatory notes for the two new
+                              "can't be assigned" states. */}
+                          {row.status === "pending_inspection" && (
+                            <div className="text-[10px] italic text-[#5c3468] dark:text-[#c68fd4]">
+                              Awaiting Material Inspection approval before this batch can be racked.
+                            </div>
+                          )}
+                          {row.status === "rejected" && (
+                            <div className="text-[10px] italic text-[#a04a3a]">
+                              Rejected during inspection ({row.rejectedRoll} Roll / {row.rejectedYds} Yds) -- not available for stock.
+                            </div>
+                          )}
 
                           {/* Assign-more form, only while quantity remains unassigned */}
                           {!isLocked && (
@@ -612,7 +664,7 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
                     </tr>
                     {previewOpen && (
                       <tr className="bg-[#3d6a8a]/[0.06] dark:bg-[#6fa8d0]/[0.04]">
-                        <td colSpan={6} className="px-3 py-2.5">
+                        <td colSpan={7} className="px-3 py-2.5">
                           {previewLoadingId === row.id ? (
                             <div className="text-[11px] text-[#a08060] italic">Checking existing stock...</div>
                           ) : (
@@ -869,7 +921,7 @@ export default function MaterialReceivePage() {
         headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, styles, items }),
       });
       if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to save material receive"); }
-      setSuccess(editingId ? "Material receive updated." : "Material receive saved.");
+      setSuccess(editingId ? "Material receive updated." : "Material receive saved. It now awaits Material Inspection before it can be racked.");
       resetForm(); fetchReceives(recordFilters);
       setFormOpen(false);
     } catch (err) { setError(err.message); } finally { setSaving(false); }
@@ -936,8 +988,8 @@ export default function MaterialReceivePage() {
                 Material <em className="italic text-[#b87a4a] dark:text-[#d4955e]">Receive</em>
               </h1>
               <p className="text-xs text-[#7a6250] dark:text-[#a8917d]">
-                Record incoming fabric/material invoices, grouped by Item Code/PDM and Color. Expand a Saved Record
-                below to split its quantity across one or more Locations/Racks.
+                Record incoming fabric/material invoices, grouped by Item Code/PDM and Color. Each batch first goes to
+                Material Inspection for approval, then can be split across one or more Locations/Racks here.
               </p>
             </div>
           </div>

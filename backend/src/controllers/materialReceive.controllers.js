@@ -1,9 +1,17 @@
 // backend/src/controllers/materialReceive.controllers.js
 
 import { db, schema } from "../db/db.js";
-import { eq, like, and, inArray, desc, ne } from "drizzle-orm";
+import { eq, like, and, inArray, desc } from "drizzle-orm";
 
 const { materialReceives, materialReceiveStyles, materialReceiveItems, materialReceiveItemLocations, stockHistory } = schema;
+
+// Statuses that mean "this batch already has real rack stock riding on
+// it" -- editing/deleting the parent Receive must be blocked once any
+// item batch reaches one of these, since Material Receive's edit/delete
+// deletes+recreates item rows and would otherwise orphan/duplicate racked
+// stock. "pending_inspection", "pending", and "rejected" are all still
+// safe to edit -- nothing has been racked against them yet.
+const RACKED_STATUSES = ["partial", "approved"];
 
 /** Loads one Material Receive with its Style/Model rows, Item/Color batches,
  * and each batch's rack allocations (locations[]). */
@@ -177,15 +185,16 @@ export const getMaterialReceiveById = async (req, res) => {
  *
  * "remark" is optional free text — not required, never validated.
  *
- * NOTE: Location/Rack is intentionally never accepted here. Every item row
- * is created as status "pending" with its full quantity unassigned — racks
- * only get set later on the Location Assignment page, and a single batch
- * can be split across multiple racks there. The whole record starts
- * "pending" too.
+ * NOTE: Location/Rack is intentionally never accepted here, and neither is
+ * a Passed/Rejected quantity. Every item row is created as status
+ * "pending_inspection" with unassignedRoll/Yds = 0 -- it is NOT available
+ * for Location Assignment until Material Inspection approves a Passed
+ * Roll/Yds for it (which may be less than what was received). The whole
+ * parent record starts "pending" too.
  *
  * Every batch created also gets a "receive" row in stock_history, so the
- * ledger has a record of it entering the system before any rack is ever
- * assigned (needed for future FIFO / batch auditing in Cutting Issue).
+ * ledger has a record of it entering the system before inspection or any
+ * rack is ever assigned (needed for future FIFO / batch auditing).
  */
 export const createMaterialReceive = async (req, res) => {
   try {
@@ -224,9 +233,14 @@ export const createMaterialReceive = async (req, res) => {
           color: row.color,
           rollQty,
           yds,
-          unassignedRoll: rollQty, // nothing racked yet
-          unassignedYds: yds,
-          status: "pending",
+          passedRoll: 0,
+          passedYds: 0,
+          rejectedRoll: 0,
+          rejectedYds: 0,
+          unassignedRoll: 0, // nothing to assign until Material Inspection approves it
+          unassignedYds: 0,
+          status: "pending_inspection",
+          isRead: false,
         };
       });
       await tx.insert(materialReceiveItems).values(itemRows);
@@ -264,14 +278,16 @@ export const createMaterialReceive = async (req, res) => {
 /**
  * PATCH /material-receive/:id
  * Replaces styles + item batches, same "delete old, insert new" approach
- * as before — but only while the record is still pending (no item has any
- * rack stock yet). Once every batch has been fully racked (status
- * "approved" on the parent), the record is locked from editing here.
+ * as before — but only while nothing has been racked yet. Batches that
+ * are "pending_inspection", "pending" (inspected but not racked), or
+ * "rejected" are all still safe to wipe and recreate; only "partial" /
+ * "approved" (i.e. actually has rack stock) locks editing.
  *
- * Any pending batch that gets deleted here has its stock_history rows
+ * Any such batch that gets deleted here has its stock_history rows
  * cascade-deleted with it (FK ON DELETE CASCADE), and every newly inserted
- * replacement batch gets its own fresh "receive" history row, so the
- * ledger always matches what's actually pending right now.
+ * replacement batch goes back to "pending_inspection" (needs to be
+ * re-inspected) with its own fresh "receive" history row, so the ledger
+ * always matches what's actually pending right now.
  */
 export const updateMaterialReceive = async (req, res) => {
   try {
@@ -287,12 +303,12 @@ export const updateMaterialReceive = async (req, res) => {
     }
 
     // Block edit if ANY item batch already has rack stock (partial or
-    // approved), since editing here deletes+recreates pending item rows
-    // and would otherwise silently orphan/duplicate racked stock.
+    // approved) -- pending_inspection / pending / rejected batches are
+    // still safe to edit since nothing has been racked against them yet.
     const lockedItems = await db
       .select()
       .from(materialReceiveItems)
-      .where(and(eq(materialReceiveItems.materialReceiveId, id), ne(materialReceiveItems.status, "pending")));
+      .where(and(eq(materialReceiveItems.materialReceiveId, id), inArray(materialReceiveItems.status, RACKED_STATUSES)));
     if (lockedItems.length > 0) {
       return res.status(400).json({
         message: "Some batches on this receive already have rack stock assigned; remove that stock first before editing.",
@@ -311,11 +327,18 @@ export const updateMaterialReceive = async (req, res) => {
         .map((s) => ({ materialReceiveId: Number(id), style: s.style, model: s.model || null }));
       if (styleRows.length) await tx.insert(materialReceiveStyles).values(styleRows);
 
-      // Only pending batches exist at this point (guarded above), so it's
-      // safe to delete all of them and reinsert.
+      // Only pending_inspection / pending / rejected batches exist at this
+      // point (guarded above), so it's safe to delete all of them and
+      // reinsert -- they all go back to "pending_inspection" and need to
+      // be re-inspected fresh.
       await tx
         .delete(materialReceiveItems)
-        .where(and(eq(materialReceiveItems.materialReceiveId, id), eq(materialReceiveItems.status, "pending")));
+        .where(
+          and(
+            eq(materialReceiveItems.materialReceiveId, id),
+            inArray(materialReceiveItems.status, ["pending_inspection", "pending", "rejected"])
+          )
+        );
 
       if (Array.isArray(items) && items.length > 0) {
         const itemRows = items.map((row) => {
@@ -327,9 +350,14 @@ export const updateMaterialReceive = async (req, res) => {
             color: row.color,
             rollQty,
             yds,
-            unassignedRoll: rollQty,
-            unassignedYds: yds,
-            status: "pending",
+            passedRoll: 0,
+            passedYds: 0,
+            rejectedRoll: 0,
+            rejectedYds: 0,
+            unassignedRoll: 0,
+            unassignedYds: 0,
+            status: "pending_inspection",
+            isRead: false,
           };
         });
         await tx.insert(materialReceiveItems).values(itemRows);
@@ -337,7 +365,12 @@ export const updateMaterialReceive = async (req, res) => {
         const insertedBatches = await tx
           .select()
           .from(materialReceiveItems)
-          .where(and(eq(materialReceiveItems.materialReceiveId, Number(id)), eq(materialReceiveItems.status, "pending")));
+          .where(
+            and(
+              eq(materialReceiveItems.materialReceiveId, Number(id)),
+              eq(materialReceiveItems.status, "pending_inspection")
+            )
+          );
 
         if (insertedBatches.length) {
           const historyRows = insertedBatches.map((batch) => ({
@@ -366,8 +399,9 @@ export const updateMaterialReceive = async (req, res) => {
  * DELETE /material-receive/:id
  * Blocked once any item batch already has rack stock assigned (status
  * "partial" or "approved"), so a Receive can't be deleted out from under
- * stock that Location Assignment (or, later, Cutting Issue) already
- * relies on.
+ * stock that Location Assignment (or Cutting Issue) already relies on.
+ * Batches that are only "pending_inspection", "pending", or "rejected"
+ * (never racked) can still be deleted freely.
  */
 export const deleteMaterialReceive = async (req, res) => {
   try {
@@ -379,7 +413,7 @@ export const deleteMaterialReceive = async (req, res) => {
     const lockedItems = await db
       .select()
       .from(materialReceiveItems)
-      .where(and(eq(materialReceiveItems.materialReceiveId, id), ne(materialReceiveItems.status, "pending")));
+      .where(and(eq(materialReceiveItems.materialReceiveId, id), inArray(materialReceiveItems.status, RACKED_STATUSES)));
 
     if (lockedItems.length > 0) {
       return res.status(400).json({

@@ -1,7 +1,7 @@
 // backend/src/controllers/locationAssignment.controllers.js
 
 import { db, schema } from "../db/db.js";
-import { eq, asc, ne } from "drizzle-orm";
+import { eq, asc, inArray } from "drizzle-orm";
 
 const { materialReceives, materialReceiveItems, materialReceiveItemLocations, stockHistory } = schema;
 
@@ -9,9 +9,16 @@ const { materialReceives, materialReceiveItems, materialReceiveItemLocations, st
  * GET /location-assignment
  * GET /location-assignment?search=...
  *
- * Lists every batch that still has unassigned quantity (status "pending"
- * or "partial"), joined with its parent Receive info AND its existing rack
- * allocations, so the UI can show e.g. "70 on Rack-1, 30 still unassigned".
+ * Lists every batch that has PASSED Material Inspection and still has
+ * unassigned quantity (status "pending" or "partial"), joined with its
+ * parent Receive info AND its existing rack allocations, so the UI can
+ * show e.g. "70 on Rack-1, 30 still unassigned".
+ *
+ * Batches still awaiting inspection ("pending_inspection") or fully
+ * rejected ("rejected") never appear here -- only Material Inspection can
+ * move a batch into "pending" (by approving a Passed Roll/Yds), which is
+ * what makes it eligible for a rack in the first place.
+ *
  * Ordered oldest Receive Date first (FIFO-first assignment).
  */
 export const getPendingAssignments = async (req, res) => {
@@ -26,6 +33,10 @@ export const getPendingAssignments = async (req, res) => {
         color: materialReceiveItems.color,
         rollQty: materialReceiveItems.rollQty,
         yds: materialReceiveItems.yds,
+        passedRoll: materialReceiveItems.passedRoll,
+        passedYds: materialReceiveItems.passedYds,
+        rejectedRoll: materialReceiveItems.rejectedRoll,
+        rejectedYds: materialReceiveItems.rejectedYds,
         unassignedRoll: materialReceiveItems.unassignedRoll,
         unassignedYds: materialReceiveItems.unassignedYds,
         status: materialReceiveItems.status,
@@ -39,7 +50,10 @@ export const getPendingAssignments = async (req, res) => {
       })
       .from(materialReceiveItems)
       .innerJoin(materialReceives, eq(materialReceiveItems.materialReceiveId, materialReceives.id))
-      .where(ne(materialReceiveItems.status, "approved"))
+      // Only batches that have PASSED inspection and aren't fully racked --
+      // "pending_inspection" isn't assignable yet, and "rejected"/"approved"
+      // never/no-longer need to show up here.
+      .where(inArray(materialReceiveItems.status, ["pending", "partial"]))
       .orderBy(asc(materialReceives.date));
 
     const filtered = search
@@ -69,12 +83,14 @@ export const getPendingAssignments = async (req, res) => {
  * the parent Receive's status: "approved" once every one of its item
  * batches is fully racked, "pending" otherwise (covers both pending and
  * partial siblings, since the Receive list only distinguishes fully-done
- * vs not-yet-fully-done).
+ * vs not-yet-fully-done). Batches that are "pending_inspection" or
+ * "rejected" are treated as "not yet approved" for the parent rollup,
+ * same as before.
  */
 async function recomputeItemStatus(tx, itemId) {
   const [item] = await tx.select().from(materialReceiveItems).where(eq(materialReceiveItems.id, itemId));
   const fullyUnassigned =
-    Number(item.unassignedRoll) === Number(item.rollQty) && Number(item.unassignedYds) === Number(item.yds);
+    Number(item.unassignedRoll) === Number(item.passedRoll) && Number(item.unassignedYds) === Number(item.passedYds);
   const fullyAssigned = Number(item.unassignedRoll) === 0 && Number(item.unassignedYds) === 0;
 
   const status = fullyAssigned ? "approved" : fullyUnassigned ? "pending" : "partial";
@@ -87,7 +103,14 @@ async function recomputeItemStatus(tx, itemId) {
     .select()
     .from(materialReceiveItems)
     .where(eq(materialReceiveItems.materialReceiveId, item.materialReceiveId));
-  const allApproved = siblings.every((s) => (s.id === itemId ? status === "approved" : s.status === "approved"));
+  // A sibling that was rejected during inspection can never become
+  // "approved" (it has nothing to rack), so it shouldn't block the parent
+  // Receive from reaching "approved" once every OTHER batch is fully
+  // racked -- treat "rejected" siblings as satisfied for this rollup.
+  const allApproved = siblings.every((s) => {
+    const effectiveStatus = s.id === itemId ? status : s.status;
+    return effectiveStatus === "approved" || effectiveStatus === "rejected";
+  });
   await tx
     .update(materialReceives)
     .set({ status: allApproved ? "approved" : "pending" })
@@ -103,6 +126,11 @@ async function recomputeItemStatus(tx, itemId) {
  * Assigns PART (or all) of a batch's still-unassigned quantity to one
  * rack. Can be called multiple times against the same batch with
  * different racks to split it (e.g. 70 -> Rack-1, then later 30 -> Rack-2).
+ * Only batches that have already passed Material Inspection (status
+ * "pending" or "partial") can be targeted -- a batch that's still
+ * "pending_inspection" or was "rejected" has no unassigned quantity to
+ * give (unassignedRoll/Yds stay 0 in both cases), so this naturally fails
+ * with "remaining unassigned" = 0 for those.
  *
  * MERGE BEHAVIOR: if this exact batch (itemId) already has an allocation
  * on the SAME rack (location), the new Roll/Yds are added into that
@@ -134,6 +162,12 @@ export const assignLocation = async (req, res) => {
 
     const [item] = await db.select().from(materialReceiveItems).where(eq(materialReceiveItems.id, itemId));
     if (!item) return res.status(404).json({ message: "Item/Color batch not found" });
+    if (item.status === "pending_inspection") {
+      return res.status(400).json({ message: "This batch hasn't passed Material Inspection yet" });
+    }
+    if (item.status === "rejected") {
+      return res.status(400).json({ message: "This batch was rejected during inspection and has nothing to assign" });
+    }
     if (item.status === "approved") {
       return res.status(400).json({ message: "This batch is already fully assigned" });
     }
@@ -227,6 +261,10 @@ export const assignLocation = async (req, res) => {
  * from it yet (availableRoll/Yds must still equal rollQty/yds). Writes an
  * "adjustment" row to stock_history.
  *
+ * Headroom is now computed against the batch's PASSED quantity (not the
+ * originally received quantity), since a rejected portion of a batch can
+ * never be racked no matter how an allocation is edited.
+ *
  * NOTE: if the person edits the Location field here to a rack that ALREADY
  * has a separate allocation for this same batch, that's a genuine
  * ambiguous case (which of the two rows should "win"?) so we deliberately
@@ -272,6 +310,7 @@ export const updateAllocation = async (req, res) => {
 
     // Headroom = whatever's currently unassigned on the item PLUS what this
     // allocation already holds (since we're about to replace its old qty).
+    // Bounded by the PASSED quantity, never the raw received quantity.
     const headroomRoll = Number(item.unassignedRoll) + Number(alloc.rollQty);
     const headroomYds = Number(item.unassignedYds) + Number(alloc.yds);
     if (newRoll > headroomRoll || newYds > headroomYds) {

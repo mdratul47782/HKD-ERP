@@ -32,11 +32,13 @@ export const users = mysqlTable("users", {
 
 // ================= Material Warehouse: Material Receive =================
 //
-// Workflow: Receive (pending, nothing racked) -> Location Assignment (a
-// batch's roll/yds can be split across MULTIPLE racks, each tracked as its
-// own row in material_receive_item_locations) -> Available Stock / Stock
-// Search (reads only rack allocations, i.e. quantity that has actually
-// been placed somewhere).
+// Workflow: Receive (pending_inspection, nothing inspected/racked yet) ->
+// Material Inspection (approve a Passed Roll/Yds <= received amount; the
+// rest is auto-recorded as Rejected) -> Location Assignment (only the
+// PASSED qty becomes assignable, and can be split across MULTIPLE racks,
+// each tracked as its own row in material_receive_item_locations) ->
+// Available Stock / Stock Search (reads only rack allocations, i.e.
+// quantity that has actually been placed somewhere).
 //
 // A "batch" = one row in material_receive_items, tied to one parent
 // Receive (one Date/Invoice) + one Item Code/PDM + one Color. Two receives
@@ -88,16 +90,27 @@ export const materialReceiveStyles = mysqlTable(
 // Child table — one row per Item Code/PDM + Color = one Stock Batch (as
 // received). Location is NOT stored here — a batch can be split across
 // many racks, each tracked as its own row in material_receive_item_locations
-// below. unassignedRoll/unassignedYds = how much of this batch has NOT yet
-// been put on a rack; they start out equal to rollQty/yds and are
-// decremented every time a new rack allocation is created (and incremented
-// back if an allocation is edited down or removed). rollQty/yds stay
-// immutable "as received".
+// below.
+//
+// INSPECTION FIELDS (Material Inspection module):
+//   passedRoll/passedYds     -> how much of this batch QC approved
+//   rejectedRoll/rejectedYds -> received - passed (auto-computed)
+//   inspectedAt/inspectionNote/isRead -> inspection metadata + bell state
+//
+// unassignedRoll/unassignedYds = how much of the batch has PASSED
+// inspection but NOT yet been put on a rack. They stay 0 until
+// inspection happens, then get set to passedRoll/passedYds, then get
+// decremented every time a new rack allocation is created (and
+// incremented back if an allocation is edited down or removed).
+// rollQty/yds stay immutable "as received".
 //
 // status:
-//   "pending"  -> unassignedRoll/Yds === rollQty/yds (nothing racked yet)
-//   "partial"  -> some racked, some still unassigned
-//   "approved" -> unassignedRoll/Yds === 0 (fully racked)
+//   "pending_inspection" -> just received, not inspected yet
+//   "pending"             -> inspected, some/all passed, nothing racked yet
+//   "partial"             -> some racked, some still unassigned
+//   "approved"            -> unassignedRoll/Yds === 0 (fully racked)
+//   "rejected"            -> inspection passed 0 Roll / 0 Yds; never
+//                             appears on Location Assignment
 export const materialReceiveItems = mysqlTable(
   "material_receive_items",
   {
@@ -110,9 +123,21 @@ export const materialReceiveItems = mysqlTable(
     color: varchar("color", { length: 100 }).notNull(),
     rollQty: int("roll_qty").notNull(), // as received, immutable
     yds: decimal("yds", { precision: 10, scale: 2 }).notNull(), // as received, immutable
-    unassignedRoll: int("unassigned_roll").notNull(), // still needs a rack
+
+    // --- Inspection outcome (set once, by Material Inspection) ---
+    passedRoll: int("passed_roll").notNull().default(0),
+    passedYds: decimal("passed_yds", { precision: 10, scale: 2 }).notNull().default("0"),
+    rejectedRoll: int("rejected_roll").notNull().default(0),
+    rejectedYds: decimal("rejected_yds", { precision: 10, scale: 2 }).notNull().default("0"),
+    inspectedAt: timestamp("inspected_at"),
+    inspectionNote: varchar("inspection_note", { length: 255 }),
+    isRead: boolean("is_read").notNull().default(false), // Material Inspection notification bell
+
+    unassignedRoll: int("unassigned_roll").notNull(), // still needs a rack -- 0 until inspected
     unassignedYds: decimal("unassigned_yds", { precision: 10, scale: 2 }).notNull(),
-    status: mysqlEnum("status", ["pending", "partial", "approved"]).notNull().default("pending"),
+    status: mysqlEnum("status", ["pending_inspection", "pending", "partial", "approved", "rejected"])
+      .notNull()
+      .default("pending_inspection"),
     approvedAt: timestamp("approved_at"), // set when status first reaches "approved", cleared otherwise
     createdAt: timestamp("created_at").defaultNow(),
   },
@@ -168,9 +193,10 @@ export const materialReceiveItemLocations = mysqlTable(
 
 // Stock History — the ledger of every movement against a stock batch.
 // "receive" = batch created (no allocation yet, allocationId null).
+// "inspection" = Material Inspection recorded Passed/Rejected qty.
 // "location_assignment" = qty put on a rack (new allocation created).
 // "adjustment" = an existing allocation was edited/moved/removed.
-// "issue" = future Cutting Issue decrement of an allocation's available qty.
+// "issue" = Cutting Issue decrement of an allocation's available qty.
 export const stockHistory = mysqlTable(
   "stock_history",
   {
@@ -181,7 +207,7 @@ export const stockHistory = mysqlTable(
       mode: "number",
       unsigned: true,
     }).notNull(),
-    action: mysqlEnum("action", ["receive", "location_assignment", "issue", "adjustment"])
+    action: mysqlEnum("action", ["receive", "location_assignment", "issue", "adjustment", "inspection"])
       .notNull()
       .default("receive"),
     location: varchar("location", { length: 100 }), // Location/Rack at the time of the movement
