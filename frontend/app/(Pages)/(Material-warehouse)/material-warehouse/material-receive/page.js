@@ -72,11 +72,17 @@ const uid = () =>
     ? crypto.randomUUID()
     : `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
+// "supplier" is optional free text at the invoice/parent level (one per
+// Material Receive, same as Buyer/PO/etc.). "buy" is also optional free
+// text at the invoice/parent level -- whoever wants to fill it in, can.
 const emptyForm = {
   date: "", invoiceNo: "", fromType: "Overseas", warehouse: "K-2",
-  buyer: "", season: "", po: "", item: "", buy: "", remark: "",
+  buyer: "", supplier: "", season: "", po: "", item: "", buy: "", remark: "",
 };
-const newColor = () => ({ key: uid(), color: "", roll: "", yds: "" });
+// "fabricName" is REQUIRED free text at the item/batch level -- one per
+// Item Code/PDM + Color row, since different colors/item codes on the
+// same invoice can be different fabrics and this is now mandatory data.
+const newColor = () => ({ key: uid(), color: "", fabricName: "", roll: "", yds: "" });
 const newItemCode = () => ({ key: uid(), itemCodePdm: "", colors: [newColor()] });
 const newStyleRow = () => ({ key: uid(), style: "", model: "" });
 
@@ -87,16 +93,18 @@ const newStyleRow = () => ({ key: uid(), style: "", model: "" });
 // to the backend as its OWN query param and matched only against its own
 // column there -- see fetchReceives below.
 const emptyRecordFilters = {
-  invoiceNo: "", buyer: "", po: "", style: "", model: "", itemCodePdm: "", color: "",
+  invoiceNo: "", buyer: "", supplier: "", po: "", style: "", model: "", itemCodePdm: "", color: "", fabricName: "",
 };
 const RECORD_FILTER_FIELDS = [
   { key: "invoiceNo", label: "Invoice No." },
   { key: "buyer", label: "Buyer", type: "select" },
+  { key: "supplier", label: "Supplier" },
   { key: "po", label: "PO" },
   { key: "style", label: "Style" },
   { key: "model", label: "Model" },
   { key: "itemCodePdm", label: "Item Code/PDM" },
   { key: "color", label: "Color" },
+  { key: "fabricName", label: "Fabric Name" },
 ];
 
 /* ============================================================
@@ -216,9 +224,11 @@ function StockPreview({ preview }) {
 }
 
 /* ============================================================
-   ColorRow -- Color/Roll/Yds inputs, plus a live "already in stock"
-   preview (Rack + Date + Qty) for this exact Item Code/PDM + Color,
-   pulled from Available Stock as the user types.
+   ColorRow -- Color/Fabric Name/Roll/Yds inputs, plus a live
+   "already in stock" preview (Rack + Date + Qty) for this exact
+   Item Code/PDM + Color, pulled from Available Stock as the user
+   types. Fabric Name is REQUIRED and does not affect the stock
+   lookup (which is keyed on Item Code/PDM + Color only).
    ============================================================ */
 
 function ColorRow({ itemCodePdm, color, canRemove, onRemove, onChange }) {
@@ -269,6 +279,14 @@ function ColorRow({ itemCodePdm, color, canRemove, onRemove, onChange }) {
           </button>
         )}
       </div>
+      <input
+        type="text"
+        required
+        placeholder="Fabric Name *"
+        value={color.fabricName}
+        onChange={(e) => onChange(color.key, "fabricName", up(e.target.value))}
+        className={inputCls}
+      />
       <div className="grid grid-cols-2 gap-1.5">
         <input type="number" placeholder="Roll" value={color.roll} onChange={(e) => onChange(color.key, "roll", e.target.value)} className={inputCls} />
         <input type="number" placeholder="Yds" value={color.yds} onChange={(e) => onChange(color.key, "yds", e.target.value)} className={inputCls} />
@@ -420,7 +438,11 @@ function AllocationList({ locations, onSaveEdit, onDelete, busyId }) {
    Code/PDM + Color already sits (Rack + Date-wise) before you
    commit to a rack.
 
-   NEW: a batch now sits in one of FIVE statuses instead of three --
+   Fabric Name is shown as its own read-only column here (it's
+   entered once on Material Receive and never edited from this
+   drawer).
+
+   A batch now sits in one of FIVE statuses instead of three --
    "pending_inspection" (Material Inspection hasn't looked at it
    yet) and "rejected" (inspection passed 0/0) are both dead ends
    here: the Rack Assignment form is hidden and a short explanatory
@@ -432,8 +454,8 @@ function AllocationList({ locations, onSaveEdit, onDelete, busyId }) {
    so it's immediately obvious this whole block is the "Items under
    Invoice X" expansion and NOT just another striped table row.
 
-   NOTE: colSpan is 13 here to match the parent Saved Records table,
-   which now has 13 columns after the Remark column was added.
+   NOTE: colSpan is 14 here to match the parent Saved Records table,
+   which now has 14 columns after the Supplier column was added.
    ============================================================ */
 
 function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
@@ -445,7 +467,7 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
   const [previewLoadingId, setPreviewLoadingId] = useState(null);
 
   if (!items?.length) {
-    return <tr><td colSpan={13} className="px-3 py-2 text-[11px] italic text-[#a08060]">No item code / color rows found.</td></tr>;
+    return <tr><td colSpan={14} className="px-3 py-2 text-[11px] italic text-[#a08060]">No item code / color rows found.</td></tr>;
   }
 
   const getDraft = (itemId) => newAlloc[itemId] || { location: RACK_OPTIONS[0], roll: "", yds: "" };
@@ -517,7 +539,7 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
 
   return (
     <tr>
-      <td colSpan={13} className="p-0">
+      <td colSpan={14} className="p-0">
         {/* Distinct blue/slate "drawer" wrapper -- deliberately a different
             color family from the orange/brown page theme, plus margin,
             rounded corners, left accent border and an inner shadow, so it
@@ -535,6 +557,7 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
               <tr className="text-[#4a6578] dark:text-[#8fb0c4] border-b-2 border-[#3d6a8a]/20 dark:border-[#6fa8d0]/20 bg-[#dde8ef]/60 dark:bg-white/[0.03]">
                 <th className="px-3 py-2 text-left font-semibold w-1/5">Item Code / PDM</th>
                 <th className="px-3 py-2 text-left font-semibold">Color</th>
+                <th className="px-3 py-2 text-left font-semibold">Fabric Name</th>
                 <th className="px-3 py-2 text-left font-semibold">Received Roll/Yds</th>
                 <th className="px-3 py-2 text-left font-semibold">Passed / Rejected</th>
                 <th className="px-3 py-2 text-left font-semibold">Unassigned</th>
@@ -558,6 +581,9 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
                     <tr className={`border-b border-[#3d6a8a]/10 dark:border-[#6fa8d0]/10 last:border-b-0 ${idx % 2 === 1 ? "bg-[#3d6a8a]/[0.04] dark:bg-[#6fa8d0]/[0.04]" : ""}`}>
                       <td className="px-3 py-2 text-[#2c4a63] dark:text-[#8fb0c4] font-bold align-top">{row.itemCodePdm}</td>
                       <td className="px-3 py-2 font-medium align-top">{row.color}</td>
+                      <td className="px-3 py-2 align-top">
+                        {row.fabricName || <span className="italic text-[#a08060]">-</span>}
+                      </td>
                       <td className="px-3 py-2 align-top whitespace-nowrap">{row.rollQty} Roll / {row.yds} Yds</td>
                       <td className="px-3 py-2 align-top whitespace-nowrap">
                         {row.status === "pending_inspection" ? (
@@ -664,7 +690,7 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
                     </tr>
                     {previewOpen && (
                       <tr className="bg-[#3d6a8a]/[0.06] dark:bg-[#6fa8d0]/[0.04]">
-                        <td colSpan={7} className="px-3 py-2.5">
+                        <td colSpan={8} className="px-3 py-2.5">
                           {previewLoadingId === row.id ? (
                             <div className="text-[11px] text-[#a08060] italic">Checking existing stock...</div>
                           ) : (
@@ -686,11 +712,12 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
 
 /* ============================================================
    Saved Records search row -- one clearly-labeled input per field
-   (Invoice No., Buyer [dropdown], PO, Style, Model, Item Code/PDM,
-   Color), all sitting on a single horizontally-scrollable line.
-   Each field is sent to the backend as its own query param and
-   matched only against its own column there, so "Item Code/PDM"
-   never accidentally matches a "Color" value or vice versa.
+   (Invoice No., Buyer [dropdown], Supplier, PO, Style, Model, Item
+   Code/PDM, Color, Fabric Name), all sitting on a single
+   horizontally-scrollable line. Each field is sent to the backend
+   as its own query param and matched only against its own column
+   there, so "Item Code/PDM" never accidentally matches a "Color"
+   value or vice versa.
    ============================================================ */
 
 function RecordFilterRow({ filters, setFilters }) {
@@ -740,8 +767,9 @@ function RecordFilterRow({ filters, setFilters }) {
 
 /* ============================================================
    Records panel -- a real HTML table, sits beside the form.
-   Now includes a Remark column (right after Invoice No.), truncated
-   with an ellipsis and the full text available on hover via title.
+   Now includes a Supplier column (right after Buyer), truncated
+   with an ellipsis and the full text available on hover via title,
+   same treatment as Remark.
    ============================================================ */
 
 function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, toggleExpanded, onEdit, onDelete, onAssigned }) {
@@ -774,6 +802,7 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
                 <th className="px-3 py-2 text-left font-semibold">From</th>
                 <th className="px-3 py-2 text-left font-semibold">Warehouse</th>
                 <th className="px-3 py-2 text-left font-semibold">Buyer</th>
+                <th className="px-3 py-2 text-left font-semibold">Supplier</th>
                 <th className="px-3 py-2 text-left font-semibold">Season</th>
                 <th className="px-3 py-2 text-left font-semibold">PO</th>
                 <th className="px-3 py-2 text-left font-semibold">Style / Model</th>
@@ -803,6 +832,9 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
                       <td className="px-3 py-2"><span className={chip}>{r.fromType}</span></td>
                       <td className="px-3 py-2"><span className={chip}>{r.warehouse}</span></td>
                       <td className="px-3 py-2 whitespace-nowrap">{r.buyer}</td>
+                      <td className="px-3 py-2 max-w-[140px] truncate text-[#7a6250] dark:text-[#a8917d]" title={r.supplier || undefined}>
+                        {r.supplier || <span className="italic text-[#a08060]">-</span>}
+                      </td>
                       <td className="px-3 py-2 whitespace-nowrap">{r.season}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{r.po}</td>
                       <td className="px-3 py-2">
@@ -858,10 +890,11 @@ export default function MaterialReceivePage() {
   const [formOpen, setFormOpen] = useState(false);
 
   // Each filter box is sent to the backend as its OWN query param
-  // (invoiceNo=, buyer=, po=, style=, model=, itemCodePdm=, color=) and the
-  // backend matches each one only against its own column (AND across
-  // whichever fields are filled in). This is what fixes "Item Code/PDM =
-  // TEST-2" incorrectly matching a row whose Color happens to be TEST-2.
+  // (invoiceNo=, buyer=, supplier=, po=, style=, model=, itemCodePdm=,
+  // color=, fabricName=) and the backend matches each one only against its
+  // own column (AND across whichever fields are filled in). This is what
+  // fixes "Item Code/PDM = TEST-2" incorrectly matching a row whose Color
+  // happens to be TEST-2.
   const fetchReceives = useCallback(async (filters = emptyRecordFilters) => {
     setLoading(true); setError("");
     try {
@@ -909,9 +942,17 @@ export default function MaterialReceivePage() {
     if (styles.length === 0) { setError("Add at least one Style (with its Model)."); return; }
 
     const items = itemCodes.flatMap((ic) =>
-      ic.colors.filter((c) => c.color).map((c) => ({ itemCodePdm: ic.itemCodePdm, color: c.color, rollQty: c.roll, yds: c.yds }))
+      ic.colors.filter((c) => c.color).map((c) => ({
+        itemCodePdm: ic.itemCodePdm, color: c.color, fabricName: c.fabricName, rollQty: c.roll, yds: c.yds,
+      }))
     );
     if (items.length === 0) { setError("Add at least one Item Code/PDM with a Color row."); return; }
+
+    // Fabric Name is now required for every Item Code/PDM + Color row.
+    if (items.some((it) => !it.fabricName || !it.fabricName.trim())) {
+      setError("Fabric Name is required for every Item Code/PDM + Color row.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -940,7 +981,8 @@ export default function MaterialReceivePage() {
       const data = await res.json();
       setForm({
         date: data.date?.slice(0, 10) || "", invoiceNo: data.invoiceNo || "", fromType: data.fromType || "Overseas",
-        warehouse: data.warehouse || "K-2", buyer: data.buyer || "", season: data.season || "", po: data.po || "",
+        warehouse: data.warehouse || "K-2", buyer: data.buyer || "", supplier: data.supplier || "",
+        season: data.season || "", po: data.po || "",
         item: data.item || "", buy: data.buy || "", remark: data.remark || "",
       });
 
@@ -954,7 +996,7 @@ export default function MaterialReceivePage() {
       for (const row of data.items) {
         let g = grouped.find((g) => g.itemCodePdm === row.itemCodePdm);
         if (!g) { g = { key: uid(), itemCodePdm: row.itemCodePdm, colors: [] }; grouped.push(g); }
-        g.colors.push({ key: uid(), color: row.color, roll: row.rollQty, yds: row.yds });
+        g.colors.push({ key: uid(), color: row.color, fabricName: row.fabricName || "", roll: row.rollQty, yds: row.yds });
       }
       setItemCodes(grouped.length ? grouped : [newItemCode()]);
       setEditingId(id);
@@ -1068,10 +1110,25 @@ export default function MaterialReceivePage() {
                       </select>
                     </Field>
                   </div>
+                  <div className="col-span-2">
+                    <Field text="Supplier">
+                      <input
+                        type="text"
+                        value={form.supplier}
+                        onChange={(e) => setForm({ ...form, supplier: up(e.target.value) })}
+                        placeholder="Optional"
+                        className={inputCls}
+                      />
+                    </Field>
+                  </div>
                   <Field text="Season" required><input type="text" required value={form.season} onChange={(e) => setForm({ ...form, season: up(e.target.value) })} className={inputCls} /></Field>
                   <Field text="PO" required><input type="text" required value={form.po} onChange={(e) => setForm({ ...form, po: up(e.target.value) })} className={inputCls} /></Field>
                   <Field text="Item" required><input type="text" required value={form.item} onChange={(e) => setForm({ ...form, item: up(e.target.value) })} className={inputCls} /></Field>
-                  <Field text="Buy" required><input type="text" required value={form.buy} onChange={(e) => setForm({ ...form, buy: up(e.target.value) })} className={inputCls} /></Field>
+                  {/* Buy is now OPTIONAL -- no "required" prop on Field (no
+                      asterisk) and no "required" attribute on the input, so
+                      whoever wants to fill it in can, but it's no longer
+                      mandatory to submit the form. */}
+                  <Field text="Buy"><input type="text" value={form.buy} onChange={(e) => setForm({ ...form, buy: up(e.target.value) })} placeholder="Optional" className={inputCls} /></Field>
 
                   <div className="col-span-2">
                     <Field text="Remark">

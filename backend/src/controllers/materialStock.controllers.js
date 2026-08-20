@@ -9,7 +9,7 @@ const { materialReceives, materialReceiveItems, materialReceiveItemLocations, ma
  * GET /material-stock
  * Query params (all optional, partial/case-insensitive match):
  *   itemCodePdm, style, color, model, season, buyer, invoiceNo, item,
- *   warehouse, location
+ *   warehouse, location, supplier, fabricName
  *
  * Reads from the rack allocations table (material_receive_item_locations),
  * NOT the batch table — so every row here is one Date + Item Code/PDM +
@@ -19,11 +19,16 @@ const { materialReceives, materialReceiveItems, materialReceiveItemLocations, ma
  * available". Ordered oldest Receive Date first (FIFO). A "summary" array
  * gives Total Available Roll/Yds per Item Code/PDM + Color across ALL its
  * racks combined, for the headline "Total Available" figure.
+ *
+ * Supplier (invoice/parent-level) and Fabric Name (item/batch-level) are
+ * both included in every row and are filterable the same way as the other
+ * fields, so the frontend can search/display them without changing what
+ * columns show by default.
  */
 export const searchMaterialStock = async (req, res) => {
   try {
     const q = (v) => (v || "").toString().trim().toLowerCase();
-    const { itemCodePdm, style, color, model, season, buyer, invoiceNo, item, warehouse, location } = req.query;
+    const { itemCodePdm, style, color, model, season, buyer, invoiceNo, item, warehouse, location, supplier, fabricName } = req.query;
 
     const rows = await db
       .select({
@@ -32,6 +37,7 @@ export const searchMaterialStock = async (req, res) => {
         materialReceiveId: materialReceiveItems.materialReceiveId,
         itemCodePdm: materialReceiveItems.itemCodePdm,
         color: materialReceiveItems.color,
+        fabricName: materialReceiveItems.fabricName,
         rollQty: materialReceiveItemLocations.rollQty, // roll placed on THIS rack
         yds: materialReceiveItemLocations.yds, // yds placed on THIS rack
         availableRoll: materialReceiveItemLocations.availableRoll,
@@ -45,6 +51,7 @@ export const searchMaterialStock = async (req, res) => {
         warehouse: materialReceives.warehouse,
         item: materialReceives.item,
         buy: materialReceives.buy,
+        supplier: materialReceives.supplier,
       })
       .from(materialReceiveItemLocations)
       .innerJoin(materialReceiveItems, eq(materialReceiveItemLocations.itemId, materialReceiveItems.id))
@@ -68,6 +75,8 @@ export const searchMaterialStock = async (req, res) => {
         if (item && !q(r.item).includes(q(item))) return false;
         if (warehouse && !q(r.warehouse).includes(q(warehouse))) return false;
         if (location && !q(r.location).includes(q(location))) return false;
+        if (supplier && !q(r.supplier).includes(q(supplier))) return false;
+        if (fabricName && !q(r.fabricName).includes(q(fabricName))) return false;
         if (style && !r.styles.some((s) => q(s.style).includes(q(style)))) return false;
         if (model && !r.styles.some((s) => q(s.model).includes(q(model)))) return false;
         return true;

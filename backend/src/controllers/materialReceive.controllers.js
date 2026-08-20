@@ -37,25 +37,30 @@ async function getFullReceive(id) {
 
 /**
  * GET /material-receive
- * GET /material-receive?invoiceNo=...&buyer=...&po=...&style=...&model=...&itemCodePdm=...&color=...
+ * GET /material-receive?invoiceNo=...&buyer=...&supplier=...&po=...&style=...&model=...&itemCodePdm=...&color=...&fabricName=...
  *
  * Returns every Material Receive with its styles[] (Style + Model) and
- * items[] (Item Code/PDM, Color, Roll, Yds, unassignedRoll/Yds, status,
- * locations[]).
+ * items[] (Item Code/PDM, Color, Fabric Name, Roll, Yds, unassignedRoll/Yds,
+ * status, locations[]).
  *
  * Each query field is matched ONLY against its own column (no more single
  * fuzzy string matching every column at once):
- *   - invoiceNo / buyer / po  -> matched on the parent Material Receive row,
- *                                 combined with AND.
+ *   - invoiceNo / buyer / supplier / po
+ *                              -> matched on the parent Material Receive row,
+ *                                 combined with AND. Supplier is optional
+ *                                 free text at the invoice/parent level.
  *   - style / model           -> matched on the SAME materialReceiveStyles
  *                                 row (AND), so "Style=X, Model=Y" only
  *                                 matches a row that has both.
- *   - itemCodePdm / color     -> matched on the SAME materialReceiveItems
+ *   - itemCodePdm / color / fabricName
+ *                              -> matched on the SAME materialReceiveItems
  *                                 row (AND), so "Item Code=X, Color=Y" only
  *                                 matches a row that has both -- an item
  *                                 whose itemCodePdm happens to equal the
  *                                 color you typed (or vice versa) will NOT
- *                                 match anymore.
+ *                                 match anymore. Fabric Name is now REQUIRED
+ *                                 free text at the item/batch level (see
+ *                                 createMaterialReceive / updateMaterialReceive).
  *
  * All groups that were actually supplied are combined with AND (a Receive
  * must satisfy every field the user filled in). Newest Receive first
@@ -64,7 +69,7 @@ async function getFullReceive(id) {
  */
 export const getAllMaterialReceives = async (req, res) => {
   try {
-    const { invoiceNo, buyer, po, style, model, itemCodePdm, color } = req.query;
+    const { invoiceNo, buyer, supplier, po, style, model, itemCodePdm, color, fabricName } = req.query;
 
     const has = (v) => typeof v === "string" && v.trim().length > 0;
     const term = (v) => `%${v.trim()}%`;
@@ -79,11 +84,12 @@ export const getAllMaterialReceives = async (req, res) => {
       candidateIds = candidateIds === null ? idSet : new Set([...candidateIds].filter((id) => idSet.has(id)));
     };
 
-    // --- Parent-level fields: Invoice No. / Buyer / PO (AND together) ---
-    if (has(invoiceNo) || has(buyer) || has(po)) {
+    // --- Parent-level fields: Invoice No. / Buyer / Supplier / PO (AND together) ---
+    if (has(invoiceNo) || has(buyer) || has(supplier) || has(po)) {
       const conditions = [];
       if (has(invoiceNo)) conditions.push(like(materialReceives.invoiceNo, term(invoiceNo)));
       if (has(buyer)) conditions.push(like(materialReceives.buyer, term(buyer)));
+      if (has(supplier)) conditions.push(like(materialReceives.supplier, term(supplier)));
       if (has(po)) conditions.push(like(materialReceives.po, term(po)));
       const rows = await db
         .select({ id: materialReceives.id })
@@ -104,11 +110,12 @@ export const getAllMaterialReceives = async (req, res) => {
       intersect(rows.map((r) => r.materialReceiveId));
     }
 
-    // --- Item Code/PDM + Color: must match on the SAME item row ---
-    if (has(itemCodePdm) || has(color)) {
+    // --- Item Code/PDM + Color + Fabric Name: must match on the SAME item row ---
+    if (has(itemCodePdm) || has(color) || has(fabricName)) {
       const conditions = [];
       if (has(itemCodePdm)) conditions.push(like(materialReceiveItems.itemCodePdm, term(itemCodePdm)));
       if (has(color)) conditions.push(like(materialReceiveItems.color, term(color)));
+      if (has(fabricName)) conditions.push(like(materialReceiveItems.fabricName, term(fabricName)));
       const rows = await db
         .select({ materialReceiveId: materialReceiveItems.materialReceiveId })
         .from(materialReceiveItems)
@@ -179,11 +186,15 @@ export const getMaterialReceiveById = async (req, res) => {
 
 /**
  * POST /material-receive
- * Body: { date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy, remark,
+ * Body: { date, invoiceNo, fromType, warehouse, buyer, supplier, season, po, item, buy, remark,
  *         styles: [{ style, model }],
- *         items: [{ itemCodePdm, color, rollQty, yds }] }
+ *         items: [{ itemCodePdm, color, fabricName, rollQty, yds }] }
  *
  * "remark" is optional free text — not required, never validated.
+ * "supplier" is optional free text at the invoice/parent level — not required.
+ * "buy" is optional free text at the invoice/parent level — not required.
+ * "fabricName" is REQUIRED free text at the item/batch level (one per Item
+ * Code/PDM + Color row) — every item row must have a non-empty Fabric Name.
  *
  * NOTE: Location/Rack is intentionally never accepted here, and neither is
  * a Passed/Rejected quantity. Every item row is created as status
@@ -198,9 +209,10 @@ export const getMaterialReceiveById = async (req, res) => {
  */
 export const createMaterialReceive = async (req, res) => {
   try {
-    const { date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy, remark, styles, items } = req.body;
+    const { date, invoiceNo, fromType, warehouse, buyer, supplier, season, po, item, buy, remark, styles, items } = req.body;
 
-    if (!date || !invoiceNo || !fromType || !warehouse || !buyer || !season || !po || !item || !buy) {
+    // "buy" is no longer required at the invoice/parent level.
+    if (!date || !invoiceNo || !fromType || !warehouse || !buyer || !season || !po || !item) {
       return res.status(400).json({ message: "Missing required fields" });
     }
     if (!Array.isArray(styles) || styles.filter((s) => s?.style).length === 0) {
@@ -209,11 +221,18 @@ export const createMaterialReceive = async (req, res) => {
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: "At least one Item Code/PDM + Color row is required" });
     }
+    // "fabricName" is now required for every item/batch row.
+    if (items.some((row) => !row.fabricName || !row.fabricName.trim())) {
+      return res.status(400).json({ message: "Fabric Name is required for every Item Code/PDM + Color row" });
+    }
 
     // Transaction: parent + styles + item batches + history succeed together or not at all.
     const newId = await db.transaction(async (tx) => {
       const [inserted] = await tx.insert(materialReceives).values({
-        date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy,
+        date, invoiceNo, fromType, warehouse, buyer,
+        supplier: supplier?.trim() || null,
+        season, po, item,
+        buy: buy?.trim() || null,
         remark: remark?.trim() || null,
         status: "pending",
       });
@@ -231,6 +250,7 @@ export const createMaterialReceive = async (req, res) => {
           materialReceiveId,
           itemCodePdm: row.itemCodePdm,
           color: row.color,
+          fabricName: row.fabricName.trim(),
           rollQty,
           yds,
           passedRoll: 0,
@@ -283,6 +303,9 @@ export const createMaterialReceive = async (req, res) => {
  * "rejected" are all still safe to wipe and recreate; only "partial" /
  * "approved" (i.e. actually has rack stock) locks editing.
  *
+ * "buy" is optional here too; "fabricName" is required for every incoming
+ * item row, same as create.
+ *
  * Any such batch that gets deleted here has its stock_history rows
  * cascade-deleted with it (FK ON DELETE CASCADE), and every newly inserted
  * replacement batch goes back to "pending_inspection" (needs to be
@@ -292,7 +315,11 @@ export const createMaterialReceive = async (req, res) => {
 export const updateMaterialReceive = async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy, remark, styles, items } = req.body;
+    const { date, invoiceNo, fromType, warehouse, buyer, supplier, season, po, item, buy, remark, styles, items } = req.body;
+
+    if (Array.isArray(items) && items.some((row) => !row.fabricName || !row.fabricName.trim())) {
+      return res.status(400).json({ message: "Fabric Name is required for every Item Code/PDM + Color row" });
+    }
 
     const [existing] = await db.select().from(materialReceives).where(eq(materialReceives.id, id));
     if (!existing) return res.status(404).json({ message: "Material receive not found" });
@@ -318,7 +345,13 @@ export const updateMaterialReceive = async (req, res) => {
     await db.transaction(async (tx) => {
       await tx
         .update(materialReceives)
-        .set({ date, invoiceNo, fromType, warehouse, buyer, season, po, item, buy, remark: remark?.trim() || null })
+        .set({
+          date, invoiceNo, fromType, warehouse, buyer,
+          supplier: supplier?.trim() || null,
+          season, po, item,
+          buy: buy?.trim() || null,
+          remark: remark?.trim() || null,
+        })
         .where(eq(materialReceives.id, id));
 
       await tx.delete(materialReceiveStyles).where(eq(materialReceiveStyles.materialReceiveId, id));
@@ -348,6 +381,7 @@ export const updateMaterialReceive = async (req, res) => {
             materialReceiveId: Number(id),
             itemCodePdm: row.itemCodePdm,
             color: row.color,
+            fabricName: row.fabricName.trim(),
             rollQty,
             yds,
             passedRoll: 0,

@@ -55,6 +55,7 @@ export const materialReceives = mysqlTable("material_receives", {
   fromType: varchar("from_type", { length: 20 }).notNull(),
   warehouse: varchar("warehouse", { length: 10 }).notNull().default("K-2"), // "K-1" | "K-2" | "K-3"
   buyer: varchar("buyer", { length: 150 }).notNull(),
+  supplier: varchar("supplier", { length: 150 }), // optional, free text -- invoice/parent level
   season: varchar("season", { length: 100 }).notNull(),
   po: varchar("po", { length: 150 }).notNull(),
   item: varchar("item", { length: 150 }).notNull(),
@@ -92,6 +93,10 @@ export const materialReceiveStyles = mysqlTable(
 // many racks, each tracked as its own row in material_receive_item_locations
 // below.
 //
+// fabricName is optional free text, entered per Item Code/PDM + Color row
+// (i.e. item/batch level -- NOT shared across the whole Receive, since two
+// colors/item codes on the same invoice can be different fabrics).
+//
 // INSPECTION FIELDS (Material Inspection module):
 //   passedRoll/passedYds     -> how much of this batch QC approved
 //   rejectedRoll/rejectedYds -> received - passed (auto-computed)
@@ -121,6 +126,7 @@ export const materialReceiveItems = mysqlTable(
     }).notNull(),
     itemCodePdm: varchar("item_code_pdm", { length: 150 }).notNull(),
     color: varchar("color", { length: 100 }).notNull(),
+    fabricName: varchar("fabric_name", { length: 150 }), // optional, free text -- item/batch level
     rollQty: int("roll_qty").notNull(), // as received, immutable
     yds: decimal("yds", { precision: 10, scale: 2 }).notNull(), // as received, immutable
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSidebar } from "@/app/provider/SidebarContext";
 import {
   TrendingUp, Box, Wrench, Warehouse, PackageSearch, MapPin, Boxes,
-  PanelLeft, PanelLeftClose, FolderClosed, ChevronRight, Scissors, ClipboardList,
+  PanelLeft, PanelLeftClose, FolderClosed, ChevronRight, Scissors, ClipboardList, ClipboardCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -12,8 +12,9 @@ import { usePathname } from "next/navigation";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 // Every 30s, plus an immediate refetch on every route change (so marking a
-// notification read on the Cutting Issue page itself is reflected in the
-// sidebar badge right away, instead of waiting for the next poll tick).
+// notification read on the Cutting Issue / Material Inspection page itself
+// is reflected in the sidebar badge right away, instead of waiting for the
+// next poll tick).
 const NOTIFICATION_POLL_MS = 30000;
 
 // Material Warehouse's pages are grouped into subfolders so the sidebar
@@ -29,6 +30,10 @@ const DEPARTMENTS = [
         icon: FolderClosed,
         items: [
           { href: "/material-warehouse/material-receive", label: "Material Receive", icon: PackageSearch },
+          // notificationKey ties this item to the live unread count fetched
+          // from GET /material-inspection/notifications below -- badge only
+          // shows up on the item(s) that opt in with this key.
+          { href: "/material-warehouse/material-inspection", label: "Material Inspection", icon: ClipboardCheck, notificationKey: "materialInspection" },
         ],
       },
       {
@@ -72,7 +77,7 @@ const flattenItems = (dept) =>
   dept.items ? dept.items : dept.folders.flatMap((f) => f.items);
 
 // Small red count pill, same visual language as the bell icon badge inside
-// the Cutting Issue page itself.
+// the Cutting Issue / Material Inspection pages themselves.
 function NotifBadge({ count, className = "" }) {
   if (!count) return null;
   return (
@@ -104,8 +109,9 @@ export default function DeptSidebar() {
   const isActive = (href) =>
     pathname === href || pathname?.startsWith(`${href}/`);
 
-  // Live unread counts, keyed by notificationKey (only "cuttingIssue" for
-  // now, but keyed so more pages can opt in later without new state).
+  // Live unread counts, keyed by notificationKey ("cuttingIssue" and
+  // "materialInspection" for now, but keyed so more pages can opt in later
+  // without new state).
   const [unreadCounts, setUnreadCounts] = useState({});
 
   const fetchCuttingIssueUnread = async () => {
@@ -119,18 +125,35 @@ export default function DeptSidebar() {
     }
   };
 
-  useEffect(() => {
+  const fetchMaterialInspectionUnread = async () => {
+    try {
+      const res = await fetch(`${API_URL}/material-inspection/notifications`, { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setUnreadCounts((prev) => ({ ...prev, materialInspection: data.unreadCount || 0 }));
+    } catch {
+      /* ignore -- sidebar badge just stays at its last known value */
+    }
+  };
+
+  const fetchAllUnread = () => {
     fetchCuttingIssueUnread();
-    const interval = setInterval(fetchCuttingIssueUnread, NOTIFICATION_POLL_MS);
+    fetchMaterialInspectionUnread();
+  };
+
+  useEffect(() => {
+    fetchAllUnread();
+    const interval = setInterval(fetchAllUnread, NOTIFICATION_POLL_MS);
     return () => clearInterval(interval);
   }, []);
 
   // Refetch on every route change -- catches the case where the user just
-  // marked a notification read on the Cutting Issue page (or opened it,
-  // which also marks things read) and navigated elsewhere; the badge
-  // should reflect that immediately rather than up to 30s later.
+  // marked a notification read on the Cutting Issue / Material Inspection
+  // page (or opened it, which also marks things read) and navigated
+  // elsewhere; the badge should reflect that immediately rather than up to
+  // 30s later.
   useEffect(() => {
-    fetchCuttingIssueUnread();
+    fetchAllUnread();
   }, [pathname]);
 
   const renderLink = ({ href, icon: Icon, label, notificationKey }, indent = false) => {
