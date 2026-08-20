@@ -2,7 +2,7 @@
 
 "use client";
 
-import { Boxes, ChevronDown, ChevronUp, RotateCcw, Search, SlidersHorizontal, Check, X, Filter } from "lucide-react";
+import { Boxes, Check, ChevronDown, ChevronUp, Filter, RotateCcw, Search, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -99,9 +99,9 @@ const ALL_STOCK_COLUMNS = [
   { key: "date", label: "Date", width: 6, defaultOn: true },
   { key: "invoiceNo", label: "Invoice No.", width: 7, defaultOn: false },
   { key: "buyer", label: "Buyer", width: 8, defaultOn: true },
-  { key: "season", label: "Season", width: 6, defaultOn: true },
+  { key: "season", label: "Season", width: 6, defaultOn: false },
   { key: "styleModel", label: "Style / Model", width: 11, defaultOn: true },
-  { key: "warehouse", label: "W/H", width: 5, defaultOn: true },
+  { key: "warehouse", label: "W/H", width: 5, defaultOn: false },
   { key: "item", label: "Item", width: 7, defaultOn: false },
   { key: "itemCodePdm", label: "Item Code/PDM", width: 9, defaultOn: true },
   { key: "color", label: "Color", width: 7, defaultOn: true },
@@ -138,10 +138,10 @@ function SummaryStrip({ summary }) {
   const q = query.trim().toLowerCase();
   const filtered = q
     ? summary.filter(
-        (s) =>
-          s.itemCodePdm?.toLowerCase().includes(q) ||
-          s.color?.toLowerCase().includes(q)
-      )
+      (s) =>
+        s.itemCodePdm?.toLowerCase().includes(q) ||
+        s.color?.toLowerCase().includes(q)
+    )
     : summary;
 
   return (
@@ -187,9 +187,8 @@ function SummaryStrip({ summary }) {
                 {filtered.map((s, i) => (
                   <tr
                     key={`${s.itemCodePdm}-${s.color}`}
-                    className={`border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#b87a4a]/10 transition-colors ${
-                      i % 2 === 0 ? "bg-white dark:bg-[#1a1208]" : "bg-[#b87a4a]/[0.04] dark:bg-[#d4955e]/[0.04]"
-                    }`}
+                    className={`border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#b87a4a]/10 transition-colors ${i % 2 === 0 ? "bg-white dark:bg-[#1a1208]" : "bg-[#b87a4a]/[0.04] dark:bg-[#d4955e]/[0.04]"
+                      }`}
                   >
                     <td className="px-4 py-2 text-[#8a4a24] dark:text-[#d4955e] font-medium">{s.itemCodePdm}</td>
                     <td className="px-4 py-2 text-[#2c2417] dark:text-[#e8ddd0]">{s.color}</td>
@@ -232,11 +231,11 @@ function FilterOverlay({ isOpen, onClose, filters, setFilters, onSearch, onReset
 
   return (
     <>
-      <div 
+      <div
         className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
         onClick={onClose}
       />
-      
+
       <div className="fixed right-0 top-0 h-full w-full max-w-md bg-[#f7f5f0] dark:bg-[#221d16] shadow-2xl z-50 overflow-y-auto animate-slide-in">
         <div className="sticky top-0 bg-[#f7f5f0] dark:bg-[#221d16] border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 px-4 py-3 flex items-center justify-between z-10">
           <div className="flex items-center gap-2">
@@ -248,7 +247,7 @@ function FilterOverlay({ isOpen, onClose, filters, setFilters, onSearch, onReset
               </span>
             )}
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-[#2c2417]/10 dark:hover:bg-[#e8ddd0]/10 transition-colors"
           >
@@ -313,11 +312,11 @@ function ColumnOverlay({ isOpen, onClose, visibleKeys, setVisibleKeys }) {
 
   return (
     <>
-      <div 
+      <div
         className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
         onClick={onClose}
       />
-      
+
       <div className="fixed right-0 top-0 h-full w-full max-w-md bg-[#f7f5f0] dark:bg-[#221d16] shadow-2xl z-50 overflow-y-auto animate-slide-in">
         <div className="sticky top-0 bg-[#f7f5f0] dark:bg-[#221d16] border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 px-4 py-3 flex items-center justify-between z-10">
           <div className="flex items-center gap-2">
@@ -325,7 +324,7 @@ function ColumnOverlay({ isOpen, onClose, visibleKeys, setVisibleKeys }) {
             <h2 className="font-serif text-lg text-[#1a1208] dark:text-[#f0e8dc]">Columns</h2>
             <span className="text-sm text-[#a08060]">({visibleKeys.length} of {ALL_STOCK_COLUMNS.length})</span>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-[#2c2417]/10 dark:hover:bg-[#e8ddd0]/10 transition-colors"
           >
@@ -351,17 +350,15 @@ function ColumnOverlay({ isOpen, onClose, visibleKeys, setVisibleKeys }) {
                   key={c.key}
                   type="button"
                   onClick={() => toggle(c.key)}
-                  className={`w-full flex items-center gap-3 rounded-lg border-[1.5px] px-3 py-2.5 text-sm transition-all ${
-                    on
+                  className={`w-full flex items-center gap-3 rounded-lg border-[1.5px] px-3 py-2.5 text-sm transition-all ${on
                       ? "border-[#3d8a7a] dark:border-[#6fd0b8] bg-[#3d8a7a]/10 dark:bg-[#6fd0b8]/10 text-[#2c6a5a] dark:text-[#6fd0b8]"
                       : "border-[#2c2417]/15 dark:border-[#e8ddd0]/15 text-[#7a6250] dark:text-[#a8917d] hover:border-[#3d8a7a]/50"
-                  }`}
+                    }`}
                 >
-                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 ${
-                    on 
-                      ? "bg-[#3d8a7a] dark:bg-[#6fd0b8] border-[#3d8a7a] dark:border-[#6fd0b8]" 
+                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 ${on
+                      ? "bg-[#3d8a7a] dark:bg-[#6fd0b8] border-[#3d8a7a] dark:border-[#6fd0b8]"
                       : "border-[#2c2417]/25 dark:border-[#e8ddd0]/25"
-                  }`}>
+                    }`}>
                     {on && <Check size={13} className="text-white dark:text-[#1b1712]" />}
                   </span>
                   {c.label}
@@ -559,9 +556,8 @@ function ResultsTable({ rows, loading, searched, visibleKeys, onOpenFilters }) {
                 {columns.map((c) => (
                   <th
                     key={c.key}
-                    className={`${CELL_PAD} overflow-hidden font-semibold text-white/95 ${
-                      c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left"
-                    }`}
+                    className={`${CELL_PAD} overflow-hidden font-semibold text-white/95 ${c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left"
+                      }`}
                   >
                     <div className="truncate text-[0.9em] tracking-wide" title={c.label}>{c.label}</div>
                   </th>
@@ -575,11 +571,10 @@ function ResultsTable({ rows, loading, searched, visibleKeys, onOpenFilters }) {
                 return (
                   <tr
                     key={r.itemId}
-                    className={`border-t border-[#2c2417]/6 dark:border-[#e8ddd0]/6 transition-all duration-150 ${
-                      i % 2 === 0 
-                        ? "bg-white dark:bg-[#1a1208] hover:bg-[#b87a4a]/[0.06] dark:hover:bg-[#d4955e]/[0.06]" 
+                    className={`border-t border-[#2c2417]/6 dark:border-[#e8ddd0]/6 transition-all duration-150 ${i % 2 === 0
+                        ? "bg-white dark:bg-[#1a1208] hover:bg-[#b87a4a]/[0.06] dark:hover:bg-[#d4955e]/[0.06]"
                         : "bg-[#b87a4a]/[0.03] dark:bg-[#d4955e]/[0.03] hover:bg-[#b87a4a]/[0.08] dark:hover:bg-[#d4955e]/[0.08]"
-                    }`}
+                      }`}
                   >
                     {columns.map((c) => renderStockCell(c.key, r, rollPct, ydsPct))}
                   </tr>
@@ -667,14 +662,14 @@ export default function MaterialStockPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button 
-              onClick={() => setIsFilterOpen(true)} 
+            <button
+              onClick={() => setIsFilterOpen(true)}
               className={btnSecondary}
             >
               <Filter size={16} /> Filters
             </button>
-            <button 
-              onClick={() => setIsColumnOpen(true)} 
+            <button
+              onClick={() => setIsColumnOpen(true)}
               className={btnSecondary}
             >
               <SlidersHorizontal size={16} /> Columns
@@ -707,10 +702,10 @@ export default function MaterialStockPage() {
 
         <div className="space-y-4">
           <SummaryStrip summary={summary} />
-          <ResultsTable 
-            rows={rows} 
-            loading={loading} 
-            searched={searched} 
+          <ResultsTable
+            rows={rows}
+            loading={loading}
+            searched={searched}
             visibleKeys={visibleKeys}
             onOpenFilters={() => setIsFilterOpen(true)}
           />

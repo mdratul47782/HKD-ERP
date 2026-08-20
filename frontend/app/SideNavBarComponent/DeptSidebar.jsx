@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSidebar } from "@/app/provider/SidebarContext";
 import {
   TrendingUp, Box, Wrench, Warehouse, PackageSearch, MapPin, Boxes,
-  PanelLeft, PanelLeftClose, FolderClosed, ChevronRight, Scissors, ClipboardList, ClipboardCheck,
+  PanelLeft, PanelLeftClose, FolderClosed, ChevronRight, Scissors, ClipboardList, ClipboardCheck, LayoutDashboard,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -25,6 +25,13 @@ const DEPARTMENTS = [
     label: "Material Warehouse",
     icon: Warehouse,
     folders: [
+      {
+        label: "Dashboard",
+        icon: FolderClosed,
+        items: [
+          { href: "/material-warehouse/material-dashboard", label: "Material Dashboard", icon: LayoutDashboard },
+        ],
+      },
       {
         label: "Receiving",
         icon: FolderClosed,
