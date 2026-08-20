@@ -1,47 +1,24 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-stock/page.js
-//
-// UPDATE: Stock Batches table columns are now user-selectable via a
-// "Columns" card (checkboxes, Select All / Reset to Default), so a busy
-// table can be trimmed down to just what's needed. Defaults to:
-//   Date, Buyer, Season, Style/Model, W/H, Item Code/PDM, Color, Location,
-//   Recv. Roll, Recv. Yds, Avail. Roll, Roll %, Avail. Yds, Yds %
-// (Invoice No., Item, and the two mini-donut chart columns are still
-// available to add back in via the picker.)
-//
-// UPDATE: table color scheme replaced -- the previous header/row palette
-// (dull tan/beige) is swapped for a richer amber-to-teal gradient header,
-// warmer alternating row tint, and colored column accents so the table
-// reads livelier at a glance. Roll % / Yds % now render as a bold,
-// slightly-larger AMBER/YELLOW percentage figure (in addition to the
-// small donut) so "how much is left" jumps out immediately.
-//
-// Style / Model cells now render each pair on its own line as
-// "Style | Model" (pipe-separated) instead of "Style / Model", and
-// multiple pairs stack vertically instead of being comma-joined, per the
-// "next style | model" request.
 
 "use client";
 
-import { Boxes, ChevronDown, ChevronUp, RotateCcw, Search, SlidersHorizontal, Check } from "lucide-react";
+import { Boxes, ChevronDown, ChevronUp, RotateCcw, Search, SlidersHorizontal, Check, X, Filter } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-/* ============================================================
-   Shared style tokens -- richer amber/teal theme (replaces the old
-   dull tan palette specifically for this page's table chrome).
-   Non-table surfaces (cards, inputs, buttons) keep the app-wide warm
-   HKD theme so the page still matches its siblings.
-   ============================================================ */
+// ============================================================
+// Styles - Amber/Teal Theme (Improved)
+// ============================================================
 
 const card = "bg-[#f7f5f0] dark:bg-[#221d16] border border-[#2c2417]/10 dark:border-[#e8ddd0]/10 rounded-xl shadow-sm";
 const inputCls =
-  "w-full rounded-md border-[1.5px] border-[#2c2417]/25 dark:border-[#e8ddd0]/25 bg-white dark:bg-[#2a241b] px-2.5 py-1.5 text-sm text-[#2c2417] dark:text-[#e8ddd0] placeholder:text-[#a08060] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#b87a4a]/30 focus:border-[#b87a4a] dark:focus:border-[#d4955e] transition-colors";
+  "w-full rounded-lg border-[1.5px] border-[#2c2417]/25 dark:border-[#e8ddd0]/25 bg-white dark:bg-[#2a241b] px-3 py-2 text-sm text-[#2c2417] dark:text-[#e8ddd0] placeholder:text-[#a08060] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#b87a4a]/30 focus:border-[#b87a4a] dark:focus:border-[#d4955e] transition-all";
 const btnPrimary =
-  "inline-flex items-center gap-1.5 rounded-full bg-[#2c2417] dark:bg-[#e8ddd0] text-[#f0ede6] dark:text-[#1b1712] text-sm px-4 py-2 hover:bg-[#b87a4a] dark:hover:bg-[#d4955e] transition-colors disabled:opacity-50";
+  "inline-flex items-center gap-1.5 rounded-lg bg-[#2c2417] dark:bg-[#e8ddd0] text-[#f0ede6] dark:text-[#1b1712] text-sm px-4 py-2 hover:bg-[#b87a4a] dark:hover:bg-[#d4955e] transition-colors disabled:opacity-50 font-medium";
 const btnSecondary =
-  "inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#2c2417]/25 dark:border-[#e8ddd0]/25 bg-white dark:bg-[#2a241b] text-[#7a6250] dark:text-[#a8917d] text-sm px-3 py-1.5 hover:border-[#b87a4a] hover:text-[#b87a4a] dark:hover:border-[#d4955e] dark:hover:text-[#d4955e] transition-colors disabled:opacity-40 disabled:pointer-events-none";
-const chip = "inline-flex items-center px-2 py-0.5 rounded-full text-[0.85em] bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e] max-w-full truncate";
+  "inline-flex items-center gap-1.5 rounded-lg border-[1.5px] border-[#2c2417]/25 dark:border-[#e8ddd0]/25 bg-white dark:bg-[#2a241b] text-[#7a6250] dark:text-[#a8917d] text-sm px-3 py-2 hover:border-[#b87a4a] hover:text-[#b87a4a] dark:hover:border-[#d4955e] dark:hover:text-[#d4955e] transition-colors disabled:opacity-40 disabled:pointer-events-none font-medium";
+const chip = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e] max-w-full truncate";
 
 const emptyFilters = {
   itemCodePdm: "", style: "", color: "", model: "", season: "",
@@ -61,9 +38,9 @@ const STOCK_FILTER_FIELDS = [
   { key: "location", label: "Location" },
 ];
 
-/* ============================================================
-   Number helpers
-   ============================================================ */
+// ============================================================
+// Helpers
+// ============================================================
 
 const formatNum = (v) => {
   const n = Number(v);
@@ -81,180 +58,9 @@ const numFontSize = (text) => {
   return "0.68em";
 };
 
-/* ============================================================
-   Summary strip -- unchanged behavior, restyled to match the new
-   livelier header colors.
-   ============================================================ */
-
-function SummaryStrip({ summary }) {
-  const [hidden, setHidden] = useState(true);
-  const [query, setQuery] = useState("");
-
-  if (!summary?.length) return null;
-
-  const q = query.trim().toLowerCase();
-  const filtered = q
-    ? summary.filter(
-        (s) =>
-          s.itemCodePdm?.toLowerCase().includes(q) ||
-          s.color?.toLowerCase().includes(q)
-      )
-    : summary;
-
-  return (
-    <div className={`${card} p-3`}>
-      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-        <h2 className="font-serif text-base text-[#1a1208] dark:text-[#f0e8dc]">
-          Total Available{" "}
-          <span className="text-xs font-sans text-[#a08060]">
-            (across all invoices, by Item Code/PDM + Color)
-          </span>
-          <span className="ml-2 text-xs font-sans text-[#a08060]">
-            ({filtered.length}{q ? ` of ${summary.length}` : ""})
-          </span>
-        </h2>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          {!hidden && (
-            <div className="relative flex-1 sm:flex-none">
-              <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#a08060]" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search Item Code/PDM or Color..."
-                className={`${inputCls} !py-1 !pl-6 text-sm w-full sm:w-64`}
-              />
-            </div>
-          )}
-          <button type="button" onClick={() => setHidden((h) => !h)} className={btnSecondary}>
-            {hidden ? "Show" : "Hide"}
-          </button>
-        </div>
-      </div>
-
-      {!hidden && (
-        filtered.length === 0 ? (
-          <div className="text-sm italic text-[#a08060] px-1 py-2">No matches.</div>
-        ) : (
-          <div className="overflow-x-auto max-h-[40vh] overflow-y-auto rounded-lg border border-[#2c2417]/8 dark:border-[#e8ddd0]/8">
-            <table className="min-w-full text-sm border-collapse">
-              <thead className="sticky top-0 bg-gradient-to-r from-[#b87a4a] to-[#8a4a24] dark:from-[#6a4a2a] dark:to-[#4a3018] text-white backdrop-blur">
-                <tr>
-                  <th className="px-3 py-2 text-left">Item Code/PDM</th>
-                  <th className="px-3 py-2 text-left">Color</th>
-                  <th className="px-3 py-2 text-right">Available Roll</th>
-                  <th className="px-3 py-2 text-right">Available Yds</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s, i) => {
-                  const rollText = formatNum(s.totalAvailableRoll);
-                  const ydsText = formatNum(s.totalAvailableYds);
-                  return (
-                    <tr
-                      key={`${s.itemCodePdm}-${s.color}`}
-                      className={`border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#b87a4a]/10 ${i % 2 === 1 ? "bg-[#b87a4a]/[0.04] dark:bg-[#d4955e]/[0.04]" : ""}`}
-                    >
-                      <td className="px-3 py-2 text-[#8a4a24] dark:text-[#d4955e] whitespace-nowrap">
-                        {s.itemCodePdm}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap">{s.color}</td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap text-[#3d7a4a] dark:text-[#8fca9c]">
-                        <span style={{ fontSize: numFontSize(rollText) }} title={rollText}>{rollText}</span>
-                      </td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap text-[#3d7a4a] dark:text-[#8fca9c]">
-                        <span style={{ fontSize: numFontSize(ydsText) }} title={ydsText}>{ydsText}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )
-      )}
-    </div>
-  );
-}
-
-/* ============================================================
-   Filter bar -- unchanged behavior
-   ============================================================ */
-
-function FilterBar({ filters, setFilters, loading, onSearch, onReset }) {
-  const [hidden, setHidden] = useState(true);
-  const activeCount = Object.values(filters).filter((v) => v && v.trim()).length;
-
-  const handleSearch = (e) => {
-    onSearch(e);
-    setHidden(true);
-  };
-
-  const handleReset = () => {
-    onReset();
-  };
-
-  return (
-    <div className={`${card} p-3`}>
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Search size={16} className="text-[#b87a4a]" />
-          <h2 className="font-serif text-base text-[#1a1208] dark:text-[#f0e8dc]">Filters</h2>
-          {activeCount > 0 && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]">
-              {activeCount} active
-            </span>
-          )}
-        </div>
-        <button type="button" onClick={() => setHidden((h) => !h)} className={btnSecondary}>
-          {hidden ? (
-            <>
-              <ChevronDown size={14} /> Show Filters
-            </>
-          ) : (
-            <>
-              <ChevronUp size={14} /> Hide Filters
-            </>
-          )}
-        </button>
-      </div>
-
-      {!hidden && (
-        <form onSubmit={handleSearch} className="mt-3">
-          <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-            {STOCK_FILTER_FIELDS.map((f) => (
-              <label key={f.key} className="min-w-0">
-                <span className="block mb-0.5 text-[11px] uppercase tracking-wide text-[#a08060] whitespace-nowrap">
-                  {f.label}
-                </span>
-                <input
-                  type="text"
-                  value={filters[f.key]}
-                  onChange={(e) => setFilters({ ...filters, [f.key]: e.target.value })}
-                  placeholder={f.label}
-                  className={`${inputCls} text-sm py-1`}
-                />
-              </label>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap justify-end gap-1.5 mt-3">
-            <button type="submit" disabled={loading} className={`${btnPrimary} px-4 whitespace-nowrap`}>
-              {loading ? "..." : "Search"}
-            </button>
-            <button type="button" onClick={handleReset} className={`${btnSecondary} whitespace-nowrap`}>
-              <RotateCcw size={12} /> Reset
-            </button>
-          </div>
-        </form>
-      )}
-    </div>
-  );
-}
-
-/* ============================================================
-   Mini donut chart -- unchanged, colors slightly punched up.
-   ============================================================ */
+// ============================================================
+// Mini Donut Chart
+// ============================================================
 
 function MiniDonut({ percent, size = 28, strokeWidth = 5 }) {
   const clamped = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
@@ -282,10 +88,9 @@ function MiniDonut({ percent, size = 28, strokeWidth = 5 }) {
   );
 }
 
-/* ============================================================
-   Column definitions -- the FULL pool of selectable columns.
-   `defaultOn` marks the columns shown out of the box.
-   ============================================================ */
+// ============================================================
+// Column Definitions
+// ============================================================
 
 const ALL_STOCK_COLUMNS = [
   { key: "date", label: "Date", width: 6, defaultOn: true },
@@ -312,50 +117,225 @@ const TABLE_FONT_STYLE = { fontSize: "clamp(0.6rem, 0.45rem + 0.55vw, 0.875rem)"
 const CELL_PAD = "px-[clamp(2px,0.5vw,10px)] py-[clamp(3px,0.45vw,8px)]";
 const DONUT_BOX = { width: "clamp(14px, 2vw, 26px)", height: "clamp(14px, 2vw, 26px)" };
 
-/* ============================================================
-   ColumnPicker -- a card with a checkbox per selectable column,
-   "Select All" / "Reset to Default" / "Hide All" shortcuts. Starts
-   collapsed so it stays out of the way once columns are set the way
-   the user wants.
-   ============================================================ */
+// ============================================================
+// Summary Strip
+// ============================================================
 
-function ColumnPicker({ visibleKeys, setVisibleKeys }) {
+function SummaryStrip({ summary }) {
   const [hidden, setHidden] = useState(true);
+  const [query, setQuery] = useState("");
 
+  if (!summary?.length) return null;
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? summary.filter(
+        (s) =>
+          s.itemCodePdm?.toLowerCase().includes(q) ||
+          s.color?.toLowerCase().includes(q)
+      )
+    : summary;
+
+  return (
+    <div className={`${card} p-4`}>
+      <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+        <h2 className="font-serif text-base text-[#1a1208] dark:text-[#f0e8dc]">
+          Total Available
+          <span className="ml-2 text-sm font-sans text-[#a08060]">
+            ({filtered.length}{q ? ` of ${summary.length}` : ""})
+          </span>
+        </h2>
+        <div className="flex items-center gap-2">
+          {!hidden && (
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search item or color..."
+              className={`${inputCls} !py-1.5 text-sm w-48`}
+            />
+          )}
+          <button type="button" onClick={() => setHidden((h) => !h)} className={btnSecondary}>
+            {hidden ? "Show" : "Hide"}
+          </button>
+        </div>
+      </div>
+
+      {!hidden && (
+        filtered.length === 0 ? (
+          <div className="text-sm italic text-[#a08060] px-1 py-2">No matches.</div>
+        ) : (
+          <div className="overflow-x-auto max-h-[40vh] overflow-y-auto rounded-lg border border-[#2c2417]/8 dark:border-[#e8ddd0]/8">
+            <table className="min-w-full text-sm border-collapse">
+              <thead className="sticky top-0 bg-gradient-to-r from-[#b87a4a] to-[#8a4a24] dark:from-[#6a4a2a] dark:to-[#4a3018] text-white">
+                <tr>
+                  <th className="px-4 py-2.5 text-left font-semibold">Item Code/PDM</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">Color</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">Avail. Roll</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">Avail. Yds</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((s, i) => (
+                  <tr
+                    key={`${s.itemCodePdm}-${s.color}`}
+                    className={`border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#b87a4a]/10 transition-colors ${
+                      i % 2 === 0 ? "bg-white dark:bg-[#1a1208]" : "bg-[#b87a4a]/[0.04] dark:bg-[#d4955e]/[0.04]"
+                    }`}
+                  >
+                    <td className="px-4 py-2 text-[#8a4a24] dark:text-[#d4955e] font-medium">{s.itemCodePdm}</td>
+                    <td className="px-4 py-2 text-[#2c2417] dark:text-[#e8ddd0]">{s.color}</td>
+                    <td className="px-4 py-2 text-right text-[#3d7a4a] dark:text-[#8fca9c] font-medium">
+                      <span style={{ fontSize: numFontSize(s.totalAvailableRoll) }}>{formatNum(s.totalAvailableRoll)}</span>
+                    </td>
+                    <td className="px-4 py-2 text-right text-[#3d7a4a] dark:text-[#8fca9c] font-medium">
+                      <span style={{ fontSize: numFontSize(s.totalAvailableYds) }}>{formatNum(s.totalAvailableYds)}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Filter Overlay Sidebar
+// ============================================================
+
+function FilterOverlay({ isOpen, onClose, filters, setFilters, onSearch, onReset, loading }) {
+  const activeCount = Object.values(filters).filter((v) => v && v.trim()).length;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSearch(e);
+    onClose();
+  };
+
+  const handleReset = () => {
+    onReset();
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      <div 
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+        onClick={onClose}
+      />
+      
+      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-[#f7f5f0] dark:bg-[#221d16] shadow-2xl z-50 overflow-y-auto animate-slide-in">
+        <div className="sticky top-0 bg-[#f7f5f0] dark:bg-[#221d16] border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 px-4 py-3 flex items-center justify-between z-10">
+          <div className="flex items-center gap-2">
+            <Filter size={18} className="text-[#b87a4a]" />
+            <h2 className="font-serif text-lg text-[#1a1208] dark:text-[#f0e8dc]">Filters</h2>
+            {activeCount > 0 && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]">
+                {activeCount}
+              </span>
+            )}
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-[#2c2417]/10 dark:hover:bg-[#e8ddd0]/10 transition-colors"
+          >
+            <X size={20} className="text-[#7a6250] dark:text-[#a8917d]" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          <div className="space-y-3">
+            {STOCK_FILTER_FIELDS.map((f) => (
+              <div key={f.key}>
+                <label className="block text-xs uppercase tracking-wide text-[#a08060] mb-1">
+                  {f.label}
+                </label>
+                <input
+                  type="text"
+                  value={filters[f.key]}
+                  onChange={(e) => setFilters({ ...filters, [f.key]: e.target.value })}
+                  placeholder={f.label}
+                  className={inputCls}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-2 pt-3 border-t border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
+            <button type="submit" disabled={loading} className={`${btnPrimary} flex-1 justify-center`}>
+              {loading ? "..." : "Search"}
+            </button>
+            <button type="button" onClick={handleReset} className={btnSecondary}>
+              <RotateCcw size={14} /> Reset
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <style jsx>{`
+        @keyframes slide-in {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        .animate-slide-in {
+          animation: slide-in 0.3s ease-out;
+        }
+      `}</style>
+    </>
+  );
+}
+
+// ============================================================
+// Column Overlay Sidebar
+// ============================================================
+
+function ColumnOverlay({ isOpen, onClose, visibleKeys, setVisibleKeys }) {
   const toggle = (key) =>
     setVisibleKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
 
   const selectAll = () => setVisibleKeys(ALL_STOCK_COLUMNS.map((c) => c.key));
   const resetDefault = () => setVisibleKeys(DEFAULT_VISIBLE_KEYS);
 
-  return (
-    <div className={`${card} p-3`}>
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal size={16} className="text-[#3d8a7a] dark:text-[#6fd0b8]" />
-          <h2 className="font-serif text-base text-[#1a1208] dark:text-[#f0e8dc]">Columns</h2>
-          <span className="text-xs text-[#a08060]">({visibleKeys.length} of {ALL_STOCK_COLUMNS.length} shown)</span>
-        </div>
-        <button type="button" onClick={() => setHidden((h) => !h)} className={btnSecondary}>
-          {hidden ? (
-            <>
-              <ChevronDown size={14} /> Choose Columns
-            </>
-          ) : (
-            <>
-              <ChevronUp size={14} /> Hide
-            </>
-          )}
-        </button>
-      </div>
+  if (!isOpen) return null;
 
-      {!hidden && (
-        <div className="mt-3 space-y-3">
-          <div className="flex flex-wrap gap-1.5">
-            <button type="button" onClick={selectAll} className={btnSecondary}>Select All</button>
-            <button type="button" onClick={resetDefault} className={btnSecondary}>Reset to Default</button>
+  return (
+    <>
+      <div 
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+        onClick={onClose}
+      />
+      
+      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-[#f7f5f0] dark:bg-[#221d16] shadow-2xl z-50 overflow-y-auto animate-slide-in">
+        <div className="sticky top-0 bg-[#f7f5f0] dark:bg-[#221d16] border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 px-4 py-3 flex items-center justify-between z-10">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal size={18} className="text-[#3d8a7a] dark:text-[#6fd0b8]" />
+            <h2 className="font-serif text-lg text-[#1a1208] dark:text-[#f0e8dc]">Columns</h2>
+            <span className="text-sm text-[#a08060]">({visibleKeys.length} of {ALL_STOCK_COLUMNS.length})</span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+          <button 
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-[#2c2417]/10 dark:hover:bg-[#e8ddd0]/10 transition-colors"
+          >
+            <X size={20} className="text-[#7a6250] dark:text-[#a8917d]" />
+          </button>
+        </div>
+
+        <div className="p-4">
+          <div className="flex gap-2 mb-4">
+            <button type="button" onClick={selectAll} className={`${btnSecondary} flex-1 justify-center`}>
+              Select All
+            </button>
+            <button type="button" onClick={resetDefault} className={`${btnSecondary} flex-1 justify-center`}>
+              Reset
+            </button>
+          </div>
+
+          <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
             {ALL_STOCK_COLUMNS.map((c) => {
               const on = visibleKeys.includes(c.key);
               return (
@@ -363,14 +343,18 @@ function ColumnPicker({ visibleKeys, setVisibleKeys }) {
                   key={c.key}
                   type="button"
                   onClick={() => toggle(c.key)}
-                  className={`flex items-center gap-2 rounded-lg border-[1.5px] px-2.5 py-1.5 text-left text-xs font-medium transition-colors ${
+                  className={`w-full flex items-center gap-3 rounded-lg border-[1.5px] px-3 py-2.5 text-sm transition-all ${
                     on
                       ? "border-[#3d8a7a] dark:border-[#6fd0b8] bg-[#3d8a7a]/10 dark:bg-[#6fd0b8]/10 text-[#2c6a5a] dark:text-[#6fd0b8]"
                       : "border-[#2c2417]/15 dark:border-[#e8ddd0]/15 text-[#7a6250] dark:text-[#a8917d] hover:border-[#3d8a7a]/50"
                   }`}
                 >
-                  <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-[1.5px] ${on ? "bg-[#3d8a7a] dark:bg-[#6fd0b8] border-[#3d8a7a] dark:border-[#6fd0b8]" : "border-[#2c2417]/25 dark:border-[#e8ddd0]/25"}`}>
-                    {on && <Check size={11} className="text-white dark:text-[#1b1712]" />}
+                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 ${
+                    on 
+                      ? "bg-[#3d8a7a] dark:bg-[#6fd0b8] border-[#3d8a7a] dark:border-[#6fd0b8]" 
+                      : "border-[#2c2417]/25 dark:border-[#e8ddd0]/25"
+                  }`}>
+                    {on && <Check size={13} className="text-white dark:text-[#1b1712]" />}
                   </span>
                   {c.label}
                 </button>
@@ -378,14 +362,24 @@ function ColumnPicker({ visibleKeys, setVisibleKeys }) {
             })}
           </div>
         </div>
-      )}
-    </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes slide-in {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        .animate-slide-in {
+          animation: slide-in 0.3s ease-out;
+        }
+      `}</style>
+    </>
   );
 }
 
-/* ============================================================
-   Results table cells
-   ============================================================ */
+// ============================================================
+// Table Components
+// ============================================================
 
 function Cell({ children, align, title, className = "" }) {
   return (
@@ -403,7 +397,7 @@ function NumCell({ value }) {
   const text = formatNum(value);
   return (
     <td className={`${CELL_PAD} text-right overflow-hidden text-[#2c2417] dark:text-[#e8ddd0]`}>
-      <div className="truncate" style={{ fontSize: numFontSize(text) }} title={text}>
+      <div className="truncate font-mono" style={{ fontSize: numFontSize(text) }} title={text}>
         {text}
       </div>
     </td>
@@ -413,22 +407,19 @@ function NumCell({ value }) {
 function AvailCell({ value }) {
   const text = formatNum(value);
   return (
-    <td className={`${CELL_PAD} text-right overflow-hidden text-[#2c8a6a] dark:text-[#7fd8a8] font-medium`}>
-      <div className="truncate" style={{ fontSize: numFontSize(text) }} title={text}>
+    <td className={`${CELL_PAD} text-right overflow-hidden text-[#3d7a4a] dark:text-[#8fca9c] font-semibold`}>
+      <div className="truncate font-mono" style={{ fontSize: numFontSize(text) }} title={text}>
         {text}
       </div>
     </td>
   );
 }
 
-// Roll % / Yds % -- a bold, slightly-larger AMBER/YELLOW percentage
-// figure sits next to a small donut, so "how much is left" reads at a
-// glance instead of needing to compare Avail. vs Recv. columns manually.
 function PercentCell({ percent, title }) {
   const clamped = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
   return (
     <td className={`${CELL_PAD} overflow-hidden`}>
-      <div className="flex items-center justify-center gap-1" title={title}>
+      <div className="flex items-center justify-center gap-1.5" title={title}>
         <div style={DONUT_BOX}>
           <MiniDonut percent={clamped} />
         </div>
@@ -443,9 +434,6 @@ function PercentCell({ percent, title }) {
   );
 }
 
-// Style / Model -- each pair renders as its own line, "Style | Model"
-// (pipe-separated). With several pairs, they stack vertically; a small
-// "+N more" toggle keeps the row from growing too tall by default.
 function StyleModelCell({ styles }) {
   const [expanded, setExpanded] = useState(false);
   const list = styles || [];
@@ -468,16 +456,12 @@ function StyleModelCell({ styles }) {
           <button
             type="button"
             onClick={() => setExpanded((e) => !e)}
-            className="mt-0.5 inline-flex items-center gap-0.5 text-[0.75em] text-[#3d8a7a] dark:text-[#6fd0b8] hover:underline"
+            className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-[#3d8a7a] dark:text-[#6fd0b8] hover:underline"
           >
             {expanded ? (
-              <>
-                <ChevronUp size={10} /> Show less
-              </>
+              <><ChevronUp size={12} /> Show less</>
             ) : (
-              <>
-                <ChevronDown size={10} /> +{hiddenCount} more
-              </>
+              <><ChevronDown size={12} /> +{hiddenCount} more</>
             )}
           </button>
         )}
@@ -488,96 +472,70 @@ function StyleModelCell({ styles }) {
 
 function renderStockCell(colKey, r, rollPct, ydsPct) {
   switch (colKey) {
-    case "date":
-      return <Cell key="date" title={r.date?.slice(0, 10)}>{r.date?.slice(0, 10)}</Cell>;
-    case "invoiceNo":
-      return (
-        <Cell key="invoiceNo" title={r.invoiceNo} className="text-[#1a1208] dark:text-[#f0e8dc]">
-          {r.invoiceNo}
-        </Cell>
-      );
-    case "buyer":
-      return <Cell key="buyer" title={r.buyer}>{r.buyer}</Cell>;
-    case "season":
-      return <Cell key="season" title={r.season}>{r.season}</Cell>;
-    case "styleModel":
-      return <StyleModelCell key="styleModel" styles={r.styles} />;
-    case "warehouse":
-      return (
-        <Cell key="warehouse" title={r.warehouse}>
-          <span className={chip}>{r.warehouse}</span>
-        </Cell>
-      );
-    case "item":
-      return <Cell key="item" title={r.item}>{r.item}</Cell>;
-    case "itemCodePdm":
-      return (
-        <Cell key="itemCodePdm" title={r.itemCodePdm} className="text-[#8a4a24] dark:text-[#d4955e] font-medium">
-          {r.itemCodePdm}
-        </Cell>
-      );
-    case "color":
-      return <Cell key="color" title={r.color}>{r.color}</Cell>;
-    case "location":
-      return (
-        <Cell key="location" title={r.location}>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.85em] bg-[#3d8a7a]/12 text-[#2c6a5a] dark:bg-[#6fd0b8]/15 dark:text-[#6fd0b8]">
-            {r.location}
-          </span>
-        </Cell>
-      );
-    case "receivedRoll":
-      return <NumCell key="receivedRoll" value={r.rollQty} />;
-    case "receivedYds":
-      return <NumCell key="receivedYds" value={r.yds} />;
-    case "availableRoll":
-      return <AvailCell key="availableRoll" value={r.availableRoll} />;
-    case "rollChart":
-      return <PercentCell key="rollChart" percent={rollPct} title={`${rollPct}% of received roll still available`} />;
-    case "availableYds":
-      return <AvailCell key="availableYds" value={r.availableYds} />;
-    case "ydsChart":
-      return <PercentCell key="ydsChart" percent={ydsPct} title={`${ydsPct}% of received yds still available`} />;
-    default:
-      return null;
+    case "date": return <Cell key="date" title={r.date?.slice(0, 10)}>{r.date?.slice(0, 10)}</Cell>;
+    case "invoiceNo": return <Cell key="invoiceNo" title={r.invoiceNo}>{r.invoiceNo}</Cell>;
+    case "buyer": return <Cell key="buyer" title={r.buyer}>{r.buyer}</Cell>;
+    case "season": return <Cell key="season" title={r.season}>{r.season}</Cell>;
+    case "styleModel": return <StyleModelCell key="styleModel" styles={r.styles} />;
+    case "warehouse": return <Cell key="warehouse" title={r.warehouse}><span className={chip}>{r.warehouse}</span></Cell>;
+    case "item": return <Cell key="item" title={r.item}>{r.item}</Cell>;
+    case "itemCodePdm": return <Cell key="itemCodePdm" title={r.itemCodePdm} className="text-[#8a4a24] dark:text-[#d4955e] font-medium">{r.itemCodePdm}</Cell>;
+    case "color": return <Cell key="color" title={r.color}>{r.color}</Cell>;
+    case "location": return <Cell key="location" title={r.location}><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#3d8a7a]/12 text-[#2c6a5a] dark:bg-[#6fd0b8]/15 dark:text-[#6fd0b8]">{r.location}</span></Cell>;
+    case "receivedRoll": return <NumCell key="receivedRoll" value={r.rollQty} />;
+    case "receivedYds": return <NumCell key="receivedYds" value={r.yds} />;
+    case "availableRoll": return <AvailCell key="availableRoll" value={r.availableRoll} />;
+    case "rollChart": return <PercentCell key="rollChart" percent={rollPct} title={`${rollPct}% of received roll still available`} />;
+    case "availableYds": return <AvailCell key="availableYds" value={r.availableYds} />;
+    case "ydsChart": return <PercentCell key="ydsChart" percent={ydsPct} title={`${ydsPct}% of received yds still available`} />;
+    default: return null;
   }
 }
 
-/* ============================================================
-   Results table -- header now uses a livelier amber -> teal
-   gradient (was a flat dull tan), rows alternate with a soft warm
-   tint, and hovers pick up a stronger highlight.
-   ============================================================ */
+// ============================================================
+// Results Table - Improved Amber/Teal Theme
+// ============================================================
 
-function ResultsTable({ rows, loading, searched, visibleKeys }) {
+function ResultsTable({ rows, loading, searched, visibleKeys, onOpenFilters }) {
   const columns = useMemo(
     () => ALL_STOCK_COLUMNS.filter((c) => visibleKeys.includes(c.key)),
     [visibleKeys]
   );
-  // Re-normalize widths so whatever subset is chosen still sums to ~100%.
   const totalWidth = columns.reduce((s, c) => s + c.width, 0) || 1;
 
   return (
     <div className={`${card} flex flex-col overflow-hidden`}>
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 bg-gradient-to-r from-[#b87a4a]/10 to-[#3d8a7a]/10">
-        <Boxes size={16} className="text-[#b87a4a]" />
-        <h2 className="font-serif text-lg text-[#1a1208] dark:text-[#f0e8dc]">Stock Batches</h2>
-        <span className="text-sm text-[#a08060]">({rows.length})</span>
+      <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 bg-gradient-to-r from-[#b87a4a]/10 via-[#b87a4a]/5 to-[#3d8a7a]/10">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 rounded-lg bg-[#b87a4a]/10 dark:bg-[#d4955e]/10">
+            <Boxes size={18} className="text-[#b87a4a] dark:text-[#d4955e]" />
+          </div>
+          <h2 className="font-serif text-lg text-[#1a1208] dark:text-[#f0e8dc]">Stock Batches</h2>
+          <span className="text-sm text-[#a08060] bg-[#2c2417]/5 dark:bg-[#e8ddd0]/5 px-2.5 py-0.5 rounded-full">
+            {rows.length}
+          </span>
+        </div>
+        <button onClick={onOpenFilters} className={btnSecondary}>
+          <Filter size={14} /> Filters
+        </button>
       </div>
 
       <div
-        className="flex-1 overflow-y-auto overflow-x-hidden max-h-[65vh] no-scrollbar"
-        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        className="flex-1 overflow-y-auto overflow-x-hidden max-h-[65vh]"
+        style={{ scrollbarWidth: "thin", msOverflowStyle: "auto" }}
       >
         {loading ? (
-          <div className="text-center py-8 text-[#a08060] text-sm">Loading...</div>
+          <div className="text-center py-12 text-[#a08060] text-sm">
+            <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#b87a4a] border-t-transparent mb-2"></div>
+            <div>Loading...</div>
+          </div>
         ) : rows.length === 0 ? (
-          <div className="text-center py-8 text-[#a08060] text-sm px-4">
-            {searched ? "No stock batches match these filters." : "Enter filters and search, or search with everything blank to see all available stock."}
+          <div className="text-center py-12 text-[#a08060] text-sm px-4">
+            {searched ? "No stock batches match these filters." : "Click Filters to search for stock."}
           </div>
         ) : columns.length === 0 ? (
-          <div className="text-center py-8 text-[#a08060] text-sm px-4">
-            No columns selected -- use "Choose Columns" above to pick at least one.
+          <div className="text-center py-12 text-[#a08060] text-sm px-4">
+            No columns selected — use Columns picker.
           </div>
         ) : (
           <table className="w-full border-collapse table-fixed" style={TABLE_FONT_STYLE}>
@@ -586,14 +544,16 @@ function ResultsTable({ rows, loading, searched, visibleKeys }) {
                 <col key={c.key} style={{ width: `${(c.width / totalWidth) * 100}%` }} />
               ))}
             </colgroup>
-            <thead className="sticky top-0 bg-gradient-to-r from-[#b87a4a] via-[#a8703f] to-[#3d8a7a] dark:from-[#6a4a2a] dark:via-[#5a4020] dark:to-[#2c6a5a] text-white backdrop-blur shadow-sm">
-              <tr>
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-gradient-to-r from-[#b87a4a] via-[#a8703f] to-[#3d8a7a] dark:from-[#6a4a2a] dark:via-[#5a4020] dark:to-[#2c6a5a]">
                 {columns.map((c) => (
                   <th
                     key={c.key}
-                    className={`${CELL_PAD} overflow-hidden font-semibold ${c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left"}`}
+                    className={`${CELL_PAD} overflow-hidden font-semibold text-white/95 ${
+                      c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left"
+                    }`}
                   >
-                    <div className="truncate" title={c.label}>{c.label}</div>
+                    <div className="truncate text-[0.9em] tracking-wide" title={c.label}>{c.label}</div>
                   </th>
                 ))}
               </tr>
@@ -605,8 +565,10 @@ function ResultsTable({ rows, loading, searched, visibleKeys }) {
                 return (
                   <tr
                     key={r.itemId}
-                    className={`border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#3d8a7a]/10 dark:hover:bg-[#6fd0b8]/10 transition-colors ${
-                      i % 2 === 1 ? "bg-[#b87a4a]/[0.05] dark:bg-[#d4955e]/[0.05]" : "bg-transparent"
+                    className={`border-t border-[#2c2417]/6 dark:border-[#e8ddd0]/6 transition-all duration-150 ${
+                      i % 2 === 0 
+                        ? "bg-white dark:bg-[#1a1208] hover:bg-[#b87a4a]/[0.06] dark:hover:bg-[#d4955e]/[0.06]" 
+                        : "bg-[#b87a4a]/[0.03] dark:bg-[#d4955e]/[0.03] hover:bg-[#b87a4a]/[0.08] dark:hover:bg-[#d4955e]/[0.08]"
                     }`}
                   >
                     {columns.map((c) => renderStockCell(c.key, r, rollPct, ydsPct))}
@@ -619,17 +581,34 @@ function ResultsTable({ rows, loading, searched, visibleKeys }) {
       </div>
 
       <style jsx>{`
-        .no-scrollbar::-webkit-scrollbar {
-          display: none;
+        ::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: #c4b5a5;
+          border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: #a8907d;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+          background: #5a4a3a;
+        }
+        .dark ::-webkit-scrollbar-thumb:hover {
+          background: #6a5a4a;
         }
       `}</style>
     </div>
   );
 }
 
-/* ============================================================
-   Main page
-   ============================================================ */
+// ============================================================
+// Main Page
+// ============================================================
 
 export default function MaterialStockPage() {
   const [filters, setFilters] = useState(emptyFilters);
@@ -639,6 +618,8 @@ export default function MaterialStockPage() {
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
   const [visibleKeys, setVisibleKeys] = useState(DEFAULT_VISIBLE_KEYS);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isColumnOpen, setIsColumnOpen] = useState(false);
 
   const runSearch = useCallback(async (f) => {
     setLoading(true); setError("");
@@ -655,7 +636,6 @@ export default function MaterialStockPage() {
     } catch (err) { setError(err.message); } finally { setLoading(false); }
   }, []);
 
-  // Load full available stock on first visit.
   useEffect(() => { runSearch(emptyFilters); }, [runSearch]);
 
   const handleSubmit = (e) => { e.preventDefault(); runSearch(filters); };
@@ -664,28 +644,66 @@ export default function MaterialStockPage() {
   return (
     <div className="min-h-screen bg-[#f0ede6] dark:bg-[#1b1712]">
       <div className="max-w-[1400px] mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
-        <div className="flex items-center gap-2">
-          <Search size={22} className="text-[#b87a4a] shrink-0" />
-          <h1 className="font-serif text-xl sm:text-2xl text-[#1a1208] dark:text-[#f0e8dc]">
-            Material Stock <em className="italic text-[#b87a4a] dark:text-[#d4955e]">Search</em>
-          </h1>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-[#b87a4a] to-[#8a4a24] dark:from-[#6a4a2a] dark:to-[#4a3018] text-white shadow-lg">
+              <Search size={20} />
+            </div>
+            <div>
+              <h1 className="font-serif text-xl sm:text-2xl text-[#1a1208] dark:text-[#f0e8dc]">
+                Material Stock
+              </h1>
+              <p className="text-sm text-[#a08060]">Search and manage inventory</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setIsFilterOpen(true)} 
+              className={btnSecondary}
+            >
+              <Filter size={16} /> Filters
+            </button>
+            <button 
+              onClick={() => setIsColumnOpen(true)} 
+              className={btnSecondary}
+            >
+              <SlidersHorizontal size={16} /> Columns
+            </button>
+          </div>
         </div>
 
-        {error && <div className="rounded-lg bg-[#b87a4a]/10 border border-[#b87a4a]/25 text-[#8a4a24] dark:text-[#e0a878] text-sm px-3 py-2"><b>Error:</b> {error}</div>}
+        {error && (
+          <div className="rounded-lg bg-[#b87a4a]/10 border border-[#b87a4a]/25 text-[#8a4a24] dark:text-[#e0a878] text-sm px-4 py-3">
+            <b>Error:</b> {error}
+          </div>
+        )}
 
-        <FilterBar
+        <FilterOverlay
+          isOpen={isFilterOpen}
+          onClose={() => setIsFilterOpen(false)}
           filters={filters}
           setFilters={setFilters}
-          loading={loading}
           onSearch={handleSubmit}
           onReset={handleReset}
+          loading={loading}
         />
 
-        <ColumnPicker visibleKeys={visibleKeys} setVisibleKeys={setVisibleKeys} />
+        <ColumnOverlay
+          isOpen={isColumnOpen}
+          onClose={() => setIsColumnOpen(false)}
+          visibleKeys={visibleKeys}
+          setVisibleKeys={setVisibleKeys}
+        />
 
         <div className="space-y-4">
           <SummaryStrip summary={summary} />
-          <ResultsTable rows={rows} loading={loading} searched={searched} visibleKeys={visibleKeys} />
+          <ResultsTable 
+            rows={rows} 
+            loading={loading} 
+            searched={searched} 
+            visibleKeys={visibleKeys}
+            onOpenFilters={() => setIsFilterOpen(true)}
+          />
         </div>
       </div>
     </div>
