@@ -37,10 +37,10 @@ async function getFullReceive(id) {
 
 /**
  * GET /material-receive
- * GET /material-receive?invoiceNo=...&buyer=...&supplier=...&po=...&style=...&model=...&itemCodePdm=...&color=...&fabricName=...
+ * GET /material-receive?invoiceNo=...&buyer=...&supplier=...&po=...&style=...&model=...&itemCodePdm=...&color=...&fabricDetails=...
  *
  * Returns every Material Receive with its styles[] (Style + Model) and
- * items[] (Item Code/PDM, Color, Fabric Name, Roll, Yds, unassignedRoll/Yds,
+ * items[] (Item Code/PDM, Color, Fabric Details, Roll, Yds, unassignedRoll/Yds,
  * status, locations[]).
  *
  * Each query field is matched ONLY against its own column (no more single
@@ -52,13 +52,13 @@ async function getFullReceive(id) {
  *   - style / model           -> matched on the SAME materialReceiveStyles
  *                                 row (AND), so "Style=X, Model=Y" only
  *                                 matches a row that has both.
- *   - itemCodePdm / color / fabricName
+ *   - itemCodePdm / color / fabricDetails
  *                              -> matched on the SAME materialReceiveItems
  *                                 row (AND), so "Item Code=X, Color=Y" only
  *                                 matches a row that has both -- an item
  *                                 whose itemCodePdm happens to equal the
  *                                 color you typed (or vice versa) will NOT
- *                                 match anymore. Fabric Name is now REQUIRED
+ *                                 match anymore. Fabric Details is now REQUIRED
  *                                 free text at the item/batch level (see
  *                                 createMaterialReceive / updateMaterialReceive).
  *
@@ -69,7 +69,7 @@ async function getFullReceive(id) {
  */
 export const getAllMaterialReceives = async (req, res) => {
   try {
-    const { invoiceNo, buyer, supplier, po, style, model, itemCodePdm, color, fabricName } = req.query;
+    const { invoiceNo, buyer, supplier, po, style, model, itemCodePdm, color, fabricDetails } = req.query;
 
     const has = (v) => typeof v === "string" && v.trim().length > 0;
     const term = (v) => `%${v.trim()}%`;
@@ -110,12 +110,12 @@ export const getAllMaterialReceives = async (req, res) => {
       intersect(rows.map((r) => r.materialReceiveId));
     }
 
-    // --- Item Code/PDM + Color + Fabric Name: must match on the SAME item row ---
-    if (has(itemCodePdm) || has(color) || has(fabricName)) {
+    // --- Item Code/PDM + Color + Fabric Details: must match on the SAME item row ---
+    if (has(itemCodePdm) || has(color) || has(fabricDetails)) {
       const conditions = [];
       if (has(itemCodePdm)) conditions.push(like(materialReceiveItems.itemCodePdm, term(itemCodePdm)));
       if (has(color)) conditions.push(like(materialReceiveItems.color, term(color)));
-      if (has(fabricName)) conditions.push(like(materialReceiveItems.fabricName, term(fabricName)));
+      if (has(fabricDetails)) conditions.push(like(materialReceiveItems.fabricDetails, term(fabricDetails)));
       const rows = await db
         .select({ materialReceiveId: materialReceiveItems.materialReceiveId })
         .from(materialReceiveItems)
@@ -188,13 +188,13 @@ export const getMaterialReceiveById = async (req, res) => {
  * POST /material-receive
  * Body: { date, invoiceNo, fromType, warehouse, buyer, supplier, season, po, item, buy, remark,
  *         styles: [{ style, model }],
- *         items: [{ itemCodePdm, color, fabricName, rollQty, yds }] }
+ *         items: [{ itemCodePdm, color, fabricDetails, rollQty, yds }] }
  *
  * "remark" is optional free text — not required, never validated.
  * "supplier" is optional free text at the invoice/parent level — not required.
  * "buy" is optional free text at the invoice/parent level — not required.
- * "fabricName" is REQUIRED free text at the item/batch level (one per Item
- * Code/PDM + Color row) — every item row must have a non-empty Fabric Name.
+ * "fabricDetails" is REQUIRED free text at the item/batch level (one per Item
+ * Code/PDM + Color row) — every item row must have non-empty Fabric Details.
  *
  * NOTE: Location/Rack is intentionally never accepted here, and neither is
  * a Passed/Rejected quantity. Every item row is created as status
@@ -221,9 +221,9 @@ export const createMaterialReceive = async (req, res) => {
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: "At least one Item Code/PDM + Color row is required" });
     }
-    // "fabricName" is now required for every item/batch row.
-    if (items.some((row) => !row.fabricName || !row.fabricName.trim())) {
-      return res.status(400).json({ message: "Fabric Name is required for every Item Code/PDM + Color row" });
+    // "fabricDetails" is now required for every item/batch row.
+    if (items.some((row) => !row.fabricDetails || !row.fabricDetails.trim())) {
+      return res.status(400).json({ message: "Fabric Details is required for every Item Code/PDM + Color row" });
     }
 
     // Transaction: parent + styles + item batches + history succeed together or not at all.
@@ -250,7 +250,7 @@ export const createMaterialReceive = async (req, res) => {
           materialReceiveId,
           itemCodePdm: row.itemCodePdm,
           color: row.color,
-          fabricName: row.fabricName.trim(),
+          fabricDetails: row.fabricDetails.trim(),
           rollQty,
           yds,
           passedRoll: 0,
@@ -303,7 +303,7 @@ export const createMaterialReceive = async (req, res) => {
  * "rejected" are all still safe to wipe and recreate; only "partial" /
  * "approved" (i.e. actually has rack stock) locks editing.
  *
- * "buy" is optional here too; "fabricName" is required for every incoming
+ * "buy" is optional here too; "fabricDetails" is required for every incoming
  * item row, same as create.
  *
  * Any such batch that gets deleted here has its stock_history rows
@@ -317,8 +317,8 @@ export const updateMaterialReceive = async (req, res) => {
     const { id } = req.params;
     const { date, invoiceNo, fromType, warehouse, buyer, supplier, season, po, item, buy, remark, styles, items } = req.body;
 
-    if (Array.isArray(items) && items.some((row) => !row.fabricName || !row.fabricName.trim())) {
-      return res.status(400).json({ message: "Fabric Name is required for every Item Code/PDM + Color row" });
+    if (Array.isArray(items) && items.some((row) => !row.fabricDetails || !row.fabricDetails.trim())) {
+      return res.status(400).json({ message: "Fabric Details is required for every Item Code/PDM + Color row" });
     }
 
     const [existing] = await db.select().from(materialReceives).where(eq(materialReceives.id, id));
@@ -381,7 +381,7 @@ export const updateMaterialReceive = async (req, res) => {
             materialReceiveId: Number(id),
             itemCodePdm: row.itemCodePdm,
             color: row.color,
-            fabricName: row.fabricName.trim(),
+            fabricDetails: row.fabricDetails.trim(),
             rollQty,
             yds,
             passedRoll: 0,

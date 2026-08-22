@@ -59,7 +59,7 @@ export const materialReceives = mysqlTable("material_receives", {
   season: varchar("season", { length: 100 }).notNull(),
   po: varchar("po", { length: 150 }).notNull(),
   item: varchar("item", { length: 150 }).notNull(),
-  buy: varchar("buy", { length: 150 }).notNull(),
+  buy: varchar("buy", { length: 150 }),
   remark: varchar("remark", { length: 255 }), // optional free text, never required
   status: mysqlEnum("status", ["pending", "approved"]).notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -93,7 +93,7 @@ export const materialReceiveStyles = mysqlTable(
 // many racks, each tracked as its own row in material_receive_item_locations
 // below.
 //
-// fabricName is optional free text, entered per Item Code/PDM + Color row
+// fabricDetails is optional free text, entered per Item Code/PDM + Color row
 // (i.e. item/batch level -- NOT shared across the whole Receive, since two
 // colors/item codes on the same invoice can be different fabrics).
 //
@@ -126,7 +126,7 @@ export const materialReceiveItems = mysqlTable(
     }).notNull(),
     itemCodePdm: varchar("item_code_pdm", { length: 150 }).notNull(),
     color: varchar("color", { length: 100 }).notNull(),
-    fabricName: varchar("fabric_name", { length: 150 }), // optional, free text -- item/batch level
+    fabricDetails: varchar("fabric_details", { length: 150 }), // optional, free text -- item/batch level
     rollQty: int("roll_qty").notNull(), // as received, immutable
     yds: decimal("yds", { precision: 10, scale: 2 }).notNull(), // as received, immutable
 

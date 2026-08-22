@@ -131,7 +131,7 @@ const COL = {
   PO: 4,
   STYLE: 5,
   MODEL: 6,
-  FABRIC_NAME: 7,
+  FABRIC_DETAILS: 7,
   ITEM: 8,
   ITEM_CODE: 9,
   COLOR: 10,
@@ -222,7 +222,7 @@ function loadRows(filePath) {
       po: s(row[COL.PO]),
       style: s(row[COL.STYLE]),
       model: s(row[COL.MODEL]),
-      fabricName: s(row[COL.FABRIC_NAME]),
+      fabricDetails: s(row[COL.FABRIC_DETAILS]),
       item: s(row[COL.ITEM]),
       itemCodePdm: s(row[COL.ITEM_CODE]),
       color: s(row[COL.COLOR]),
@@ -284,7 +284,7 @@ function groupData(rows) {
         parent.items.set(itemKey, {
           itemCodePdm: r.itemCodePdm,
           color: r.color,
-          fabricName: r.fabricName,
+          fabricDetails: r.fabricDetails,
           date: r.date,
           rollQty: 0,
           yds: 0,
@@ -292,7 +292,7 @@ function groupData(rows) {
         });
       }
       const batch = parent.items.get(itemKey);
-      if (!batch.fabricName && r.fabricName) batch.fabricName = r.fabricName;
+      if (!batch.fabricDetails && r.fabricDetails) batch.fabricDetails = r.fabricDetails;
       batch.rollQty += r.rcvdRoll;
       batch.yds += r.rcvdYds;
       batch.locations.push({
@@ -379,7 +379,7 @@ async function main() {
           materialReceiveId,
           itemCodePdm: batch.itemCodePdm,
           color: batch.color,
-          fabricName: batch.fabricName || null,
+          fabricDetails: batch.fabricDetails || null,
           rollQty: batch.rollQty,
           yds: money(batch.yds),
           passedRoll,

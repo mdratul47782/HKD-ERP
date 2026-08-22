@@ -79,10 +79,10 @@ const emptyForm = {
   date: "", invoiceNo: "", fromType: "Overseas", warehouse: "K-2",
   buyer: "", supplier: "", season: "", po: "", item: "", buy: "", remark: "",
 };
-// "fabricName" is REQUIRED free text at the item/batch level -- one per
+// "fabricDetails" is REQUIRED free text at the item/batch level -- one per
 // Item Code/PDM + Color row, since different colors/item codes on the
 // same invoice can be different fabrics and this is now mandatory data.
-const newColor = () => ({ key: uid(), color: "", fabricName: "", roll: "", yds: "" });
+const newColor = () => ({ key: uid(), color: "", fabricDetails: "", roll: "", yds: "" });
 const newItemCode = () => ({ key: uid(), itemCodePdm: "", colors: [newColor()] });
 const newStyleRow = () => ({ key: uid(), style: "", model: "" });
 
@@ -93,7 +93,7 @@ const newStyleRow = () => ({ key: uid(), style: "", model: "" });
 // to the backend as its OWN query param and matched only against its own
 // column there -- see fetchReceives below.
 const emptyRecordFilters = {
-  invoiceNo: "", buyer: "", supplier: "", po: "", style: "", model: "", itemCodePdm: "", color: "", fabricName: "",
+  invoiceNo: "", buyer: "", supplier: "", po: "", style: "", model: "", itemCodePdm: "", color: "", fabricDetails: "",
 };
 const RECORD_FILTER_FIELDS = [
   { key: "invoiceNo", label: "Invoice No." },
@@ -104,7 +104,7 @@ const RECORD_FILTER_FIELDS = [
   { key: "model", label: "Model" },
   { key: "itemCodePdm", label: "Item Code/PDM" },
   { key: "color", label: "Color" },
-  { key: "fabricName", label: "Fabric Name" },
+  { key: "fabricDetails", label: "Fabric Details" },
 ];
 
 /* ============================================================
@@ -224,10 +224,10 @@ function StockPreview({ preview }) {
 }
 
 /* ============================================================
-   ColorRow -- Color/Fabric Name/Roll/Yds inputs, plus a live
+  ColorRow -- Color/Fabric Details/Roll/Yds inputs, plus a live
    "already in stock" preview (Rack + Date + Qty) for this exact
    Item Code/PDM + Color, pulled from Available Stock as the user
-   types. Fabric Name is REQUIRED and does not affect the stock
+  types. Fabric Details is REQUIRED and does not affect the stock
    lookup (which is keyed on Item Code/PDM + Color only).
    ============================================================ */
 
@@ -282,9 +282,9 @@ function ColorRow({ itemCodePdm, color, canRemove, onRemove, onChange }) {
       <input
         type="text"
         required
-        placeholder="Fabric Name *"
-        value={color.fabricName}
-        onChange={(e) => onChange(color.key, "fabricName", up(e.target.value))}
+        placeholder="Fabric Details *"
+        value={color.fabricDetails}
+        onChange={(e) => onChange(color.key, "fabricDetails", up(e.target.value))}
         className={inputCls}
       />
       <div className="grid grid-cols-2 gap-1.5">
@@ -438,7 +438,7 @@ function AllocationList({ locations, onSaveEdit, onDelete, busyId }) {
    Code/PDM + Color already sits (Rack + Date-wise) before you
    commit to a rack.
 
-   Fabric Name is shown as its own read-only column here (it's
+  Fabric Details is shown as its own read-only column here (it's
    entered once on Material Receive and never edited from this
    drawer).
 
@@ -557,7 +557,7 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
               <tr className="text-[#4a6578] dark:text-[#8fb0c4] border-b-2 border-[#3d6a8a]/20 dark:border-[#6fa8d0]/20 bg-[#dde8ef]/60 dark:bg-white/[0.03]">
                 <th className="px-3 py-2 text-left font-semibold w-1/5">Item Code / PDM</th>
                 <th className="px-3 py-2 text-left font-semibold">Color</th>
-                <th className="px-3 py-2 text-left font-semibold">Fabric Name</th>
+                <th className="px-3 py-2 text-left font-semibold">Fabric Details</th>
                 <th className="px-3 py-2 text-left font-semibold">Received Roll/Yds</th>
                 <th className="px-3 py-2 text-left font-semibold">Passed / Rejected</th>
                 <th className="px-3 py-2 text-left font-semibold">Unassigned</th>
@@ -582,7 +582,7 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
                       <td className="px-3 py-2 text-[#2c4a63] dark:text-[#8fb0c4] font-bold align-top">{row.itemCodePdm}</td>
                       <td className="px-3 py-2 font-medium align-top">{row.color}</td>
                       <td className="px-3 py-2 align-top">
-                        {row.fabricName || <span className="italic text-[#a08060]">-</span>}
+                        {row.fabricDetails || <span className="italic text-[#a08060]">-</span>}
                       </td>
                       <td className="px-3 py-2 align-top whitespace-nowrap">{row.rollQty} Roll / {row.yds} Yds</td>
                       <td className="px-3 py-2 align-top whitespace-nowrap">
@@ -713,7 +713,7 @@ function ItemsBreakdownTable({ invoiceNo, items, onAssigned }) {
 /* ============================================================
    Saved Records search row -- one clearly-labeled input per field
    (Invoice No., Buyer [dropdown], Supplier, PO, Style, Model, Item
-   Code/PDM, Color, Fabric Name), all sitting on a single
+  Code/PDM, Color, Fabric Details), all sitting on a single
    horizontally-scrollable line. Each field is sent to the backend
    as its own query param and matched only against its own column
    there, so "Item Code/PDM" never accidentally matches a "Color"
@@ -891,7 +891,7 @@ export default function MaterialReceivePage() {
 
   // Each filter box is sent to the backend as its OWN query param
   // (invoiceNo=, buyer=, supplier=, po=, style=, model=, itemCodePdm=,
-  // color=, fabricName=) and the backend matches each one only against its
+  // color=, fabricDetails=) and the backend matches each one only against its
   // own column (AND across whichever fields are filled in). This is what
   // fixes "Item Code/PDM = TEST-2" incorrectly matching a row whose Color
   // happens to be TEST-2.
@@ -943,14 +943,14 @@ export default function MaterialReceivePage() {
 
     const items = itemCodes.flatMap((ic) =>
       ic.colors.filter((c) => c.color).map((c) => ({
-        itemCodePdm: ic.itemCodePdm, color: c.color, fabricName: c.fabricName, rollQty: c.roll, yds: c.yds,
+        itemCodePdm: ic.itemCodePdm, color: c.color, fabricDetails: c.fabricDetails, rollQty: c.roll, yds: c.yds,
       }))
     );
     if (items.length === 0) { setError("Add at least one Item Code/PDM with a Color row."); return; }
 
-    // Fabric Name is now required for every Item Code/PDM + Color row.
-    if (items.some((it) => !it.fabricName || !it.fabricName.trim())) {
-      setError("Fabric Name is required for every Item Code/PDM + Color row.");
+    // Fabric Details is required for every Item Code/PDM + Color row.
+    if (items.some((it) => !it.fabricDetails || !it.fabricDetails.trim())) {
+      setError("Fabric Details is required for every Item Code/PDM + Color row.");
       return;
     }
 
@@ -996,7 +996,7 @@ export default function MaterialReceivePage() {
       for (const row of data.items) {
         let g = grouped.find((g) => g.itemCodePdm === row.itemCodePdm);
         if (!g) { g = { key: uid(), itemCodePdm: row.itemCodePdm, colors: [] }; grouped.push(g); }
-        g.colors.push({ key: uid(), color: row.color, fabricName: row.fabricName || "", roll: row.rollQty, yds: row.yds });
+        g.colors.push({ key: uid(), color: row.color, fabricDetails: row.fabricDetails || "", roll: row.rollQty, yds: row.yds });
       }
       setItemCodes(grouped.length ? grouped : [newItemCode()]);
       setEditingId(id);

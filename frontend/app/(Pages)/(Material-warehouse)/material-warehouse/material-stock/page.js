@@ -23,7 +23,7 @@ const chip = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-m
 const emptyFilters = {
   itemCodePdm: "", style: "", color: "", model: "", season: "",
   buyer: "", invoiceNo: "", item: "", warehouse: "", location: "",
-  supplier: "", fabricName: "",
+  supplier: "", fabricDetails: "",
 };
 
 const STOCK_FILTER_FIELDS = [
@@ -38,7 +38,7 @@ const STOCK_FILTER_FIELDS = [
   { key: "warehouse", label: "Warehouse" },
   { key: "location", label: "Location" },
   { key: "supplier", label: "Supplier" },
-  { key: "fabricName", label: "Fabric Name" },
+  { key: "fabricDetails", label: "Fabric Details" },
 ];
 
 // ============================================================
@@ -105,10 +105,10 @@ const ALL_STOCK_COLUMNS = [
   { key: "item", label: "Item", width: 7, defaultOn: false },
   { key: "itemCodePdm", label: "Item Code/PDM", width: 9, defaultOn: true },
   { key: "color", label: "Color", width: 7, defaultOn: true },
-  // NEW: Fabric Name + Supplier are searchable/displayable but start OFF so
+  // NEW: Fabric Details + Supplier are searchable/displayable but start OFF so
   // the default table looks exactly like it did before this change -- the
   // user opts in to them via the Columns picker.
-  { key: "fabricName", label: "Fabric Name", width: 8, defaultOn: false },
+  { key: "fabricDetails", label: "Fabric Details", width: 8, defaultOn: false },
   { key: "supplier", label: "Supplier", width: 8, defaultOn: false },
   { key: "location", label: "Location", width: 6, defaultOn: true },
   { key: "receivedRoll", label: "Recv. Roll", width: 6, align: "right", defaultOn: true },
@@ -486,7 +486,7 @@ function renderStockCell(colKey, r, rollPct, ydsPct) {
     case "item": return <Cell key="item" title={r.item}>{r.item}</Cell>;
     case "itemCodePdm": return <Cell key="itemCodePdm" title={r.itemCodePdm} className="text-[#8a4a24] dark:text-[#d4955e] font-medium">{r.itemCodePdm}</Cell>;
     case "color": return <Cell key="color" title={r.color}>{r.color}</Cell>;
-    case "fabricName": return <Cell key="fabricName" title={r.fabricName}>{r.fabricName || <span className="italic text-[#a08060]">-</span>}</Cell>;
+    case "fabricDetails": return <Cell key="fabricDetails" title={r.fabricDetails}>{r.fabricDetails || <span className="italic text-[#a08060]">-</span>}</Cell>;
     case "supplier": return <Cell key="supplier" title={r.supplier}>{r.supplier || <span className="italic text-[#a08060]">-</span>}</Cell>;
     case "location": return <Cell key="location" title={r.location}><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#3d8a7a]/12 text-[#2c6a5a] dark:bg-[#6fd0b8]/15 dark:text-[#6fd0b8]">{r.location}</span></Cell>;
     case "receivedRoll": return <NumCell key="receivedRoll" value={r.rollQty} />;
