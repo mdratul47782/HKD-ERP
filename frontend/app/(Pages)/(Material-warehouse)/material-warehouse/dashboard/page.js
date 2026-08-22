@@ -1,39 +1,41 @@
-// frontend/app/(Pages)/(Material-warehouse)/material-warehouse/buyer-dashboard/page.js
+// frontend/app/(Pages)/(Material-warehouse)/material-warehouse/dashboard/page.js
+
 //
-// BRAND NEW page -- "Buyer Overview" dashboard. White theme, single
+// Dashboard page for the buyer overview. White theme, single
 // viewport (h-screen + overflow-hidden, no page scroll at all), reading
-// from a brand new endpoint (GET /dashboard/buyer-overview, served by
-// buyerDashboard.controllers.js / buyerDashboard.routes.js). Does not
-// modify material-dashboard/page.js (the existing dark rack-view
-// dashboard) or any other existing page/controller/route.
+// from two endpoints:
+//   - GET /dashboard/buyer-overview  (dashboard.controllers.js)   -> kpis, buyerStock, statusBreakdown, requisitionBreakdown
+//   - GET /material-rack-view        (materialRackView.controllers.js) -> stockBySupplier only
+//
+// The supplier-wise bar chart below is a straight reuse of the SAME
+// controller/route that already powers the "By Supplier" panel on the
+// material-dashboard (rack view) page -- no new backend endpoint or
+// aggregation logic was added. We just fetch /material-rack-view here as
+// well and pull out its `stockBySupplier` array.
 //
 // What's on screen, all at once, no scrolling:
 //   - 4 KPI cards: Total Available Roll, Total Available Yds,
 //     Pending Inspection, Total Receiving
-//   - Buyer-wise Available Roll -- bar chart (the main chart)
+//   - Buyer-wise Available Roll -- horizontal-scroll vertical bar chart
+//   - Supplier-wise Available Yds -- horizontal-scroll vertical bar chart (NEW)
 //   - Batch Status breakdown -- pie chart
 //   - Requisition Status breakdown -- pie chart
-//
-// NOTE: this intentionally does NOT show rack/location-wise data (the
-// existing material-dashboard page already covers that) -- just
-// buyer-wise stock + the two pending counts, exactly as requested.
 
 "use client";
 
-import { useEffect, useState } from "react";
-import { Boxes, ClipboardCheck, PackageSearch, Layers, Loader2 } from "lucide-react";
+import { Boxes, ClipboardCheck, Layers, Loader2, PackageSearch } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
-  YAxis,
+  YAxis
 } from "recharts";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -41,9 +43,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 // ============================================================
 // TEMP: frontend-only DUMMY DATA switch.
 // Set this to false once the backend endpoint (GET /dashboard/buyer-
-// overview, from buyerDashboard.controllers.js) is ready -- the real
-// fetch() call further down is already written and untouched, it's just
-// skipped while this is true. Nothing else in this file needs to change.
+// overview, from dashboard.controllers.js) is ready -- the real
+// fetch() calls further down are already written and untouched, it's
+// just skipped while this is true. Nothing else in this file needs to
+// change.
 // ============================================================
 const USE_DUMMY_DATA = true;
 
@@ -82,6 +85,16 @@ const DUMMY_DATA = {
     { status: "fulfilled", count: 40 },
     { status: "partial", count: 12 },
     { status: "pending", count: 8 },
+  ],
+  // Same shape as materialRackView's `stockBySupplier` field.
+  stockBySupplier: [
+    { supplier: "SANLI", yds: 210500 },
+    { supplier: "TAIWAN TEXTILE", yds: 168300 },
+    { supplier: "YKK", yds: 122400 },
+    { supplier: "FORMOSA", yds: 95800 },
+    { supplier: "HUAFON", yds: 74200 },
+    { supplier: "UNKNOWN", yds: 41250 },
+    { supplier: "NAN YA", yds: 28900 },
   ],
 };
 
@@ -131,6 +144,18 @@ const fmt = (v) => {
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 };
 
+// Lets a plain vertical mouse-wheel scroll these panels horizontally --
+// without this, a normal wheel (no shift held) does nothing on a
+// horizontal-only overflow container and the extra buyers/suppliers are
+// only reachable by dragging the thin scrollbar itself.
+const handleWheelScroll = (e) => {
+  if (e.deltaY === 0) return; // already a horizontal gesture (trackpad/shift+wheel) -- let the browser handle it
+  const el = e.currentTarget;
+  if (el.scrollWidth <= el.clientWidth) return; // nothing to scroll
+  e.preventDefault();
+  el.scrollLeft += e.deltaY;
+};
+
 /* ============================================================
    Small shared bits
    ============================================================ */
@@ -153,10 +178,10 @@ function Panel({ eyebrow, title, right, children }) {
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 8, flexShrink: 0 }}>
         <div>
-          <div style={{ fontFamily: monoFont, fontSize: 9, letterSpacing: "0.12em", color: T.amber, textTransform: "uppercase", marginBottom: 2 }}>
+          <div style={{ fontFamily: monoFont, fontSize: 11, letterSpacing: "0.12em", color: T.amber, textTransform: "uppercase", marginBottom: 3 }}>
             {eyebrow}
           </div>
-          <div style={{ fontFamily: displayFont, fontSize: 15, fontWeight: 600, color: T.text }}>{title}</div>
+          <div style={{ fontFamily: displayFont, fontSize: 18, fontWeight: 600, color: T.text }}>{title}</div>
         </div>
         {right}
       </div>
@@ -171,28 +196,28 @@ function KpiCard({ icon: Icon, label, value, unit, accent }) {
       style={{
         background: T.panel,
         border: `1px solid ${T.border}`,
-        borderRadius: 10,
-        padding: "10px 14px",
+        borderRadius: 12,
+        padding: "16px 20px",
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
-        gap: 6,
+        gap: 10,
         position: "relative",
         overflow: "hidden",
         height: "100%",
         boxShadow: "0 1px 3px rgba(26,18,8,0.04)",
       }}
     >
-      <div style={{ position: "absolute", top: 0, left: 0, width: 3, height: "100%", background: accent }} />
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <Icon size={13} color={accent} strokeWidth={2} />
-        <span style={{ fontFamily: monoFont, fontSize: 9, letterSpacing: "0.08em", color: T.muted, textTransform: "uppercase" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, width: 5, height: "100%", background: accent }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Icon size={18} color={accent} strokeWidth={2} />
+        <span style={{ fontFamily: monoFont, fontSize: 12, letterSpacing: "0.08em", color: T.muted, textTransform: "uppercase" }}>
           {label}
         </span>
       </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
-        <span style={{ fontFamily: displayFont, fontSize: 24, fontWeight: 700, color: T.text, lineHeight: 1 }}>{fmt(value)}</span>
-        {unit && <span style={{ fontFamily: monoFont, fontSize: 10, color: T.muted }}>{unit}</span>}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+        <span style={{ fontFamily: displayFont, fontSize: 38, fontWeight: 700, color: T.text, lineHeight: 1 }}>{fmt(value)}</span>
+        {unit && <span style={{ fontFamily: monoFont, fontSize: 14, color: T.muted }}>{unit}</span>}
       </div>
     </div>
   );
@@ -201,8 +226,8 @@ function KpiCard({ icon: Icon, label, value, unit, accent }) {
 function CustomTooltip({ active, payload, label, unit }) {
   if (!active || !payload || !payload.length) return null;
   return (
-    <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 6, padding: "7px 11px", fontFamily: monoFont, fontSize: 11, color: T.text, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
-      <div style={{ color: T.muted, marginBottom: 2 }}>{label}</div>
+    <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 6, padding: "9px 13px", fontFamily: monoFont, fontSize: 13, color: T.text, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
+      <div style={{ color: T.muted, marginBottom: 3 }}>{label}</div>
       {payload.map((p, i) => (
         <div key={i} style={{ color: p.color || p.fill }}>
           {p.name}: {typeof p.value === "number" ? p.value.toLocaleString() : p.value}
@@ -215,12 +240,12 @@ function CustomTooltip({ active, payload, label, unit }) {
 
 function PieLegendList({ data, colorMap, labelMap, total }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, justifyContent: "center" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 7, justifyContent: "center" }}>
       {data.map((d) => (
-        <div key={d.status} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 11 }}>
-          <span style={{ width: 8, height: 8, borderRadius: 2, background: colorMap[d.status] || T.muted, display: "inline-block", flexShrink: 0 }} />
+        <div key={d.status} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontSize: 14 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 3, background: colorMap[d.status] || T.muted, display: "inline-block", flexShrink: 0 }} />
           <span style={{ color: T.text, flex: 1 }}>{labelMap[d.status] || d.status}</span>
-          <span style={{ fontFamily: monoFont, color: T.muted }}>
+          <span style={{ fontFamily: monoFont, fontSize: 13, color: T.muted }}>
             {d.count} {total ? `(${Math.round((d.count / total) * 100)}%)` : ""}
           </span>
         </div>
@@ -233,15 +258,15 @@ function PieLegendList({ data, colorMap, labelMap, total }) {
    Main page
    ============================================================ */
 
-export default function BuyerDashboardPage() {
+export default function DashboardPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // TEMP: serve dummy data until the real backend endpoint is wired up.
-    // Flip USE_DUMMY_DATA to false above to switch back to the live fetch
-    // below -- everything else on this page already expects this exact
-    // shape, so no other change is needed.
+    // TEMP: serve dummy data until the real backend endpoints are wired
+    // up. Flip USE_DUMMY_DATA to false above to switch back to the live
+    // fetches below -- everything else on this page already expects
+    // this exact shape, so no other change is needed.
     if (USE_DUMMY_DATA) {
       setData(DUMMY_DATA);
       return;
@@ -250,10 +275,25 @@ export default function BuyerDashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/dashboard/buyer-overview`, { credentials: "include" });
-        if (!res.ok) throw new Error("Failed to load buyer dashboard data");
-        const json = await res.json();
-        if (!cancelled) setData(json);
+        // Two calls, two existing endpoints -- no new backend route:
+        //   /dashboard/buyer-overview -> kpis, buyerStock, statusBreakdown, requisitionBreakdown
+        //   /material-rack-view       -> stockBySupplier (same controller/route the rack-view page already uses)
+        const [overviewRes, rackViewRes] = await Promise.all([
+          fetch(`${API_URL}/dashboard/buyer-overview`, { credentials: "include" }),
+          fetch(`${API_URL}/material-rack-view`, { credentials: "include" }),
+        ]);
+        if (!overviewRes.ok) throw new Error("Failed to load buyer dashboard data");
+        if (!rackViewRes.ok) throw new Error("Failed to load supplier stock data");
+
+        const overviewJson = await overviewRes.json();
+        const rackViewJson = await rackViewRes.json();
+
+        if (!cancelled) {
+          setData({
+            ...overviewJson,
+            stockBySupplier: rackViewJson.stockBySupplier || [],
+          });
+        }
       } catch (err) {
         if (!cancelled) setError(err.message);
       }
@@ -277,7 +317,13 @@ export default function BuyerDashboardPage() {
     );
   }
 
-  const { kpis, buyerStock = [], statusBreakdown = [], requisitionBreakdown = [] } = data;
+  const {
+    kpis,
+    buyerStock = [],
+    statusBreakdown = [],
+    requisitionBreakdown = [],
+    stockBySupplier = [],
+  } = data;
   const statusTotal = statusBreakdown.reduce((s, r) => s + r.count, 0);
   const reqTotal = requisitionBreakdown.reduce((s, r) => s + r.count, 0);
 
@@ -300,6 +346,16 @@ export default function BuyerDashboardPage() {
         @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
         * { box-sizing: border-box; }
         html, body { overflow: hidden; }
+        .buyer-scroll { height: 100%; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; scrollbar-color: ${T.amber} ${T.border}; scrollbar-width: thin; }
+        .buyer-scroll::-webkit-scrollbar { height: 9px; }
+        .buyer-scroll::-webkit-scrollbar-track { background: ${T.border}; border-radius: 5px; }
+        .buyer-scroll::-webkit-scrollbar-thumb { background: ${T.amber}; border-radius: 5px; }
+        .buyer-scroll::-webkit-scrollbar-thumb:hover { background: ${T.amberDark}; }
+        .supplier-scroll { height: 100%; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; scrollbar-color: ${T.slate} ${T.border}; scrollbar-width: thin; }
+        .supplier-scroll::-webkit-scrollbar { height: 9px; }
+        .supplier-scroll::-webkit-scrollbar-track { background: ${T.border}; border-radius: 5px; }
+        .supplier-scroll::-webkit-scrollbar-thumb { background: ${T.slate}; border-radius: 5px; }
+        .supplier-scroll::-webkit-scrollbar-thumb:hover { background: #2a4a63; }
       `}</style>
 
       {/* Header */}
@@ -318,51 +374,95 @@ export default function BuyerDashboardPage() {
         </div>
       </div>
 
-      {/* KPI row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, flexShrink: 0, height: 78 }}>
+      {/* KPI row -- taller cards, bigger numbers */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, flexShrink: 0, height: 118 }}>
         <KpiCard icon={Boxes} label="Available Roll" value={kpis.totalAvailableRoll} unit="Roll" accent={T.amber} />
         <KpiCard icon={Layers} label="Available Yds" value={kpis.totalAvailableYds} unit="Yds" accent={T.teal} />
         <KpiCard icon={ClipboardCheck} label="Inspection Pending" value={kpis.pendingInspectionCount} unit="batches" accent="#7a4a8a" />
         <KpiCard icon={PackageSearch} label="Total Receiving" value={kpis.totalReceivingCount} unit="invoices" accent={T.slate} />
       </div>
 
-      {/* Charts row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr", gap: 10, flex: 1, minHeight: 0 }}>
-        {/* Buyer-wise Roll -- main bar chart */}
+      {/* Charts row -- 4 columns now: buyer bar, supplier bar, batch pie, requisition pie */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1.3fr 0.85fr 0.85fr", gap: 10, flex: 1, minHeight: 0 }}>
+        {/* Buyer-wise Roll -- main VERTICAL bar chart (bars rise from the
+            bottom, buyer names along the X axis), horizontally scrollable
+            when there are many buyers. */}
         <Panel
           eyebrow="By Buyer"
           title="Available Roll"
-          right={<span style={{ fontFamily: monoFont, fontSize: 9, color: T.muted }}>{buyerStock.length} buyers</span>}
+          right={<span style={{ fontFamily: monoFont, fontSize: 11, color: T.muted }}>{buyerStock.length} buyers</span>}
         >
           {buyerStock.length === 0 ? (
-            <div style={{ color: T.muted, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+            <div style={{ color: T.muted, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
               No stock data yet.
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={buyerStock} layout="vertical" margin={{ left: 4, right: 16, top: 4, bottom: 4 }} barCategoryGap="24%">
-                <CartesianGrid strokeDasharray="3 3" stroke={T.border} horizontal={false} />
-                <XAxis type="number" tick={{ fill: T.muted, fontSize: 10, fontFamily: monoFont }} axisLine={{ stroke: T.border }} tickLine={false} />
-                <YAxis
-                  type="category"
-                  dataKey="buyer"
-                  tick={{ fill: T.text, fontSize: 10.5, fontFamily: bodyFont }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={110}
-                  interval={0}
-                />
-                <Tooltip content={<CustomTooltip unit=" roll" />} cursor={{ fill: "rgba(184,122,74,0.06)" }} />
-                <Bar dataKey="roll" name="Roll" fill={T.amber} radius={[0, 4, 4, 0]} barSize={16} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="buyer-scroll">
+              <div style={{ height: "100%", minWidth: Math.max(buyerStock.length * 88, 100) }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={buyerStock} margin={{ left: 4, right: 16, top: 4, bottom: 4 }} barCategoryGap="28%">
+                    <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                    <XAxis
+                      dataKey="buyer"
+                      tick={{ fill: T.text, fontSize: 11.5, fontFamily: bodyFont }}
+                      axisLine={{ stroke: T.border }}
+                      tickLine={false}
+                      interval={0}
+                      tickFormatter={(v) => (typeof v === "string" && v.length > 12 ? `${v.slice(0, 12)}…` : v)}
+                    />
+                    <YAxis type="number" tick={{ fill: T.muted, fontSize: 11, fontFamily: monoFont }} axisLine={false} tickLine={false} width={44} />
+                    <Tooltip content={<CustomTooltip unit=" roll" />} cursor={{ fill: "rgba(184,122,74,0.06)" }} />
+                    <Bar dataKey="roll" name="Roll" fill={T.amber} radius={[4, 4, 0, 0]} barSize={34} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+        </Panel>
+
+        {/* Supplier-wise Yds -- NEW. Same data shape/source as the "By
+            Supplier" panel on the material-dashboard (rack view) page --
+            fetched from the SAME /material-rack-view controller/route,
+            just re-rendered here in the white theme. Horizontally
+            scrollable vertical bar chart, same pattern as the buyer
+            chart above. */}
+        <Panel
+          eyebrow="By Supplier"
+          title="Available Yds"
+          right={<span style={{ fontFamily: monoFont, fontSize: 11, color: T.muted }}>{stockBySupplier.length} suppliers</span>}
+        >
+          {stockBySupplier.length === 0 ? (
+            <div style={{ color: T.muted, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+              No supplier data yet.
+            </div>
+          ) : (
+            <div className="supplier-scroll">
+              <div style={{ height: "100%", minWidth: Math.max(stockBySupplier.length * 72, 100) }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={stockBySupplier} margin={{ left: 4, right: 16, top: 4, bottom: 4 }} barCategoryGap="28%">
+                    <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                    <XAxis
+                      dataKey="supplier"
+                      tick={{ fill: T.text, fontSize: 11.5, fontFamily: bodyFont }}
+                      axisLine={{ stroke: T.border }}
+                      tickLine={false}
+                      interval={0}
+                      tickFormatter={(v) => (typeof v === "string" && v.length > 10 ? `${v.slice(0, 10)}…` : v)}
+                    />
+                    <YAxis type="number" tick={{ fill: T.muted, fontSize: 11, fontFamily: monoFont }} axisLine={false} tickLine={false} width={44} />
+                    <Tooltip content={<CustomTooltip unit=" yds" />} cursor={{ fill: "rgba(61,106,138,0.06)" }} />
+                    <Bar dataKey="yds" name="Yds" fill={T.slate} radius={[4, 4, 0, 0]} barSize={34} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           )}
         </Panel>
 
         {/* Batch status pie */}
         <Panel eyebrow="Stock Batches" title="Status Breakdown">
           {statusBreakdown.length === 0 ? (
-            <div style={{ color: T.muted, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+            <div style={{ color: T.muted, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
               No batches yet.
             </div>
           ) : (
@@ -389,7 +489,7 @@ export default function BuyerDashboardPage() {
                         if (!active || !payload?.length) return null;
                         const d = payload[0].payload;
                         return (
-                          <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 10px", fontFamily: bodyFont, fontSize: 11, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
+                          <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 6, padding: "7px 11px", fontFamily: bodyFont, fontSize: 13, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
                             {STATUS_LABELS[d.status] || d.status}: <b>{d.count}</b>
                           </div>
                         );
@@ -408,7 +508,7 @@ export default function BuyerDashboardPage() {
         {/* Requisition status pie */}
         <Panel eyebrow="Cutting Requisitions" title="Fulfillment Status">
           {requisitionBreakdown.length === 0 ? (
-            <div style={{ color: T.muted, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+            <div style={{ color: T.muted, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
               No requisitions yet.
             </div>
           ) : (
@@ -435,7 +535,7 @@ export default function BuyerDashboardPage() {
                         if (!active || !payload?.length) return null;
                         const d = payload[0].payload;
                         return (
-                          <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 10px", fontFamily: bodyFont, fontSize: 11, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
+                          <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 6, padding: "7px 11px", fontFamily: bodyFont, fontSize: 13, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
                             {REQ_LABELS[d.status] || d.status}: <b>{d.count}</b>
                           </div>
                         );

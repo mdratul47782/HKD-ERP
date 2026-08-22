@@ -4,14 +4,14 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import authRoutes from "./routes/auth.routes.js";
-import materialReceiveRoutes from "./routes/materialReceive.routes.js";
-import locationAssignmentRoutes from "./routes/locationAssignment.routes.js";
-import materialStockRoutes from "./routes/materialStock.routes.js";
-import cuttingRequisitionRoutes from "./routes/cuttingRequisition.routes.js"; // ← new
 import cuttingIssueRoutes from "./routes/cuttingIssue.routes.js"; // ← new
+import cuttingRequisitionRoutes from "./routes/cuttingRequisition.routes.js"; // ← new
+import dashboardRoutes from "./routes/dashboard.routes.js";
+import locationAssignmentRoutes from "./routes/locationAssignment.routes.js";
 import materialInspectionRoutes from "./routes/materialInspection.routes.js"; // ← new
 import materialRackView from "./routes/materialRackView.routes.js";
-import buyerDashboardRoutes from "./routes/buyerDashboard.routes.js";
+import materialReceiveRoutes from "./routes/materialReceive.routes.js";
+import materialStockRoutes from "./routes/materialStock.routes.js";
 
 dotenv.config();
 
@@ -22,7 +22,7 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 app.use("/auth", authRoutes);
-app.use("/dashboard", buyerDashboardRoutes);
+app.use("/dashboard", dashboardRoutes);
 app.use("/material-rack-view", materialRackView);
 app.use("/material-inspection", materialInspectionRoutes); // ← new
 app.use("/material-receive", materialReceiveRoutes);

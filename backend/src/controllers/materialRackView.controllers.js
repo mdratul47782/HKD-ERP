@@ -1,4 +1,6 @@
-// backend/src/controllers/dashboard.controllers.js
+// backend/src/controllers/materialRackView.controllers.js
+
+
 //
 // One-shot aggregation endpoint that powers the Material Control
 // dashboard (material-dashboard page). Pulls the handful of tables it

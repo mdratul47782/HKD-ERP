@@ -1,10 +1,6 @@
-// backend/src/controllers/buyerDashboard.controllers.js
+// backend/src/controllers/dashboard.controllers.js
 //
-// BRAND NEW, STANDALONE controller for the "Buyer Overview" white
-// dashboard. It does not modify or import from dashboard.controllers.js
-// (the existing dark rack-view dashboard) -- it just reads the same
-// tables independently, in JS, the same style as every other controller
-// in this codebase.
+// Controller for the main Dashboard overview screen.
 //
 // Powers a single GET endpoint that gives the frontend everything it
 // needs in one call:
@@ -33,7 +29,7 @@ const round2 = (n) => Math.round(Number(n) * 100) / 100;
 /**
  * GET /dashboard/buyer-overview
  */
-export const buyerOverview = async (req, res) => {
+export const dashboardOverview = async (req, res) => {
   try {
     const [receives, items, locations, requisitions] = await Promise.all([
       db.select().from(materialReceives),
@@ -95,7 +91,7 @@ export const buyerOverview = async (req, res) => {
       requisitionBreakdown,
     });
   } catch (error) {
-    console.error("buyerOverview error:", error);
-    res.status(500).json({ message: "Failed to load buyer dashboard overview" });
+    console.error("dashboardOverview error:", error);
+    res.status(500).json({ message: "Failed to load dashboard overview" });
   }
 };
