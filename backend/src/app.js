@@ -11,6 +11,8 @@ import cuttingRequisitionRoutes from "./routes/cuttingRequisition.routes.js"; //
 import cuttingIssueRoutes from "./routes/cuttingIssue.routes.js"; // ← new
 import materialInspectionRoutes from "./routes/materialInspection.routes.js"; // ← new
 import materialRackView from "./routes/materialRackView.routes.js";
+import buyerDashboardRoutes from "./routes/buyerDashboard.routes.js";
+
 dotenv.config();
 
 const app = express();
@@ -20,6 +22,7 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 app.use("/auth", authRoutes);
+app.use("/dashboard", buyerDashboardRoutes);
 app.use("/material-rack-view", materialRackView);
 app.use("/material-inspection", materialInspectionRoutes); // ← new
 app.use("/material-receive", materialReceiveRoutes);
