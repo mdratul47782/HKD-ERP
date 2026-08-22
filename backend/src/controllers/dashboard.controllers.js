@@ -125,14 +125,37 @@ export const getMaterialOverview = async (req, res) => {
     // ---------------- Rack occupancy (+ per-rack item breakdown) ----------------
     // fillPercent = how much of what was ever placed on this rack is
     // STILL available (100% = nothing issued yet from it).
-    // items[] = every Item Code/PDM + Color currently sitting on that
-    // specific rack, with how much Roll/Yds of it is still available --
-    // this is what the frontend hover tooltip reads from.
+    //
+    // IMPORTANT FIX: a rack can have MULTIPLE location-allocation rows
+    // over its lifetime (one per batch ever assigned there). Previously
+    // every row's original `yds` was added to placedYds forever, even
+    // after that row's stock was 100% issued (availableYds === 0). That
+    // meant a fully-issued old batch kept inflating the denominator, so
+    // if the same rack was later refilled from scratch with a brand-new
+    // batch, fillPercent came out much lower than the rack's true,
+    // current occupancy (e.g. an actually-full rack showing 15-50%
+    // instead of ~100%), and kept drifting lower with every future
+    // receive/issue cycle.
+    //
+    // Fix: a location row that has been fully drawn down
+    // (availableYds === 0) no longer occupies real physical space on the
+    // rack, so it should NOT contribute to placedYds/availableYds at
+    // all -- only rows that still hold live stock represent the rack's
+    // current occupancy. The rack entry is still created/kept either
+    // way, so a rack with only exhausted rows correctly shows up as an
+    // empty rack (fillPercent 0) instead of vanishing or being skewed.
     const rackTotals = new Map(); // location -> { placedYds, availableYds, items: Map(key -> {itemCodePdm,color,availableRoll,availableYds}) }
     for (const loc of locations) {
       const cur = rackTotals.get(loc.location) || { placedYds: 0, availableYds: 0, items: new Map() };
-      cur.placedYds += Number(loc.yds);
-      cur.availableYds += Number(loc.availableYds);
+
+      const availableYds = Number(loc.availableYds);
+      // Only rows that still have live stock count toward current
+      // occupancy -- a fully-issued row is no longer physically taking
+      // up space on this rack.
+      if (availableYds > 0) {
+        cur.placedYds += Number(loc.yds);
+        cur.availableYds += availableYds;
+      }
 
       const item = itemById.get(loc.itemId);
       if (item) {

@@ -1,27 +1,4 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-dashboard/page.js
-//
-// Real-data Material Control dashboard -- everything comes from
-// GET /dashboard/material-overview (dashboard.controllers.js). Laid out
-// to fit exactly one viewport (h-screen, overflow-hidden everywhere) so
-// the whole picture is visible without scrolling, same dark "control
-// room" theme as the reference mock.
-//
-// Layout: compact Total Available KPI + Top Items side-by-side at the
-// top, Rack Occupancy full-width below (hover shows the Item/Color +
-// Roll/Yds breakdown for that specific rack via a viewport-fixed
-// tooltip so it's never clipped by scroll containers), then Warehouse
-// bar + Supplier bar + Recent Activity at the bottom.
-//
-// NOTE on the bottom row: it's a 3-column CSS Grid ("By Warehouse" /
-// "By Supplier" / "Recent Activity"). The Supplier panel can have a LOT
-// of bars (one per distinct supplier), so its chart scrolls
-// horizontally *inside* its own panel rather than growing wider. Grid
-// tracks default to shrinking based on their content's min-content size
-// unless the grid item explicitly opts out with minWidth: 0 -- without
-// that, a wide inner chart pushes its own grid track wider and squeezes
-// the other columns (this is why "By Warehouse" was shrinking before).
-// Panel() below sets minWidth: 0 for exactly this reason.
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -257,9 +234,7 @@ export default function MaterialDashboardPage() {
           <div style={{ fontFamily: monoFont, fontSize: 10, letterSpacing: "0.16em", color: T.muted, textTransform: "uppercase", marginBottom: 3 }}>
             HKD Outdoor Innovations · Material Warehouse
           </div>
-          <h1 style={{ fontFamily: displayFont, fontSize: "clamp(24px, 2.4vw, 34px)", fontWeight: 700, letterSpacing: "0.01em", margin: 0, textTransform: "uppercase" }}>
-            Material Control
-          </h1>
+          
         </div>
         <div style={{ fontFamily: monoFont, fontSize: 11, color: T.muted, display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.sage, display: "inline-block" }} />
