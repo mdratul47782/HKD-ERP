@@ -3,17 +3,16 @@
 import {
   bigint,
   boolean,
+  date,
+  decimal,
+  foreignKey,
   int,
-  json,
   mysqlEnum,
   mysqlTable,
   serial,
   text,
   timestamp,
-  varchar,
-  date,
-  decimal,
-  foreignKey,
+  varchar
 } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {

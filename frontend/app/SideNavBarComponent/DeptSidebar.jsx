@@ -29,7 +29,7 @@ const DEPARTMENTS = [
         label: "Dashboard",
         icon: FolderClosed,
         items: [
-          { href: "/material-warehouse/material-dashboard", label: "Material Dashboard", icon: LayoutDashboard },
+          { href: "/material-warehouse/material-rack-view", label: "Material Rack View", icon: LayoutDashboard },
         ],
       },
       {

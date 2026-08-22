@@ -2,8 +2,8 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
-import { Search, Plus, Pencil, Trash2, PackageSearch, ChevronDown, ChevronUp, X, MapPin, Check } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, MapPin, PackageSearch, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -266,7 +266,7 @@ function ColorRow({ itemCodePdm, color, canRemove, onRemove, onChange }) {
     }, 400);
 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [itemCodePdm, color.color]);
 
   return (
@@ -1073,9 +1073,8 @@ export default function MaterialReceivePage() {
         <div className="flex items-start gap-4">
           {/* FORM COLUMN */}
           <div
-            className={`shrink-0 transition-all duration-300 ease-in-out ${
-              formOpen ? "w-[340px] opacity-100 translate-x-0" : "w-0 opacity-0 -translate-x-6 pointer-events-none"
-            }`}
+            className={`shrink-0 transition-all duration-300 ease-in-out ${formOpen ? "w-[340px] opacity-100 translate-x-0" : "w-0 opacity-0 -translate-x-6 pointer-events-none"
+              }`}
           >
             <div className={`sticky top-6 w-[340px] max-h-[calc(100vh-3rem)] overflow-y-auto overflow-x-hidden ${scrollHidden}`}>
               <form onSubmit={handleSubmit} className={`${card} p-3 space-y-3 w-[340px]`}>

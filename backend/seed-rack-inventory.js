@@ -84,18 +84,18 @@
  * -----------------------------------------------------------------------
  */
 
-import path from "node:path";
-import fs from "node:fs";
-import XLSX from "xlsx";
-import mysql from "mysql2/promise";
-import { drizzle } from "drizzle-orm/mysql2";
 import "dotenv/config";
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
+import fs from "node:fs";
+import path from "node:path";
+import XLSX from "xlsx";
 
 import {
+  materialReceiveItemLocations,
+  materialReceiveItems,
   materialReceives,
   materialReceiveStyles,
-  materialReceiveItems,
-  materialReceiveItemLocations,
   stockHistory,
 } from "./src/db/schema.mysql.js"; // seed-rack-inventory.js lives in backend/, schema is at backend/src/db/
 

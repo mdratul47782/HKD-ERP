@@ -1,7 +1,7 @@
 // backend/src/controllers/materialReceive.controllers.js
 
+import { and, desc, eq, inArray, like } from "drizzle-orm";
 import { db, schema } from "../db/db.js";
-import { eq, like, and, inArray, desc } from "drizzle-orm";
 
 const { materialReceives, materialReceiveStyles, materialReceiveItems, materialReceiveItemLocations, stockHistory } = schema;
 
@@ -23,9 +23,9 @@ async function getFullReceive(id) {
 
   const locations = items.length
     ? await db
-        .select()
-        .from(materialReceiveItemLocations)
-        .where(inArray(materialReceiveItemLocations.itemId, items.map((i) => i.id)))
+      .select()
+      .from(materialReceiveItemLocations)
+      .where(inArray(materialReceiveItemLocations.itemId, items.map((i) => i.id)))
     : [];
   const itemsWithLocations = items.map((it) => ({
     ...it,

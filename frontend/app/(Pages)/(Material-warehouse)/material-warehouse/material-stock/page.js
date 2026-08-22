@@ -351,13 +351,13 @@ function ColumnOverlay({ isOpen, onClose, visibleKeys, setVisibleKeys }) {
                   type="button"
                   onClick={() => toggle(c.key)}
                   className={`w-full flex items-center gap-3 rounded-lg border-[1.5px] px-3 py-2.5 text-sm transition-all ${on
-                      ? "border-[#3d8a7a] dark:border-[#6fd0b8] bg-[#3d8a7a]/10 dark:bg-[#6fd0b8]/10 text-[#2c6a5a] dark:text-[#6fd0b8]"
-                      : "border-[#2c2417]/15 dark:border-[#e8ddd0]/15 text-[#7a6250] dark:text-[#a8917d] hover:border-[#3d8a7a]/50"
+                    ? "border-[#3d8a7a] dark:border-[#6fd0b8] bg-[#3d8a7a]/10 dark:bg-[#6fd0b8]/10 text-[#2c6a5a] dark:text-[#6fd0b8]"
+                    : "border-[#2c2417]/15 dark:border-[#e8ddd0]/15 text-[#7a6250] dark:text-[#a8917d] hover:border-[#3d8a7a]/50"
                     }`}
                 >
                   <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 ${on
-                      ? "bg-[#3d8a7a] dark:bg-[#6fd0b8] border-[#3d8a7a] dark:border-[#6fd0b8]"
-                      : "border-[#2c2417]/25 dark:border-[#e8ddd0]/25"
+                    ? "bg-[#3d8a7a] dark:bg-[#6fd0b8] border-[#3d8a7a] dark:border-[#6fd0b8]"
+                    : "border-[#2c2417]/25 dark:border-[#e8ddd0]/25"
                     }`}>
                     {on && <Check size={13} className="text-white dark:text-[#1b1712]" />}
                   </span>
@@ -572,8 +572,8 @@ function ResultsTable({ rows, loading, searched, visibleKeys, onOpenFilters }) {
                   <tr
                     key={r.itemId}
                     className={`border-t border-[#2c2417]/6 dark:border-[#e8ddd0]/6 transition-all duration-150 ${i % 2 === 0
-                        ? "bg-white dark:bg-[#1a1208] hover:bg-[#b87a4a]/[0.06] dark:hover:bg-[#d4955e]/[0.06]"
-                        : "bg-[#b87a4a]/[0.03] dark:bg-[#d4955e]/[0.03] hover:bg-[#b87a4a]/[0.08] dark:hover:bg-[#d4955e]/[0.08]"
+                      ? "bg-white dark:bg-[#1a1208] hover:bg-[#b87a4a]/[0.06] dark:hover:bg-[#d4955e]/[0.06]"
+                      : "bg-[#b87a4a]/[0.03] dark:bg-[#d4955e]/[0.03] hover:bg-[#b87a4a]/[0.08] dark:hover:bg-[#d4955e]/[0.08]"
                       }`}
                   >
                     {columns.map((c) => renderStockCell(c.key, r, rollPct, ydsPct))}

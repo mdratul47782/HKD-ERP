@@ -1,14 +1,20 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-dashboard/page.js
 "use client";
 
+import {
+  ArrowUpRight,
+  Boxes,
+  Loader2, MapPin,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis, YAxis,
 } from "recharts";
-import {
-  Boxes, ArrowUpRight, Loader2, MapPin,
-} from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -154,7 +160,7 @@ export default function MaterialDashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/dashboard/material-overview`, { credentials: "include" });
+        const res = await fetch(`${API_URL}/material-rack-view`, { credentials: "include" });
         if (!res.ok) throw new Error("Failed to load dashboard data");
         const json = await res.json();
         if (!cancelled) setData(json);
@@ -234,7 +240,7 @@ export default function MaterialDashboardPage() {
           <div style={{ fontFamily: monoFont, fontSize: 10, letterSpacing: "0.16em", color: T.muted, textTransform: "uppercase", marginBottom: 3 }}>
             HKD Outdoor Innovations · Material Warehouse
           </div>
-          
+
         </div>
         <div style={{ fontFamily: monoFont, fontSize: 11, color: T.muted, display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.sage, display: "inline-block" }} />

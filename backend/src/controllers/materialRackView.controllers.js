@@ -35,7 +35,7 @@ const {
  *   requisitionStatus  -> cutting_requisitions counts per status
  *   recentActivity     -> last 10 stock_history rows, newest first
  */
-export const getMaterialOverview = async (req, res) => {
+export const materialRackView = async (req, res) => {
   try {
     const [receives, items, locations, requisitions, requisitionItems, recentHistory] = await Promise.all([
       db.select().from(materialReceives),

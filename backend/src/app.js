@@ -10,7 +10,7 @@ import materialStockRoutes from "./routes/materialStock.routes.js";
 import cuttingRequisitionRoutes from "./routes/cuttingRequisition.routes.js"; // ← new
 import cuttingIssueRoutes from "./routes/cuttingIssue.routes.js"; // ← new
 import materialInspectionRoutes from "./routes/materialInspection.routes.js"; // ← new
-import dashboardRoutes from "./routes/dashboard.routes.js";
+import materialRackView from "./routes/materialRackView.routes.js";
 dotenv.config();
 
 const app = express();
@@ -20,7 +20,7 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 app.use("/auth", authRoutes);
-app.use("/dashboard", dashboardRoutes);
+app.use("/material-rack-view", materialRackView);
 app.use("/material-inspection", materialInspectionRoutes); // ← new
 app.use("/material-receive", materialReceiveRoutes);
 app.use("/location-assignment", locationAssignmentRoutes);
