@@ -12,6 +12,7 @@ import materialInspectionRoutes from "./routes/materialInspection.routes.js"; //
 import materialRackView from "./routes/materialRackView.routes.js";
 import materialReceiveRoutes from "./routes/materialReceive.routes.js";
 import materialStockRoutes from "./routes/materialStock.routes.js";
+import materialImportRoutes from "./routes/materialImport.routes.js";
 
 dotenv.config();
 
@@ -30,7 +31,7 @@ app.use("/location-assignment", locationAssignmentRoutes);
 app.use("/material-stock", materialStockRoutes);
 app.use("/cutting-requisition", cuttingRequisitionRoutes); // ← new
 app.use("/cutting-issue", cuttingIssueRoutes); // ← new
-
+app.use("/", materialImportRoutes);
 app.get("/", (req, res) => {
   res.json({ message: "API is running" });
 });

@@ -3,7 +3,12 @@
 "use client";
 
 import { Check, ChevronDown, ChevronUp, MapPin, PackageSearch, Pencil, Plus, Search, Trash2, X } from "lucide-react";
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  flexRender,
+} from "@tanstack/react-table";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -766,13 +771,145 @@ function RecordFilterRow({ filters, setFilters }) {
 }
 
 /* ============================================================
-   Records panel -- a real HTML table, sits beside the form.
-   Now includes a Supplier column (right after Buyer), truncated
-   with an ellipsis and the full text available on hover via title,
-   same treatment as Remark.
+   Records panel -- built on @tanstack/react-table.
+
+   IMPORTANT (why there is never a horizontal scrollbar here):
+   Instead of putting the table body in an `overflow-x-auto`
+   container (which is the usual react-table recipe), less-critical
+   columns are simply HIDDEN per breakpoint via each column's
+   `meta.className` (e.g. "hidden lg:table-cell"). react-table still
+   tracks all 14 columns internally (so `colSpan={14}` on the
+   ItemsBreakdownTable expansion row stays correct), but visually the
+   row only renders however many columns fit the viewport. The
+   scroll container below is therefore `overflow-y-auto
+   overflow-x-hidden` -- vertical scroll for a long list of records,
+   but the x-axis never scrolls, on any screen size.
    ============================================================ */
 
 function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, toggleExpanded, onEdit, onDelete, onAssigned }) {
+  const columns = useMemo(() => [
+    {
+      id: "expander",
+      header: () => "",
+      meta: { className: "w-6" },
+      cell: ({ row }) => (expandedIds.has(row.original.id) ? <ChevronUp size={13} /> : <ChevronDown size={13} />),
+    },
+    {
+      accessorKey: "date",
+      header: "Date",
+      meta: { className: "whitespace-nowrap" },
+      cell: ({ getValue }) => getValue()?.slice(0, 10),
+    },
+    {
+      accessorKey: "invoiceNo",
+      header: "Invoice No.",
+      meta: { className: "whitespace-nowrap" },
+      cell: ({ getValue }) => <span className="font-medium text-[#1a1208] dark:text-[#f0e8dc]">{getValue()}</span>,
+    },
+    {
+      accessorKey: "remark",
+      header: "Remark",
+      meta: { className: "hidden lg:table-cell" },
+      cell: ({ getValue }) => {
+        const v = getValue();
+        return v
+          ? <span title={v} className="block max-w-[160px] truncate text-[#7a6250] dark:text-[#a8917d]">{v}</span>
+          : <span className="italic text-[#a08060]">-</span>;
+      },
+    },
+    {
+      accessorKey: "fromType",
+      header: "From",
+      meta: { className: "hidden md:table-cell" },
+      cell: ({ getValue }) => <span className={chip}>{getValue()}</span>,
+    },
+    {
+      accessorKey: "warehouse",
+      header: "Warehouse",
+      meta: { className: "hidden md:table-cell" },
+      cell: ({ getValue }) => <span className={chip}>{getValue()}</span>,
+    },
+    {
+      accessorKey: "buyer",
+      header: "Buyer",
+      meta: { className: "whitespace-nowrap" },
+      cell: ({ getValue }) => getValue(),
+    },
+    {
+      accessorKey: "supplier",
+      header: "Supplier",
+      meta: { className: "hidden lg:table-cell" },
+      cell: ({ getValue }) => {
+        const v = getValue();
+        return v
+          ? <span title={v} className="block max-w-[140px] truncate text-[#7a6250] dark:text-[#a8917d]">{v}</span>
+          : <span className="italic text-[#a08060]">-</span>;
+      },
+    },
+    {
+      accessorKey: "season",
+      header: "Season",
+      meta: { className: "hidden xl:table-cell whitespace-nowrap" },
+      cell: ({ getValue }) => getValue(),
+    },
+    {
+      accessorKey: "po",
+      header: "PO",
+      meta: { className: "hidden lg:table-cell whitespace-nowrap" },
+      cell: ({ getValue }) => getValue(),
+    },
+    {
+      id: "styleModel",
+      header: "Style / Model",
+      meta: { className: "hidden xl:table-cell" },
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-1 max-w-[200px]">
+          {(row.original.styles || []).map((s) => (
+            <span key={s.id ?? s.style} className={chip}>{s.style}{s.model ? ` · ${s.model}` : ""}</span>
+          ))}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "totalItems",
+      header: "Items",
+      meta: { className: "hidden sm:table-cell" },
+      cell: ({ getValue }) => <span className={chip}>{getValue()}</span>,
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: ({ row }) => statusChip(row.original.status === "approved" ? "approved" : "pending"),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const r = row.original;
+        const isApproved = r.status === "approved";
+        return (
+          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => onEdit(r.id)} disabled={isApproved} title={isApproved ? "Fully approved receives can't be edited" : "Edit"}
+              className="inline-flex items-center gap-1 font-medium text-[#b87a4a] hover:underline disabled:opacity-40 disabled:pointer-events-none">
+              <Pencil size={11} /> <span className="hidden sm:inline">Edit</span>
+            </button>
+            <button onClick={() => onDelete(r.id)} disabled={isApproved} title={isApproved ? "Fully approved receives can't be deleted" : "Delete"}
+              className="inline-flex items-center gap-1 font-medium text-[#a04a3a] hover:underline disabled:opacity-40 disabled:pointer-events-none">
+              <Trash2 size={11} /> <span className="hidden sm:inline">Delete</span>
+            </button>
+          </div>
+        );
+      },
+    },
+  ], [expandedIds, onEdit, onDelete]);
+
+  const table = useReactTable({
+    data: receives,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (row) => String(row.id),
+  });
+
   return (
     <div className={`${card} flex flex-col h-full overflow-hidden`}>
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 shrink-0">
@@ -786,78 +923,48 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
         <RecordFilterRow filters={filters} setFilters={setFilters} />
       </div>
 
-      <div className={`flex-1 min-h-0 overflow-auto ${scrollThin}`}>
+      {/* overflow-x-hidden -- columns are hidden per breakpoint instead of
+          scrolled, so there is never a horizontal scrollbar here. Only
+          vertical scroll remains for a long list of records. */}
+      <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden ${scrollThin}`}>
         {loading ? (
           <div className="text-center py-8 text-[#a08060] text-xs">Loading...</div>
         ) : receives.length === 0 ? (
           <div className="text-center py-8 text-[#a08060] text-xs">No material receives found.</div>
         ) : (
-          <table className="min-w-full text-[11px] border-collapse">
+          <table className="w-full text-[11px] border-collapse table-fixed">
             <thead className="sticky top-0 bg-[#e6e0d4]/70 dark:bg-[#221d16] text-[#7a6250] dark:text-[#a8917d] backdrop-blur z-10">
-              <tr>
-                <th className="px-3 py-2 text-left font-semibold w-6"></th>
-                <th className="px-3 py-2 text-left font-semibold">Date</th>
-                <th className="px-3 py-2 text-left font-semibold">Invoice No.</th>
-                <th className="px-3 py-2 text-left font-semibold">Remark</th>
-                <th className="px-3 py-2 text-left font-semibold">From</th>
-                <th className="px-3 py-2 text-left font-semibold">Warehouse</th>
-                <th className="px-3 py-2 text-left font-semibold">Buyer</th>
-                <th className="px-3 py-2 text-left font-semibold">Supplier</th>
-                <th className="px-3 py-2 text-left font-semibold">Season</th>
-                <th className="px-3 py-2 text-left font-semibold">PO</th>
-                <th className="px-3 py-2 text-left font-semibold">Style / Model</th>
-                <th className="px-3 py-2 text-left font-semibold">Items</th>
-                <th className="px-3 py-2 text-left font-semibold">Status</th>
-                <th className="px-3 py-2 text-left font-semibold">Actions</th>
-              </tr>
+              {table.getHeaderGroups().map((hg) => (
+                <tr key={hg.id}>
+                  {hg.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className={`px-3 py-2 text-left font-semibold ${header.column.columnDef.meta?.className || ""}`}
+                    >
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                    </th>
+                  ))}
+                </tr>
+              ))}
             </thead>
             <tbody>
-              {receives.map((r) => {
+              {table.getRowModel().rows.map((row) => {
+                const r = row.original;
                 const isOpen = expandedIds.has(r.id);
-                const isApproved = r.status === "approved";
                 return (
-                  <Fragment key={r.id}>
+                  <Fragment key={row.id}>
                     <tr
                       onClick={() => toggleExpanded(r.id)}
                       className="border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 cursor-pointer hover:bg-[#b87a4a]/5"
                     >
-                      <td className="px-3 py-2 text-[#a08060]">
-                        {isOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap">{r.date?.slice(0, 10)}</td>
-                      <td className="px-3 py-2 font-medium text-[#1a1208] dark:text-[#f0e8dc] whitespace-nowrap">{r.invoiceNo}</td>
-                      <td className="px-3 py-2 max-w-[160px] truncate text-[#7a6250] dark:text-[#a8917d]" title={r.remark || undefined}>
-                        {r.remark || <span className="italic text-[#a08060]">-</span>}
-                      </td>
-                      <td className="px-3 py-2"><span className={chip}>{r.fromType}</span></td>
-                      <td className="px-3 py-2"><span className={chip}>{r.warehouse}</span></td>
-                      <td className="px-3 py-2 whitespace-nowrap">{r.buyer}</td>
-                      <td className="px-3 py-2 max-w-[140px] truncate text-[#7a6250] dark:text-[#a8917d]" title={r.supplier || undefined}>
-                        {r.supplier || <span className="italic text-[#a08060]">-</span>}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap">{r.season}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">{r.po}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex flex-wrap gap-1 max-w-[200px]">
-                          {(r.styles || []).map((s) => (
-                            <span key={s.id ?? s.style} className={chip}>{s.style}{s.model ? ` · ${s.model}` : ""}</span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2"><span className={chip}>{r.totalItems}</span></td>
-                      <td className="px-3 py-2">{statusChip(isApproved ? "approved" : "pending")}</td>
-                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex gap-2">
-                          <button onClick={() => onEdit(r.id)} disabled={isApproved} title={isApproved ? "Fully approved receives can't be edited" : "Edit"}
-                            className="inline-flex items-center gap-1 font-medium text-[#b87a4a] hover:underline disabled:opacity-40 disabled:pointer-events-none">
-                            <Pencil size={11} /> Edit
-                          </button>
-                          <button onClick={() => onDelete(r.id)} disabled={isApproved} title={isApproved ? "Fully approved receives can't be deleted" : "Delete"}
-                            className="inline-flex items-center gap-1 font-medium text-[#a04a3a] hover:underline disabled:opacity-40 disabled:pointer-events-none">
-                            <Trash2 size={11} /> Delete
-                          </button>
-                        </div>
-                      </td>
+                      {row.getVisibleCells().map((cell) => (
+                        <td
+                          key={cell.id}
+                          className={`px-3 py-2 align-top ${cell.column.columnDef.meta?.className || ""}`}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
                     </tr>
                     {isOpen && <ItemsBreakdownTable invoiceNo={r.invoiceNo} items={r.items} onAssigned={onAssigned} />}
                   </Fragment>
