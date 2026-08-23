@@ -1,24 +1,44 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-stock/page.js
+//
+// NOTE: this page now uses @tanstack/react-table for the results grid
+// (click any column header to sort). If it isn't already in package.json:
+//   npm install @tanstack/react-table
+//
+// Visual theme switched from the warm amber/teal palette to a cooler
+// navy/steel-blue "ERP grid" look: solid dark header bar, real cell
+// borders (a visible grid, not just row dividers), tighter zebra
+// striping, and monospace figures -- closer to what SAP/Odoo/NetSuite-
+// style operational screens use than a marketing page. Blue = primary
+// actions/sorting/filters, teal = the secondary "Columns" affordance,
+// green = available stock, same semantic roles as before, new hex
+// values.
 
 "use client";
 
-import { Boxes, Check, ChevronDown, ChevronUp, Filter, RotateCcw, Search, SlidersHorizontal, X } from "lucide-react";
+import { ArrowUpDown, Boxes, Check, ChevronDown, ChevronUp, Filter, RotateCcw, Search, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 // ============================================================
-// Styles - Amber/Teal Theme (Improved)
+// Styles - ERP Navy/Steel-Blue Theme
 // ============================================================
 
-const card = "bg-[#f7f5f0] dark:bg-[#221d16] border border-[#2c2417]/10 dark:border-[#e8ddd0]/10 rounded-xl shadow-sm";
+const card = "bg-white dark:bg-[#0b1120] border border-[#d7dbe3] dark:border-[#1e293b] rounded-lg shadow-sm";
 const inputCls =
-  "w-full rounded-lg border-[1.5px] border-[#2c2417]/25 dark:border-[#e8ddd0]/25 bg-white dark:bg-[#2a241b] px-3 py-2 text-sm text-[#2c2417] dark:text-[#e8ddd0] placeholder:text-[#a08060] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#b87a4a]/30 focus:border-[#b87a4a] dark:focus:border-[#d4955e] transition-all";
+  "w-full rounded-md border-[1.5px] border-[#c7ccd6] dark:border-[#334155] bg-white dark:bg-[#111827] px-3 py-2 text-sm text-[#1e293b] dark:text-[#e2e8f0] placeholder:text-[#94a3b8] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]/25 focus:border-[#2563eb] dark:focus:border-[#3b82f6] transition-all";
 const btnPrimary =
-  "inline-flex items-center gap-1.5 rounded-lg bg-[#2c2417] dark:bg-[#e8ddd0] text-[#f0ede6] dark:text-[#1b1712] text-sm px-4 py-2 hover:bg-[#b87a4a] dark:hover:bg-[#d4955e] transition-colors disabled:opacity-50 font-medium";
+  "inline-flex items-center gap-1.5 rounded-md bg-[#101a2c] dark:bg-[#2563eb] text-white text-sm px-4 py-2 hover:bg-[#1e3a5f] dark:hover:bg-[#1d4ed8] transition-colors disabled:opacity-50 font-medium";
 const btnSecondary =
-  "inline-flex items-center gap-1.5 rounded-lg border-[1.5px] border-[#2c2417]/25 dark:border-[#e8ddd0]/25 bg-white dark:bg-[#2a241b] text-[#7a6250] dark:text-[#a8917d] text-sm px-3 py-2 hover:border-[#b87a4a] hover:text-[#b87a4a] dark:hover:border-[#d4955e] dark:hover:text-[#d4955e] transition-colors disabled:opacity-40 disabled:pointer-events-none font-medium";
-const chip = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e] max-w-full truncate";
+  "inline-flex items-center gap-1.5 rounded-md border-[1.5px] border-[#c7ccd6] dark:border-[#334155] bg-white dark:bg-[#111827] text-[#475569] dark:text-[#94a3b8] text-sm px-3 py-2 hover:border-[#2563eb] hover:text-[#2563eb] dark:hover:border-[#3b82f6] dark:hover:text-[#3b82f6] transition-colors disabled:opacity-40 disabled:pointer-events-none font-medium";
+const chip = "inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-[#2563eb]/10 text-[#1d4ed8] dark:bg-[#3b82f6]/15 dark:text-[#60a5fa] max-w-full truncate";
+const chipTeal = "inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-[#0f766e]/10 text-[#0f766e] dark:bg-[#14b8a6]/15 dark:text-[#2dd4bf] max-w-full truncate";
 
 const emptyFilters = {
   itemCodePdm: "", style: "", color: "", model: "", season: "",
@@ -76,7 +96,7 @@ function MiniDonut({ percent, size = 28, strokeWidth = 5 }) {
       <circle
         cx={size / 2} cy={size / 2} r={radius} fill="none"
         strokeWidth={strokeWidth}
-        className="stroke-[#2c2417]/12 dark:stroke-[#e8ddd0]/15"
+        className="stroke-[#1e293b]/10 dark:stroke-[#e2e8f0]/12"
       />
       <circle
         cx={size / 2} cy={size / 2} r={radius} fill="none"
@@ -85,7 +105,7 @@ function MiniDonut({ percent, size = 28, strokeWidth = 5 }) {
         strokeDashoffset={offset}
         strokeLinecap="round"
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        className="stroke-[#e0a838] dark:stroke-[#f0c868] transition-[stroke-dashoffset] duration-300"
+        className="stroke-[#2563eb] dark:stroke-[#60a5fa] transition-[stroke-dashoffset] duration-300"
       />
     </svg>
   );
@@ -147,9 +167,9 @@ function SummaryStrip({ summary }) {
   return (
     <div className={`${card} p-4`}>
       <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-        <h2 className="font-serif text-base text-[#1a1208] dark:text-[#f0e8dc]">
+        <h2 className="font-semibold tracking-tight text-base text-[#0f172a] dark:text-[#e2e8f0]">
           Total Available
-          <span className="ml-2 text-sm font-sans text-[#a08060]">
+          <span className="ml-2 text-sm font-normal text-[#64748b]">
             ({filtered.length}{q ? ` of ${summary.length}` : ""})
           </span>
         </h2>
@@ -171,15 +191,15 @@ function SummaryStrip({ summary }) {
 
       {!hidden && (
         filtered.length === 0 ? (
-          <div className="text-sm italic text-[#a08060] px-1 py-2">No matches.</div>
+          <div className="text-sm italic text-[#94a3b8] px-1 py-2">No matches.</div>
         ) : (
-          <div className="overflow-x-auto max-h-[40vh] overflow-y-auto rounded-lg border border-[#2c2417]/8 dark:border-[#e8ddd0]/8">
+          <div className="overflow-x-auto max-h-[40vh] overflow-y-auto rounded-md border border-[#d7dbe3] dark:border-[#1e293b]">
             <table className="min-w-full text-sm border-collapse">
-              <thead className="sticky top-0 bg-gradient-to-r from-[#b87a4a] to-[#8a4a24] dark:from-[#6a4a2a] dark:to-[#4a3018] text-white">
+              <thead className="sticky top-0 bg-[#101a2c] dark:bg-[#0f172a] text-white">
                 <tr>
-                  <th className="px-4 py-2.5 text-left font-semibold">Item Code/PDM</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">Color</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">Avail. Roll</th>
+                  <th className="px-4 py-2.5 text-left font-semibold border-r border-white/10">Item Code/PDM</th>
+                  <th className="px-4 py-2.5 text-left font-semibold border-r border-white/10">Color</th>
+                  <th className="px-4 py-2.5 text-right font-semibold border-r border-white/10">Avail. Roll</th>
                   <th className="px-4 py-2.5 text-right font-semibold">Avail. Yds</th>
                 </tr>
               </thead>
@@ -187,15 +207,15 @@ function SummaryStrip({ summary }) {
                 {filtered.map((s, i) => (
                   <tr
                     key={`${s.itemCodePdm}-${s.color}`}
-                    className={`border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#b87a4a]/10 transition-colors ${i % 2 === 0 ? "bg-white dark:bg-[#1a1208]" : "bg-[#b87a4a]/[0.04] dark:bg-[#d4955e]/[0.04]"
+                    className={`border-t border-[#e5e8ee] dark:border-[#1e293b] hover:bg-[#eaf1fd] dark:hover:bg-[#1e293b]/50 transition-colors ${i % 2 === 0 ? "bg-white dark:bg-[#0b1120]" : "bg-[#f7f8fa] dark:bg-[#0f172a]/40"
                       }`}
                   >
-                    <td className="px-4 py-2 text-[#8a4a24] dark:text-[#d4955e] font-medium">{s.itemCodePdm}</td>
-                    <td className="px-4 py-2 text-[#2c2417] dark:text-[#e8ddd0]">{s.color}</td>
-                    <td className="px-4 py-2 text-right text-[#3d7a4a] dark:text-[#8fca9c] font-medium">
+                    <td className="px-4 py-2 text-[#1d4ed8] dark:text-[#60a5fa] font-medium border-r border-[#eef0f4] dark:border-[#1e293b]/60">{s.itemCodePdm}</td>
+                    <td className="px-4 py-2 text-[#1e293b] dark:text-[#e2e8f0] border-r border-[#eef0f4] dark:border-[#1e293b]/60">{s.color}</td>
+                    <td className="px-4 py-2 text-right text-[#16a34a] dark:text-[#4ade80] font-medium font-mono border-r border-[#eef0f4] dark:border-[#1e293b]/60">
                       <span style={{ fontSize: numFontSize(s.totalAvailableRoll) }}>{formatNum(s.totalAvailableRoll)}</span>
                     </td>
-                    <td className="px-4 py-2 text-right text-[#3d7a4a] dark:text-[#8fca9c] font-medium">
+                    <td className="px-4 py-2 text-right text-[#16a34a] dark:text-[#4ade80] font-medium font-mono">
                       <span style={{ fontSize: numFontSize(s.totalAvailableYds) }}>{formatNum(s.totalAvailableYds)}</span>
                     </td>
                   </tr>
@@ -232,26 +252,26 @@ function FilterOverlay({ isOpen, onClose, filters, setFilters, onSearch, onReset
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+        className="fixed inset-0 bg-[#0f172a]/40 backdrop-blur-sm z-40"
         onClick={onClose}
       />
 
-      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-[#f7f5f0] dark:bg-[#221d16] shadow-2xl z-50 overflow-y-auto animate-slide-in">
-        <div className="sticky top-0 bg-[#f7f5f0] dark:bg-[#221d16] border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 px-4 py-3 flex items-center justify-between z-10">
+      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-[#f5f6f8] dark:bg-[#0b1120] shadow-2xl z-50 overflow-y-auto animate-slide-in">
+        <div className="sticky top-0 bg-[#101a2c] dark:bg-[#0f172a] border-b border-black/10 px-4 py-3 flex items-center justify-between z-10">
           <div className="flex items-center gap-2">
-            <Filter size={18} className="text-[#b87a4a]" />
-            <h2 className="font-serif text-lg text-[#1a1208] dark:text-[#f0e8dc]">Filters</h2>
+            <Filter size={18} className="text-[#60a5fa]" />
+            <h2 className="font-semibold tracking-tight text-lg text-white">Filters</h2>
             {activeCount > 0 && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-[#b87a4a]/12 text-[#8a4a24] dark:bg-[#d4955e]/15 dark:text-[#d4955e]">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-[#2563eb]/25 text-[#93c5fd]">
                 {activeCount}
               </span>
             )}
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-[#2c2417]/10 dark:hover:bg-[#e8ddd0]/10 transition-colors"
+            className="p-1.5 rounded-md hover:bg-white/10 transition-colors"
           >
-            <X size={20} className="text-[#7a6250] dark:text-[#a8917d]" />
+            <X size={20} className="text-[#94a3b8]" />
           </button>
         </div>
 
@@ -259,7 +279,7 @@ function FilterOverlay({ isOpen, onClose, filters, setFilters, onSearch, onReset
           <div className="space-y-3">
             {STOCK_FILTER_FIELDS.map((f) => (
               <div key={f.key}>
-                <label className="block text-xs uppercase tracking-wide text-[#a08060] mb-1">
+                <label className="block text-xs uppercase tracking-wide text-[#64748b] mb-1">
                   {f.label}
                 </label>
                 <input
@@ -273,7 +293,7 @@ function FilterOverlay({ isOpen, onClose, filters, setFilters, onSearch, onReset
             ))}
           </div>
 
-          <div className="flex gap-2 pt-3 border-t border-[#2c2417]/10 dark:border-[#e8ddd0]/10">
+          <div className="flex gap-2 pt-3 border-t border-[#d7dbe3] dark:border-[#1e293b]">
             <button type="submit" disabled={loading} className={`${btnPrimary} flex-1 justify-center`}>
               {loading ? "..." : "Search"}
             </button>
@@ -313,22 +333,22 @@ function ColumnOverlay({ isOpen, onClose, visibleKeys, setVisibleKeys }) {
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+        className="fixed inset-0 bg-[#0f172a]/40 backdrop-blur-sm z-40"
         onClick={onClose}
       />
 
-      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-[#f7f5f0] dark:bg-[#221d16] shadow-2xl z-50 overflow-y-auto animate-slide-in">
-        <div className="sticky top-0 bg-[#f7f5f0] dark:bg-[#221d16] border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 px-4 py-3 flex items-center justify-between z-10">
+      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-[#f5f6f8] dark:bg-[#0b1120] shadow-2xl z-50 overflow-y-auto animate-slide-in">
+        <div className="sticky top-0 bg-[#0f766e] dark:bg-[#0d5f58] border-b border-black/10 px-4 py-3 flex items-center justify-between z-10">
           <div className="flex items-center gap-2">
-            <SlidersHorizontal size={18} className="text-[#3d8a7a] dark:text-[#6fd0b8]" />
-            <h2 className="font-serif text-lg text-[#1a1208] dark:text-[#f0e8dc]">Columns</h2>
-            <span className="text-sm text-[#a08060]">({visibleKeys.length} of {ALL_STOCK_COLUMNS.length})</span>
+            <SlidersHorizontal size={18} className="text-white" />
+            <h2 className="font-semibold tracking-tight text-lg text-white">Columns</h2>
+            <span className="text-sm text-white/70">({visibleKeys.length} of {ALL_STOCK_COLUMNS.length})</span>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-[#2c2417]/10 dark:hover:bg-[#e8ddd0]/10 transition-colors"
+            className="p-1.5 rounded-md hover:bg-white/10 transition-colors"
           >
-            <X size={20} className="text-[#7a6250] dark:text-[#a8917d]" />
+            <X size={20} className="text-white/80" />
           </button>
         </div>
 
@@ -350,16 +370,16 @@ function ColumnOverlay({ isOpen, onClose, visibleKeys, setVisibleKeys }) {
                   key={c.key}
                   type="button"
                   onClick={() => toggle(c.key)}
-                  className={`w-full flex items-center gap-3 rounded-lg border-[1.5px] px-3 py-2.5 text-sm transition-all ${on
-                    ? "border-[#3d8a7a] dark:border-[#6fd0b8] bg-[#3d8a7a]/10 dark:bg-[#6fd0b8]/10 text-[#2c6a5a] dark:text-[#6fd0b8]"
-                    : "border-[#2c2417]/15 dark:border-[#e8ddd0]/15 text-[#7a6250] dark:text-[#a8917d] hover:border-[#3d8a7a]/50"
+                  className={`w-full flex items-center gap-3 rounded-md border-[1.5px] px-3 py-2.5 text-sm transition-all ${on
+                    ? "border-[#0f766e] dark:border-[#2dd4bf] bg-[#0f766e]/10 dark:bg-[#2dd4bf]/10 text-[#0f766e] dark:text-[#2dd4bf]"
+                    : "border-[#d7dbe3] dark:border-[#1e293b] text-[#475569] dark:text-[#94a3b8] hover:border-[#0f766e]/50"
                     }`}
                 >
                   <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 ${on
-                    ? "bg-[#3d8a7a] dark:bg-[#6fd0b8] border-[#3d8a7a] dark:border-[#6fd0b8]"
-                    : "border-[#2c2417]/25 dark:border-[#e8ddd0]/25"
+                    ? "bg-[#0f766e] dark:bg-[#2dd4bf] border-[#0f766e] dark:border-[#2dd4bf]"
+                    : "border-[#c7ccd6] dark:border-[#334155]"
                     }`}>
-                    {on && <Check size={13} className="text-white dark:text-[#1b1712]" />}
+                    {on && <Check size={13} className="text-white dark:text-[#0b1120]" />}
                   </span>
                   {c.label}
                 </button>
@@ -383,13 +403,13 @@ function ColumnOverlay({ isOpen, onClose, visibleKeys, setVisibleKeys }) {
 }
 
 // ============================================================
-// Table Components
+// Table cell primitives
 // ============================================================
 
 function Cell({ children, align, title, className = "" }) {
   return (
     <td
-      className={`${CELL_PAD} ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"} overflow-hidden ${className}`}
+      className={`${CELL_PAD} border-r border-[#eef0f4] dark:border-[#1e293b]/60 last:border-r-0 ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"} overflow-hidden ${className}`}
     >
       <div className={`truncate ${align === "center" ? "flex items-center justify-center" : ""}`} title={title}>
         {children}
@@ -401,7 +421,7 @@ function Cell({ children, align, title, className = "" }) {
 function NumCell({ value }) {
   const text = formatNum(value);
   return (
-    <td className={`${CELL_PAD} text-right overflow-hidden text-[#2c2417] dark:text-[#e8ddd0]`}>
+    <td className={`${CELL_PAD} border-r border-[#eef0f4] dark:border-[#1e293b]/60 last:border-r-0 text-right overflow-hidden text-[#1e293b] dark:text-[#e2e8f0]`}>
       <div className="truncate font-mono" style={{ fontSize: numFontSize(text) }} title={text}>
         {text}
       </div>
@@ -412,7 +432,7 @@ function NumCell({ value }) {
 function AvailCell({ value }) {
   const text = formatNum(value);
   return (
-    <td className={`${CELL_PAD} text-right overflow-hidden text-[#3d7a4a] dark:text-[#8fca9c] font-semibold`}>
+    <td className={`${CELL_PAD} border-r border-[#eef0f4] dark:border-[#1e293b]/60 last:border-r-0 text-right overflow-hidden text-[#16a34a] dark:text-[#4ade80] font-semibold`}>
       <div className="truncate font-mono" style={{ fontSize: numFontSize(text) }} title={text}>
         {text}
       </div>
@@ -423,13 +443,13 @@ function AvailCell({ value }) {
 function PercentCell({ percent, title }) {
   const clamped = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
   return (
-    <td className={`${CELL_PAD} overflow-hidden`}>
+    <td className={`${CELL_PAD} border-r border-[#eef0f4] dark:border-[#1e293b]/60 last:border-r-0 overflow-hidden`}>
       <div className="flex items-center justify-center gap-1.5" title={title}>
         <div style={DONUT_BOX}>
           <MiniDonut percent={clamped} />
         </div>
         <span
-          className="font-bold text-[#c88a12] dark:text-[#f0c868]"
+          className="font-bold text-[#2563eb] dark:text-[#60a5fa]"
           style={{ fontSize: "clamp(0.75rem, 0.6rem + 0.4vw, 1.05rem)" }}
         >
           {clamped}%
@@ -447,13 +467,13 @@ function StyleModelCell({ styles }) {
   const fullText = list.map((s) => `${s.style}${s.model ? ` | ${s.model}` : ""}`).join("\n");
 
   return (
-    <td className={`${CELL_PAD} overflow-hidden align-top`}>
+    <td className={`${CELL_PAD} border-r border-[#eef0f4] dark:border-[#1e293b]/60 last:border-r-0 overflow-hidden align-top`}>
       <div title={fullText}>
         <div className="flex flex-col gap-0.5">
           {visible.map((s) => (
-            <span key={s.id ?? `${s.style}-${s.model ?? ""}`} className="text-[0.95em] text-[#1a1208] dark:text-[#f0e8dc]">
-              <span className="font-semibold text-[#8a4a24] dark:text-[#d4955e]">{s.style}</span>
-              {s.model ? <span className="text-[#a08060]"> {"|"} {s.model}</span> : null}
+            <span key={s.id ?? `${s.style}-${s.model ?? ""}`} className="text-[0.95em] text-[#1e293b] dark:text-[#e2e8f0]">
+              <span className="font-semibold text-[#1d4ed8] dark:text-[#60a5fa]">{s.style}</span>
+              {s.model ? <span className="text-[#94a3b8]"> {"|"} {s.model}</span> : null}
             </span>
           ))}
         </div>
@@ -461,7 +481,7 @@ function StyleModelCell({ styles }) {
           <button
             type="button"
             onClick={() => setExpanded((e) => !e)}
-            className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-[#3d8a7a] dark:text-[#6fd0b8] hover:underline"
+            className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-[#0f766e] dark:text-[#2dd4bf] hover:underline"
           >
             {expanded ? (
               <><ChevronUp size={12} /> Show less</>
@@ -475,7 +495,35 @@ function StyleModelCell({ styles }) {
   );
 }
 
-function renderStockCell(colKey, r, rollPct, ydsPct) {
+// Numeric/string value used purely for sorting a given column -- kept
+// separate from the display cell (renderStockCell below) since a couple
+// of columns (Style/Model, Roll %, Yds %) are computed/composite and
+// don't have a single raw field to sort on directly.
+function getSortValue(colKey, r) {
+  switch (colKey) {
+    case "date": return r.date || "";
+    case "invoiceNo": return r.invoiceNo || "";
+    case "buyer": return r.buyer || "";
+    case "season": return r.season || "";
+    case "styleModel": return r.styles?.[0]?.style || "";
+    case "warehouse": return r.warehouse || "";
+    case "item": return r.item || "";
+    case "itemCodePdm": return r.itemCodePdm || "";
+    case "color": return r.color || "";
+    case "fabricDetails": return r.fabricDetails || "";
+    case "supplier": return r.supplier || "";
+    case "location": return r.location || "";
+    case "receivedRoll": return Number(r.rollQty) || 0;
+    case "receivedYds": return Number(r.yds) || 0;
+    case "availableRoll": return Number(r.availableRoll) || 0;
+    case "rollChart": return r.rollQty ? Math.round((Number(r.availableRoll) / Number(r.rollQty)) * 100) : 0;
+    case "availableYds": return Number(r.availableYds) || 0;
+    case "ydsChart": return r.yds ? Math.round((Number(r.availableYds) / Number(r.yds)) * 100) : 0;
+    default: return "";
+  }
+}
+
+function renderStockCell(colKey, r) {
   switch (colKey) {
     case "date": return <Cell key="date" title={r.date?.slice(0, 10)}>{r.date?.slice(0, 10)}</Cell>;
     case "invoiceNo": return <Cell key="invoiceNo" title={r.invoiceNo}>{r.invoiceNo}</Cell>;
@@ -484,41 +532,66 @@ function renderStockCell(colKey, r, rollPct, ydsPct) {
     case "styleModel": return <StyleModelCell key="styleModel" styles={r.styles} />;
     case "warehouse": return <Cell key="warehouse" title={r.warehouse}><span className={chip}>{r.warehouse}</span></Cell>;
     case "item": return <Cell key="item" title={r.item}>{r.item}</Cell>;
-    case "itemCodePdm": return <Cell key="itemCodePdm" title={r.itemCodePdm} className="text-[#8a4a24] dark:text-[#d4955e] font-medium">{r.itemCodePdm}</Cell>;
+    case "itemCodePdm": return <Cell key="itemCodePdm" title={r.itemCodePdm} className="text-[#1d4ed8] dark:text-[#60a5fa] font-medium">{r.itemCodePdm}</Cell>;
     case "color": return <Cell key="color" title={r.color}>{r.color}</Cell>;
-    case "fabricDetails": return <Cell key="fabricDetails" title={r.fabricDetails}>{r.fabricDetails || <span className="italic text-[#a08060]">-</span>}</Cell>;
-    case "supplier": return <Cell key="supplier" title={r.supplier}>{r.supplier || <span className="italic text-[#a08060]">-</span>}</Cell>;
-    case "location": return <Cell key="location" title={r.location}><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#3d8a7a]/12 text-[#2c6a5a] dark:bg-[#6fd0b8]/15 dark:text-[#6fd0b8]">{r.location}</span></Cell>;
+    case "fabricDetails": return <Cell key="fabricDetails" title={r.fabricDetails}>{r.fabricDetails || <span className="italic text-[#94a3b8]">-</span>}</Cell>;
+    case "supplier": return <Cell key="supplier" title={r.supplier}>{r.supplier || <span className="italic text-[#94a3b8]">-</span>}</Cell>;
+    case "location": return <Cell key="location" title={r.location}><span className={chipTeal}>{r.location}</span></Cell>;
     case "receivedRoll": return <NumCell key="receivedRoll" value={r.rollQty} />;
     case "receivedYds": return <NumCell key="receivedYds" value={r.yds} />;
     case "availableRoll": return <AvailCell key="availableRoll" value={r.availableRoll} />;
-    case "rollChart": return <PercentCell key="rollChart" percent={rollPct} title={`${rollPct}% of received roll still available`} />;
+    case "rollChart": {
+      const rollPct = r.rollQty ? Math.round((r.availableRoll / r.rollQty) * 100) : 0;
+      return <PercentCell key="rollChart" percent={rollPct} title={`${rollPct}% of received roll still available`} />;
+    }
     case "availableYds": return <AvailCell key="availableYds" value={r.availableYds} />;
-    case "ydsChart": return <PercentCell key="ydsChart" percent={ydsPct} title={`${ydsPct}% of received yds still available`} />;
+    case "ydsChart": {
+      const ydsPct = r.yds ? Math.round((r.availableYds / r.yds) * 100) : 0;
+      return <PercentCell key="ydsChart" percent={ydsPct} title={`${ydsPct}% of received yds still available`} />;
+    }
     default: return null;
   }
 }
 
 // ============================================================
-// Results Table - Improved Amber/Teal Theme
+// Results Table -- ERP grid, sortable via @tanstack/react-table
 // ============================================================
 
 function ResultsTable({ rows, loading, searched, visibleKeys, onOpenFilters }) {
-  const columns = useMemo(
-    () => ALL_STOCK_COLUMNS.filter((c) => visibleKeys.includes(c.key)),
+  const [sorting, setSorting] = useState([]);
+
+  const tableColumns = useMemo(
+    () =>
+      ALL_STOCK_COLUMNS.filter((c) => visibleKeys.includes(c.key)).map((c) => ({
+        id: c.key,
+        accessorFn: (row) => getSortValue(c.key, row),
+        header: c.label,
+        cell: (info) => renderStockCell(c.key, info.row.original),
+        meta: { align: c.align, width: c.width },
+      })),
     [visibleKeys]
   );
-  const totalWidth = columns.reduce((s, c) => s + c.width, 0) || 1;
+
+  const table = useReactTable({
+    data: rows,
+    columns: tableColumns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  const totalWidth = tableColumns.reduce((s, c) => s + c.meta.width, 0) || 1;
 
   return (
     <div className={`${card} flex flex-col overflow-hidden`}>
-      <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 bg-gradient-to-r from-[#b87a4a]/10 via-[#b87a4a]/5 to-[#3d8a7a]/10">
+      <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-[#d7dbe3] dark:border-[#1e293b] bg-[#f5f6f8] dark:bg-[#0f172a]">
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-[#b87a4a]/10 dark:bg-[#d4955e]/10">
-            <Boxes size={18} className="text-[#b87a4a] dark:text-[#d4955e]" />
+          <div className="p-1.5 rounded-md bg-[#101a2c]/5 dark:bg-white/5">
+            <Boxes size={18} className="text-[#101a2c] dark:text-[#60a5fa]" />
           </div>
-          <h2 className="font-serif text-lg text-[#1a1208] dark:text-[#f0e8dc]">Stock Batches</h2>
-          <span className="text-sm text-[#a08060] bg-[#2c2417]/5 dark:bg-[#e8ddd0]/5 px-2.5 py-0.5 rounded-full">
+          <h2 className="font-semibold tracking-tight text-lg text-[#0f172a] dark:text-[#e2e8f0]">Stock Batches</h2>
+          <span className="text-sm text-[#64748b] bg-[#1e293b]/5 dark:bg-[#e2e8f0]/5 px-2.5 py-0.5 rounded-full">
             {rows.length}
           </span>
         </div>
@@ -532,54 +605,70 @@ function ResultsTable({ rows, loading, searched, visibleKeys, onOpenFilters }) {
         style={{ scrollbarWidth: "thin", msOverflowStyle: "auto" }}
       >
         {loading ? (
-          <div className="text-center py-12 text-[#a08060] text-sm">
-            <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#b87a4a] border-t-transparent mb-2"></div>
+          <div className="text-center py-12 text-[#64748b] text-sm">
+            <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#2563eb] border-t-transparent mb-2"></div>
             <div>Loading...</div>
           </div>
         ) : rows.length === 0 ? (
-          <div className="text-center py-12 text-[#a08060] text-sm px-4">
+          <div className="text-center py-12 text-[#64748b] text-sm px-4">
             {searched ? "No stock batches match these filters." : "Click Filters to search for stock."}
           </div>
-        ) : columns.length === 0 ? (
-          <div className="text-center py-12 text-[#a08060] text-sm px-4">
+        ) : tableColumns.length === 0 ? (
+          <div className="text-center py-12 text-[#64748b] text-sm px-4">
             No columns selected — use Columns picker.
           </div>
         ) : (
           <table className="w-full border-collapse table-fixed" style={TABLE_FONT_STYLE}>
             <colgroup>
-              {columns.map((c) => (
-                <col key={c.key} style={{ width: `${(c.width / totalWidth) * 100}%` }} />
+              {tableColumns.map((c) => (
+                <col key={c.id} style={{ width: `${(c.meta.width / totalWidth) * 100}%` }} />
               ))}
             </colgroup>
             <thead className="sticky top-0 z-10">
-              <tr className="bg-gradient-to-r from-[#b87a4a] via-[#a8703f] to-[#3d8a7a] dark:from-[#6a4a2a] dark:via-[#5a4020] dark:to-[#2c6a5a]">
-                {columns.map((c) => (
-                  <th
-                    key={c.key}
-                    className={`${CELL_PAD} overflow-hidden font-semibold text-white/95 ${c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left"
-                      }`}
-                  >
-                    <div className="truncate text-[0.9em] tracking-wide" title={c.label}>{c.label}</div>
-                  </th>
-                ))}
-              </tr>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id} className="bg-[#101a2c] dark:bg-[#0f172a] border-b-2 border-[#2563eb]">
+                  {headerGroup.headers.map((header) => {
+                    const align = header.column.columnDef.meta?.align;
+                    const sorted = header.column.getIsSorted();
+                    return (
+                      <th
+                        key={header.id}
+                        onClick={header.column.getToggleSortingHandler()}
+                        className={`${CELL_PAD} border-r border-white/10 last:border-r-0 overflow-hidden font-semibold text-white/90 cursor-pointer select-none hover:bg-white/5 transition-colors ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"
+                          }`}
+                      >
+                        <div
+                          className={`flex items-center gap-1 text-[0.9em] tracking-wide ${align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"
+                            }`}
+                          title={header.column.columnDef.header}
+                        >
+                          <span className="truncate">{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                          {sorted === "asc" ? (
+                            <ChevronUp size={12} className="shrink-0 text-[#60a5fa]" />
+                          ) : sorted === "desc" ? (
+                            <ChevronDown size={12} className="shrink-0 text-[#60a5fa]" />
+                          ) : (
+                            <ArrowUpDown size={11} className="shrink-0 text-white/30" />
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              ))}
             </thead>
             <tbody>
-              {rows.map((r, i) => {
-                const rollPct = r.rollQty ? Math.round((r.availableRoll / r.rollQty) * 100) : 0;
-                const ydsPct = r.yds ? Math.round((r.availableYds / r.yds) * 100) : 0;
-                return (
-                  <tr
-                    key={r.itemId}
-                    className={`border-t border-[#2c2417]/6 dark:border-[#e8ddd0]/6 transition-all duration-150 ${i % 2 === 0
-                      ? "bg-white dark:bg-[#1a1208] hover:bg-[#b87a4a]/[0.06] dark:hover:bg-[#d4955e]/[0.06]"
-                      : "bg-[#b87a4a]/[0.03] dark:bg-[#d4955e]/[0.03] hover:bg-[#b87a4a]/[0.08] dark:hover:bg-[#d4955e]/[0.08]"
-                      }`}
-                  >
-                    {columns.map((c) => renderStockCell(c.key, r, rollPct, ydsPct))}
-                  </tr>
-                );
-              })}
+              {table.getRowModel().rows.map((row, i) => (
+                <tr
+                  key={row.id}
+                  className={`border-t border-[#e5e8ee] dark:border-[#1e293b] transition-colors duration-100 ${i % 2 === 0
+                    ? "bg-white dark:bg-[#0b1120] hover:bg-[#eaf1fd] dark:hover:bg-[#1e293b]/50"
+                    : "bg-[#f7f8fa] dark:bg-[#0f172a]/40 hover:bg-[#eaf1fd] dark:hover:bg-[#1e293b]/60"
+                    }`}
+                >
+                  {row.getVisibleCells().map((cell) => flexRender(cell.column.columnDef.cell, cell.getContext()))}
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
@@ -594,17 +683,17 @@ function ResultsTable({ rows, loading, searched, visibleKeys, onOpenFilters }) {
           background: transparent;
         }
         ::-webkit-scrollbar-thumb {
-          background: #c4b5a5;
+          background: #b3bac7;
           border-radius: 3px;
         }
         ::-webkit-scrollbar-thumb:hover {
-          background: #a8907d;
+          background: #8a93a6;
         }
         .dark ::-webkit-scrollbar-thumb {
-          background: #5a4a3a;
+          background: #334155;
         }
         .dark ::-webkit-scrollbar-thumb:hover {
-          background: #6a5a4a;
+          background: #475569;
         }
       `}</style>
     </div>
@@ -647,18 +736,18 @@ export default function MaterialStockPage() {
   const handleReset = () => { setFilters(emptyFilters); runSearch(emptyFilters); };
 
   return (
-    <div className="min-h-screen bg-[#f0ede6] dark:bg-[#1b1712]">
+    <div className="min-h-screen bg-[#eef1f5] dark:bg-[#0a0f1a]">
       <div className="max-w-[1400px] mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-[#b87a4a] to-[#8a4a24] dark:from-[#6a4a2a] dark:to-[#4a3018] text-white shadow-lg">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-[#101a2c] to-[#1e3a5f] dark:from-[#1e293b] dark:to-[#0f172a] text-white shadow-lg">
               <Search size={20} />
             </div>
             <div>
-              <h1 className="font-serif text-xl sm:text-2xl text-[#1a1208] dark:text-[#f0e8dc]">
+              <h1 className="font-semibold tracking-tight text-xl sm:text-2xl text-[#0f172a] dark:text-[#e2e8f0]">
                 Material Stock
               </h1>
-              <p className="text-sm text-[#a08060]">Search and manage inventory</p>
+              <p className="text-sm text-[#64748b]">Search and manage inventory</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -678,7 +767,7 @@ export default function MaterialStockPage() {
         </div>
 
         {error && (
-          <div className="rounded-lg bg-[#b87a4a]/10 border border-[#b87a4a]/25 text-[#8a4a24] dark:text-[#e0a878] text-sm px-4 py-3">
+          <div className="rounded-md bg-[#dc2626]/8 border border-[#dc2626]/25 text-[#b91c1c] dark:text-[#f87171] text-sm px-4 py-3">
             <b>Error:</b> {error}
           </div>
         )}

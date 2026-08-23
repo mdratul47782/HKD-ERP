@@ -41,20 +41,17 @@ import {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 // ============================================================
-// TEMP: frontend-only DUMMY DATA switch.
-// Set this to false once the backend endpoint (GET /dashboard/buyer-
-// overview, from dashboard.controllers.js) is ready -- the real
-// fetch() calls further down are already written and untouched, it's
-// just skipped while this is true. Nothing else in this file needs to
-// change.
+// TEMP: frontend-only DUMMY DATA.
+// "Available Roll" and "Available Yds" (kpis.totalAvailableRoll /
+// kpis.totalAvailableYds) are LIVE -- fetched for real from
+// GET /dashboard/buyer-overview, exactly like the rack-view page fetches
+// its own KPIs from the DB. Nothing else on this page is wired up yet:
+// pendingInspectionCount, totalReceivingCount, buyerStock,
+// statusBreakdown, requisitionBreakdown, and stockBySupplier all still
+// come from DUMMY_DATA below. When the rest of the backend endpoints are
+// ready, replace the corresponding DUMMY_DATA fields the same way the
+// two Roll/Yds numbers were replaced in the effect further down.
 // ============================================================
-const USE_DUMMY_DATA = true;
-
-// Dummy buyer-wise stock -- Decathlon - Knit + Decathlon - Woven
-// deliberately make up ~81% of total Roll/Yds (matches the real data
-// mix, where Decathlon - Woven dominates), the remaining buyers from the
-// BUYERS list split the rest. Shaped exactly like the real API response
-// so swapping USE_DUMMY_DATA to false needs no other code changes.
 const DUMMY_DATA = {
   kpis: {
     totalAvailableYds: 963950,
@@ -263,41 +260,41 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // TEMP: serve dummy data until the real backend endpoints are wired
-    // up. Flip USE_DUMMY_DATA to false above to switch back to the live
-    // fetches below -- everything else on this page already expects
-    // this exact shape, so no other change is needed.
-    if (USE_DUMMY_DATA) {
-      setData(DUMMY_DATA);
-      return;
-    }
-
     let cancelled = false;
+
+    // Start the page with the dummy shape immediately so every panel has
+    // something to render (no flash of "no data yet" while the KPI fetch
+    // is in flight). We then patch in the two REAL numbers -- Available
+    // Roll and Available Yds -- as soon as they come back from the DB,
+    // the same way the rack-view page reads them: straight off
+    // GET /dashboard/buyer-overview's `kpis.totalAvailableRoll` /
+    // `kpis.totalAvailableYds`. Everything else (Pending Inspection,
+    // Total Receiving, buyer/supplier charts, both pies) is left as
+    // DUMMY_DATA until those pieces of the backend are ready.
+    setData(DUMMY_DATA);
+
     (async () => {
       try {
-        // Two calls, two existing endpoints -- no new backend route:
-        //   /dashboard/buyer-overview -> kpis, buyerStock, statusBreakdown, requisitionBreakdown
-        //   /material-rack-view       -> stockBySupplier (same controller/route the rack-view page already uses)
-        const [overviewRes, rackViewRes] = await Promise.all([
-          fetch(`${API_URL}/dashboard/buyer-overview`, { credentials: "include" }),
-          fetch(`${API_URL}/material-rack-view`, { credentials: "include" }),
-        ]);
-        if (!overviewRes.ok) throw new Error("Failed to load buyer dashboard data");
-        if (!rackViewRes.ok) throw new Error("Failed to load supplier stock data");
-
-        const overviewJson = await overviewRes.json();
-        const rackViewJson = await rackViewRes.json();
-
-        if (!cancelled) {
-          setData({
-            ...overviewJson,
-            stockBySupplier: rackViewJson.stockBySupplier || [],
-          });
-        }
+        const res = await fetch(`${API_URL}/dashboard/buyer-overview`, { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to load dashboard KPIs");
+        const json = await res.json();
+        if (cancelled) return;
+        setData((prev) => ({
+          ...(prev || DUMMY_DATA),
+          kpis: {
+            ...(prev || DUMMY_DATA).kpis,
+            totalAvailableRoll: json.kpis?.totalAvailableRoll,
+            totalAvailableYds: json.kpis?.totalAvailableYds,
+          },
+        }));
       } catch (err) {
-        if (!cancelled) setError(err.message);
+        // Real KPI fetch failed -- keep the dummy Roll/Yds numbers on
+        // screen rather than blanking the whole dashboard, but surface
+        // the problem quietly in the console for debugging.
+        console.error("dashboard buyer-overview fetch failed:", err.message);
       }
     })();
+
     return () => { cancelled = true; };
   }, []);
 
@@ -365,7 +362,7 @@ export default function DashboardPage() {
             HKD Outdoor Innovations · Material Warehouse
           </div>
           <div style={{ fontFamily: displayFont, fontSize: 20, fontWeight: 700, color: T.text }}>
-            Buyer <em style={{ color: T.amber, fontStyle: "italic" }}>Overview</em>
+            <em style={{ color: T.amber, fontStyle: "italic" }}>Overview</em>
           </div>
         </div>
         <div style={{ fontFamily: monoFont, fontSize: 11, color: T.muted, display: "flex", alignItems: "center", gap: 6 }}>
