@@ -1,30 +1,26 @@
-// frontend/app/(Pages)/(Material-warehouse)/material-warehouse/dashboard/page.js
-
+// frontend/app/(Pages)/(Material-warehouse)/material-warehouse/dashboard-demo/page.js
 //
-// Dashboard page for the buyer overview. White theme, single
-// viewport (h-screen + overflow-hidden, no page scroll at all), reading
-// from two endpoints:
-//   - GET /dashboard/buyer-overview  (dashboard.controllers.js)   -> kpis, buyerStock, statusBreakdown, requisitionBreakdown
-//   - GET /material-rack-view        (materialRackView.controllers.js) -> stockBySupplier only
+// Pure DUMMY-DATA version of the buyer-overview dashboard. No fetch, no
+// backend dependency -- everything on screen is hard-coded so this can be
+// dropped in and viewed standalone (e.g. for a walkthrough/demo before the
+// real endpoint is ready). Same visual structure as the live dashboard:
+//   - 4 KPI cards
+//   - Buyer-wise Available Roll bar chart
+//   - Item Code-wise Available Roll + Yds bar chart
+//   - Batch Status Breakdown pie
+//   - Requisition Fulfillment Status pie
 //
-// The supplier-wise bar chart below is a straight reuse of the SAME
-// controller/route that already powers the "By Supplier" panel on the
-// material-dashboard (rack view) page -- no new backend endpoint or
-// aggregation logic was added. We just fetch /material-rack-view here as
-// well and pull out its `stockBySupplier` array.
-//
-// What's on screen, all at once, no scrolling:
-//   - 4 KPI cards: Total Available Roll, Total Available Yds,
-//     Pending Inspection, Total Receiving
-//   - Buyer-wise Available Roll -- horizontal-scroll vertical bar chart
-//   - Supplier-wise Available Yds -- horizontal-scroll vertical bar chart (NEW)
-//   - Batch Status breakdown -- pie chart
-//   - Requisition Status breakdown -- pie chart
+// The date picker still works here, but purely as a client-side demo: it
+// deterministically reshuffles the two pies' counts (seeded off the date
+// string, so the same date always gives the same numbers) to illustrate
+// what "date-wise" would look like once wired to the real endpoint. The
+// KPI cards and both bar charts stay fixed (all-time totals), same as the
+// live page.
 
 "use client";
 
-import { Boxes, ClipboardCheck, Layers, Loader2, PackageSearch } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Boxes, CalendarDays, ClipboardCheck, Layers, PackageSearch } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -38,65 +34,75 @@ import {
   YAxis
 } from "recharts";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+/* ============================================================
+   DUMMY DATA
+   ============================================================ */
 
-// ============================================================
-// TEMP: frontend-only DUMMY DATA.
-// "Available Roll" and "Available Yds" (kpis.totalAvailableRoll /
-// kpis.totalAvailableYds) are LIVE -- fetched for real from
-// GET /dashboard/buyer-overview, exactly like the rack-view page fetches
-// its own KPIs from the DB. Nothing else on this page is wired up yet:
-// pendingInspectionCount, totalReceivingCount, buyerStock,
-// statusBreakdown, requisitionBreakdown, and stockBySupplier all still
-// come from DUMMY_DATA below. When the rest of the backend endpoints are
-// ready, replace the corresponding DUMMY_DATA fields the same way the
-// two Roll/Yds numbers were replaced in the effect further down.
-// ============================================================
-const DUMMY_DATA = {
-  kpis: {
-    totalAvailableYds: 963950,
-    totalAvailableRoll: 5000,
-    pendingInspectionCount: 14,
-    totalReceivingCount: 342,
-  },
-  buyerStock: [
-    { buyer: "Decathlon - Woven", roll: 3200, yds: 624000 },
-    { buyer: "Decathlon - Knit", roll: 850, yds: 161500 },
-    { buyer: "Walmart", roll: 220, yds: 46200 },
-    { buyer: "Columbia", roll: 180, yds: 36900 },
-    { buyer: "ZXY", roll: 140, yds: 26600 },
-    { buyer: "CTC", roll: 130, yds: 23400 },
-    { buyer: "DIESEL", roll: 110, yds: 19250 },
-    { buyer: "Sports Group Denmark", roll: 90, yds: 14400 },
-    { buyer: "Identity", roll: 50, yds: 7500 },
-    { buyer: "Fifth Avenur", roll: 30, yds: 4200 },
-  ],
-  statusBreakdown: [
-    { status: "approved", count: 300 },
-    { status: "partial", count: 25 },
-    { status: "pending", count: 10 },
-    { status: "pending_inspection", count: 14 },
-    { status: "rejected", count: 3 },
-  ],
-  requisitionBreakdown: [
-    { status: "fulfilled", count: 40 },
-    { status: "partial", count: 12 },
-    { status: "pending", count: 8 },
-  ],
-  // Same shape as materialRackView's `stockBySupplier` field.
-  stockBySupplier: [
-    { supplier: "SANLI", yds: 210500 },
-    { supplier: "TAIWAN TEXTILE", yds: 168300 },
-    { supplier: "YKK", yds: 122400 },
-    { supplier: "FORMOSA", yds: 95800 },
-    { supplier: "HUAFON", yds: 74200 },
-    { supplier: "UNKNOWN", yds: 41250 },
-    { supplier: "NAN YA", yds: 28900 },
-  ],
+const BUYERS = [
+  "Decathlon - Knit",
+  "Decathlon - Woven",
+  "Walmart",
+  "Columbia",
+  "ZXY",
+  "CTC",
+  "DIESEL",
+  "Sports Group Denmark",
+  "Identity",
+  "Fifth Avenur",
+];
+
+// Hand-picked descending Roll figures per buyer above, Yds derived at a
+// roughly realistic ~185 yds/roll factor.
+const BUYER_ROLLS = [3200, 2850, 980, 760, 690, 610, 540, 410, 260, 150];
+
+const buyerStock = BUYERS.map((buyer, i) => {
+  const roll = BUYER_ROLLS[i];
+  return { buyer, roll, yds: roll * 185 };
+});
+
+// Item codes exactly as given.
+const ITEM_CODES = [
+  "2743740", "4156987", "2851729", "2741751", "2985763",
+  "4139064", "2655938", "4890250", "4707927", "5835216",
+  "4412530", "4819322", "5431884", "5893053", "5500547",
+  "4501848", "5928490", "4526973", "4750526", "5835227",
+];
+
+// Descending Roll figures for the 20 item codes above, Yds at the same
+// ~185 yds/roll factor.
+const ITEM_ROLLS = [
+  820, 760, 705, 650, 600, 555, 510, 470, 430, 395,
+  360, 330, 300, 270, 245, 220, 195, 175, 155, 135,
+];
+
+const itemCodeStock = ITEM_CODES.map((itemCode, i) => {
+  const roll = ITEM_ROLLS[i];
+  return { itemCode, roll, yds: roll * 185 };
+});
+
+const KPIS = {
+  totalAvailableRoll: 29540,
+  totalAvailableYds: 4358948.55,
+  pendingInspectionCount: 14,
+  totalReceivingCount: 342,
 };
 
+const BASE_STATUS_BREAKDOWN = [
+  { status: "approved", count: 300 },
+  { status: "partial", count: 25 },
+  { status: "pending", count: 10 },
+  { status: "pending_inspection", count: 14 },
+  { status: "rejected", count: 3 },
+];
+
+const BASE_REQUISITION_BREAKDOWN = [
+  { status: "fulfilled", count: 40 },
+  { status: "partial", count: 12 },
+  { status: "pending", count: 8 },
+];
+
 /* ============================================================
-   White theme tokens
+   White theme tokens (same as live dashboard)
    ============================================================ */
 const T = {
   bg: "#f5f4f1",
@@ -141,20 +147,41 @@ const fmt = (v) => {
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 };
 
-// Lets a plain vertical mouse-wheel scroll these panels horizontally --
-// without this, a normal wheel (no shift held) does nothing on a
-// horizontal-only overflow container and the extra buyers/suppliers are
-// only reachable by dragging the thin scrollbar itself.
-const handleWheelScroll = (e) => {
-  if (e.deltaY === 0) return; // already a horizontal gesture (trackpad/shift+wheel) -- let the browser handle it
-  const el = e.currentTarget;
-  if (el.scrollWidth <= el.clientWidth) return; // nothing to scroll
-  e.preventDefault();
-  el.scrollLeft += e.deltaY;
+const todayStr = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 };
 
+// Tiny seeded PRNG (mulberry32) keyed off a string -- gives the SAME
+// "random" numbers every time for the same date, so picking a date is
+// stable/deterministic rather than reshuffling on every render.
+function seededRng(seedStr) {
+  let h = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    h = (Math.imul(h, 31) + seedStr.charCodeAt(i)) >>> 0;
+  }
+  return function next() {
+    h = (Math.imul(h, 1664525) + 1013904223) >>> 0;
+    return h / 4294967296;
+  };
+}
+
+// Demo-only: derive a plausible-looking day's breakdown from the base
+// totals, seeded by the selected date, so switching dates visibly changes
+// the two pies while staying deterministic per date. Purely illustrative
+// -- the real page reads this straight from the backend instead.
+function deriveForDate(base, dateStr) {
+  const rng = seededRng(dateStr);
+  return base
+    .map((b) => ({ ...b, count: Math.max(0, Math.round(b.count * (0.4 + rng() * 1.3))) }))
+    .filter((b) => b.count > 0);
+}
+
 /* ============================================================
-   Small shared bits
+   Small shared bits (same as live dashboard)
    ============================================================ */
 
 function Panel({ eyebrow, title, right, children }) {
@@ -193,28 +220,28 @@ function KpiCard({ icon: Icon, label, value, unit, accent }) {
       style={{
         background: T.panel,
         border: `1px solid ${T.border}`,
-        borderRadius: 12,
-        padding: "16px 20px",
+        borderRadius: 14,
+        padding: "22px 26px",
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
-        gap: 10,
+        gap: 14,
         position: "relative",
         overflow: "hidden",
         height: "100%",
         boxShadow: "0 1px 3px rgba(26,18,8,0.04)",
       }}
     >
-      <div style={{ position: "absolute", top: 0, left: 0, width: 5, height: "100%", background: accent }} />
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Icon size={18} color={accent} strokeWidth={2} />
-        <span style={{ fontFamily: monoFont, fontSize: 12, letterSpacing: "0.08em", color: T.muted, textTransform: "uppercase" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, width: 6, height: "100%", background: accent }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Icon size={22} color={accent} strokeWidth={2} />
+        <span style={{ fontFamily: monoFont, fontSize: 13, letterSpacing: "0.08em", color: T.muted, textTransform: "uppercase" }}>
           {label}
         </span>
       </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-        <span style={{ fontFamily: displayFont, fontSize: 38, fontWeight: 700, color: T.text, lineHeight: 1 }}>{fmt(value)}</span>
-        {unit && <span style={{ fontFamily: monoFont, fontSize: 14, color: T.muted }}>{unit}</span>}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
+        <span style={{ fontFamily: displayFont, fontSize: 48, fontWeight: 700, color: T.text, lineHeight: 1 }}>{fmt(value)}</span>
+        {unit && <span style={{ fontFamily: monoFont, fontSize: 16, color: T.muted }}>{unit}</span>}
       </div>
     </div>
   );
@@ -251,76 +278,24 @@ function PieLegendList({ data, colorMap, labelMap, total }) {
   );
 }
 
+const handleWheelScroll = (e) => {
+  if (e.deltaY === 0) return;
+  const el = e.currentTarget;
+  if (el.scrollWidth <= el.clientWidth) return;
+  e.preventDefault();
+  el.scrollLeft += e.deltaY;
+};
+
 /* ============================================================
    Main page
    ============================================================ */
 
-export default function DashboardPage() {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState("");
+export default function DummyDashboardPage() {
+  const [selectedDate, setSelectedDate] = useState(todayStr());
+  const isToday = selectedDate === todayStr();
 
-  useEffect(() => {
-    let cancelled = false;
-
-    // Start the page with the dummy shape immediately so every panel has
-    // something to render (no flash of "no data yet" while the KPI fetch
-    // is in flight). We then patch in the two REAL numbers -- Available
-    // Roll and Available Yds -- as soon as they come back from the DB,
-    // the same way the rack-view page reads them: straight off
-    // GET /dashboard/buyer-overview's `kpis.totalAvailableRoll` /
-    // `kpis.totalAvailableYds`. Everything else (Pending Inspection,
-    // Total Receiving, buyer/supplier charts, both pies) is left as
-    // DUMMY_DATA until those pieces of the backend are ready.
-    setData(DUMMY_DATA);
-
-    (async () => {
-      try {
-        const res = await fetch(`${API_URL}/dashboard/buyer-overview`, { credentials: "include" });
-        if (!res.ok) throw new Error("Failed to load dashboard KPIs");
-        const json = await res.json();
-        if (cancelled) return;
-        setData((prev) => ({
-          ...(prev || DUMMY_DATA),
-          kpis: {
-            ...(prev || DUMMY_DATA).kpis,
-            totalAvailableRoll: json.kpis?.totalAvailableRoll,
-            totalAvailableYds: json.kpis?.totalAvailableYds,
-          },
-        }));
-      } catch (err) {
-        // Real KPI fetch failed -- keep the dummy Roll/Yds numbers on
-        // screen rather than blanking the whole dashboard, but surface
-        // the problem quietly in the console for debugging.
-        console.error("dashboard buyer-overview fetch failed:", err.message);
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, []);
-
-  if (error) {
-    return (
-      <div style={{ height: "100vh", background: T.bg, color: T.brick, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: bodyFont }}>
-        {error}
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div style={{ height: "100vh", background: T.bg, color: T.muted, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: bodyFont, gap: 10 }}>
-        <Loader2 size={18} className="animate-spin" /> Loading dashboard...
-      </div>
-    );
-  }
-
-  const {
-    kpis,
-    buyerStock = [],
-    statusBreakdown = [],
-    requisitionBreakdown = [],
-    stockBySupplier = [],
-  } = data;
+  const statusBreakdown = useMemo(() => deriveForDate(BASE_STATUS_BREAKDOWN, selectedDate), [selectedDate]);
+  const requisitionBreakdown = useMemo(() => deriveForDate(BASE_REQUISITION_BREAKDOWN, selectedDate), [selectedDate]);
   const statusTotal = statusBreakdown.reduce((s, r) => s + r.count, 0);
   const reqTotal = requisitionBreakdown.reduce((s, r) => s + r.count, 0);
 
@@ -348,11 +323,13 @@ export default function DashboardPage() {
         .buyer-scroll::-webkit-scrollbar-track { background: ${T.border}; border-radius: 5px; }
         .buyer-scroll::-webkit-scrollbar-thumb { background: ${T.amber}; border-radius: 5px; }
         .buyer-scroll::-webkit-scrollbar-thumb:hover { background: ${T.amberDark}; }
-        .supplier-scroll { height: 100%; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; scrollbar-color: ${T.slate} ${T.border}; scrollbar-width: thin; }
-        .supplier-scroll::-webkit-scrollbar { height: 9px; }
-        .supplier-scroll::-webkit-scrollbar-track { background: ${T.border}; border-radius: 5px; }
-        .supplier-scroll::-webkit-scrollbar-thumb { background: ${T.slate}; border-radius: 5px; }
-        .supplier-scroll::-webkit-scrollbar-thumb:hover { background: #2a4a63; }
+        .itemcode-scroll { height: 100%; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; scrollbar-color: ${T.slate} ${T.border}; scrollbar-width: thin; }
+        .itemcode-scroll::-webkit-scrollbar { height: 9px; }
+        .itemcode-scroll::-webkit-scrollbar-track { background: ${T.border}; border-radius: 5px; }
+        .itemcode-scroll::-webkit-scrollbar-thumb { background: ${T.slate}; border-radius: 5px; }
+        .itemcode-scroll::-webkit-scrollbar-thumb:hover { background: #2a4a63; }
+        .date-picker { font-family: ${monoFont}; font-size: 12px; color: ${T.text}; background: #fff; border: 1px solid ${T.border}; border-radius: 6px; padding: 5px 9px; outline: none; }
+        .date-picker:focus { border-color: ${T.amber}; }
       `}</style>
 
       {/* Header */}
@@ -363,189 +340,180 @@ export default function DashboardPage() {
           </div>
           <div style={{ fontFamily: displayFont, fontSize: 20, fontWeight: 700, color: T.text }}>
             <em style={{ color: T.amber, fontStyle: "italic" }}>Overview</em>
+            <span style={{ fontFamily: monoFont, fontSize: 11, color: T.muted, marginLeft: 10, fontStyle: "normal" }}>(demo data)</span>
           </div>
         </div>
-        <div style={{ fontFamily: monoFont, fontSize: 11, color: T.muted, display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.sage, display: "inline-block" }} />
-          Live
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <CalendarDays size={14} color={T.muted} />
+            <input
+              type="date"
+              className="date-picker"
+              value={selectedDate}
+              max={todayStr()}
+              onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+            />
+            {!isToday && (
+              <button
+                onClick={() => setSelectedDate(todayStr())}
+                style={{ fontFamily: monoFont, fontSize: 11, color: T.amber, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}
+              >
+                Today
+              </button>
+            )}
+          </div>
+          <div style={{ fontFamily: monoFont, fontSize: 11, color: T.muted, display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.gold, display: "inline-block" }} />
+            Demo
+          </div>
         </div>
       </div>
 
-      {/* KPI row -- taller cards, bigger numbers */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, flexShrink: 0, height: 118 }}>
-        <KpiCard icon={Boxes} label="Available Roll" value={kpis.totalAvailableRoll} unit="Roll" accent={T.amber} />
-        <KpiCard icon={Layers} label="Available Yds" value={kpis.totalAvailableYds} unit="Yds" accent={T.teal} />
-        <KpiCard icon={ClipboardCheck} label="Inspection Pending" value={kpis.pendingInspectionCount} unit="batches" accent="#7a4a8a" />
-        <KpiCard icon={PackageSearch} label="Total Receiving" value={kpis.totalReceivingCount} unit="invoices" accent={T.slate} />
+      {/* KPI row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, flexShrink: 0, height: 150 }}>
+        <KpiCard icon={Boxes} label="Available Roll" value={KPIS.totalAvailableRoll} unit="Roll" accent={T.amber} />
+        <KpiCard icon={Layers} label="Available Yds" value={KPIS.totalAvailableYds} unit="Yds" accent={T.teal} />
+        <KpiCard icon={ClipboardCheck} label="Inspection Pending" value={KPIS.pendingInspectionCount} unit="batches" accent="#7a4a8a" />
+        <KpiCard icon={PackageSearch} label="Total Receiving" value={KPIS.totalReceivingCount} unit="invoices" accent={T.slate} />
       </div>
 
-      {/* Charts row -- 4 columns now: buyer bar, supplier bar, batch pie, requisition pie */}
+      {/* Charts row -- 4 columns: buyer bar, item-code bar, batch pie, requisition pie */}
       <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1.3fr 0.85fr 0.85fr", gap: 10, flex: 1, minHeight: 0 }}>
-        {/* Buyer-wise Roll -- main VERTICAL bar chart (bars rise from the
-            bottom, buyer names along the X axis), horizontally scrollable
-            when there are many buyers. */}
+        {/* Buyer-wise Roll */}
         <Panel
-          eyebrow="By Buyer"
+          eyebrow="By Buyer · All-time"
           title="Available Roll"
           right={<span style={{ fontFamily: monoFont, fontSize: 11, color: T.muted }}>{buyerStock.length} buyers</span>}
         >
-          {buyerStock.length === 0 ? (
-            <div style={{ color: T.muted, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-              No stock data yet.
+          <div className="buyer-scroll" onWheel={handleWheelScroll}>
+            <div style={{ height: "100%", minWidth: Math.max(buyerStock.length * 108, 100) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={buyerStock} margin={{ left: 4, right: 16, top: 4, bottom: 4 }} barCategoryGap="20%">
+                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                  <XAxis
+                    dataKey="buyer"
+                    tick={{ fill: T.text, fontSize: 11.5, fontFamily: bodyFont }}
+                    axisLine={{ stroke: T.border }}
+                    tickLine={false}
+                    interval={0}
+                    tickFormatter={(v) => (typeof v === "string" && v.length > 12 ? `${v.slice(0, 12)}…` : v)}
+                  />
+                  <YAxis type="number" tick={{ fill: T.muted, fontSize: 11, fontFamily: monoFont }} axisLine={false} tickLine={false} width={44} />
+                  <Tooltip content={<CustomTooltip unit=" roll" />} cursor={{ fill: "rgba(184,122,74,0.06)" }} />
+                  <Bar dataKey="roll" name="Roll" fill={T.amber} radius={[5, 5, 0, 0]} barSize={54} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          ) : (
-            <div className="buyer-scroll">
-              <div style={{ height: "100%", minWidth: Math.max(buyerStock.length * 88, 100) }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={buyerStock} margin={{ left: 4, right: 16, top: 4, bottom: 4 }} barCategoryGap="28%">
-                    <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
-                    <XAxis
-                      dataKey="buyer"
-                      tick={{ fill: T.text, fontSize: 11.5, fontFamily: bodyFont }}
-                      axisLine={{ stroke: T.border }}
-                      tickLine={false}
-                      interval={0}
-                      tickFormatter={(v) => (typeof v === "string" && v.length > 12 ? `${v.slice(0, 12)}…` : v)}
-                    />
-                    <YAxis type="number" tick={{ fill: T.muted, fontSize: 11, fontFamily: monoFont }} axisLine={false} tickLine={false} width={44} />
-                    <Tooltip content={<CustomTooltip unit=" roll" />} cursor={{ fill: "rgba(184,122,74,0.06)" }} />
-                    <Bar dataKey="roll" name="Roll" fill={T.amber} radius={[4, 4, 0, 0]} barSize={34} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
+          </div>
         </Panel>
 
-        {/* Supplier-wise Yds -- NEW. Same data shape/source as the "By
-            Supplier" panel on the material-dashboard (rack view) page --
-            fetched from the SAME /material-rack-view controller/route,
-            just re-rendered here in the white theme. Horizontally
-            scrollable vertical bar chart, same pattern as the buyer
-            chart above. */}
+        {/* Item Code-wise Roll + Yds */}
         <Panel
-          eyebrow="By Supplier"
-          title="Available Yds"
-          right={<span style={{ fontFamily: monoFont, fontSize: 11, color: T.muted }}>{stockBySupplier.length} suppliers</span>}
+          eyebrow="By Item Code · All-time"
+          title="Available Roll & Yds"
+          right={<span style={{ fontFamily: monoFont, fontSize: 11, color: T.muted }}>{itemCodeStock.length} item codes</span>}
         >
-          {stockBySupplier.length === 0 ? (
-            <div style={{ color: T.muted, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-              No supplier data yet.
+          <div className="itemcode-scroll" onWheel={handleWheelScroll}>
+            <div style={{ height: "100%", minWidth: Math.max(itemCodeStock.length * 130, 100) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={itemCodeStock} margin={{ left: 4, right: 8, top: 4, bottom: 4 }} barCategoryGap="20%" barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                  <XAxis
+                    dataKey="itemCode"
+                    tick={{ fill: T.text, fontSize: 11.5, fontFamily: bodyFont }}
+                    axisLine={{ stroke: T.border }}
+                    tickLine={false}
+                    interval={0}
+                  />
+                  <YAxis yAxisId="roll" type="number" tick={{ fill: T.amber, fontSize: 11, fontFamily: monoFont }} axisLine={false} tickLine={false} width={40} />
+                  <YAxis yAxisId="yds" orientation="right" type="number" tick={{ fill: T.slate, fontSize: 11, fontFamily: monoFont }} axisLine={false} tickLine={false} width={54} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(61,106,138,0.06)" }} />
+                  <Bar yAxisId="roll" dataKey="roll" name="Roll" fill={T.amber} radius={[5, 5, 0, 0]} barSize={28} />
+                  <Bar yAxisId="yds" dataKey="yds" name="Yds" fill={T.slate} radius={[5, 5, 0, 0]} barSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          ) : (
-            <div className="supplier-scroll">
-              <div style={{ height: "100%", minWidth: Math.max(stockBySupplier.length * 72, 100) }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stockBySupplier} margin={{ left: 4, right: 16, top: 4, bottom: 4 }} barCategoryGap="28%">
-                    <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
-                    <XAxis
-                      dataKey="supplier"
-                      tick={{ fill: T.text, fontSize: 11.5, fontFamily: bodyFont }}
-                      axisLine={{ stroke: T.border }}
-                      tickLine={false}
-                      interval={0}
-                      tickFormatter={(v) => (typeof v === "string" && v.length > 10 ? `${v.slice(0, 10)}…` : v)}
-                    />
-                    <YAxis type="number" tick={{ fill: T.muted, fontSize: 11, fontFamily: monoFont }} axisLine={false} tickLine={false} width={44} />
-                    <Tooltip content={<CustomTooltip unit=" yds" />} cursor={{ fill: "rgba(61,106,138,0.06)" }} />
-                    <Bar dataKey="yds" name="Yds" fill={T.slate} radius={[4, 4, 0, 0]} barSize={34} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
+          </div>
         </Panel>
 
-        {/* Batch status pie */}
-        <Panel eyebrow="Stock Batches" title="Status Breakdown">
-          {statusBreakdown.length === 0 ? (
-            <div style={{ color: T.muted, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-              No batches yet.
+        {/* Batch status pie -- demo-derived per selected date */}
+        <Panel eyebrow={`Stock Batches · ${selectedDate}`} title="Status Breakdown">
+          <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 4 }}>
+            <div style={{ flex: 1.3, minHeight: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusBreakdown}
+                    dataKey="count"
+                    nameKey="status"
+                    innerRadius="55%"
+                    outerRadius="88%"
+                    paddingAngle={2}
+                    strokeWidth={1}
+                    stroke={T.panel}
+                  >
+                    {statusBreakdown.map((entry) => (
+                      <Cell key={entry.status} fill={STATUS_COLORS[entry.status] || T.muted} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 6, padding: "7px 11px", fontFamily: bodyFont, fontSize: 13, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
+                          {STATUS_LABELS[d.status] || d.status}: <b>{d.count}</b>
+                        </div>
+                      );
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 4 }}>
-              <div style={{ flex: 1.3, minHeight: 0 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusBreakdown}
-                      dataKey="count"
-                      nameKey="status"
-                      innerRadius="55%"
-                      outerRadius="88%"
-                      paddingAngle={2}
-                      strokeWidth={1}
-                      stroke={T.panel}
-                    >
-                      {statusBreakdown.map((entry) => (
-                        <Cell key={entry.status} fill={STATUS_COLORS[entry.status] || T.muted} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.length) return null;
-                        const d = payload[0].payload;
-                        return (
-                          <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 6, padding: "7px 11px", fontFamily: bodyFont, fontSize: 13, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
-                            {STATUS_LABELS[d.status] || d.status}: <b>{d.count}</b>
-                          </div>
-                        );
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-                <PieLegendList data={statusBreakdown} colorMap={STATUS_COLORS} labelMap={STATUS_LABELS} total={statusTotal} />
-              </div>
+            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              <PieLegendList data={statusBreakdown} colorMap={STATUS_COLORS} labelMap={STATUS_LABELS} total={statusTotal} />
             </div>
-          )}
+          </div>
         </Panel>
 
-        {/* Requisition status pie */}
-        <Panel eyebrow="Cutting Requisitions" title="Fulfillment Status">
-          {requisitionBreakdown.length === 0 ? (
-            <div style={{ color: T.muted, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-              No requisitions yet.
+        {/* Requisition status pie -- demo-derived per selected date */}
+        <Panel eyebrow={`Cutting Requisitions · ${selectedDate}`} title="Fulfillment Status">
+          <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 4 }}>
+            <div style={{ flex: 1.3, minHeight: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={requisitionBreakdown}
+                    dataKey="count"
+                    nameKey="status"
+                    innerRadius="55%"
+                    outerRadius="88%"
+                    paddingAngle={2}
+                    strokeWidth={1}
+                    stroke={T.panel}
+                  >
+                    {requisitionBreakdown.map((entry) => (
+                      <Cell key={entry.status} fill={REQ_COLORS[entry.status] || T.muted} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 6, padding: "7px 11px", fontFamily: bodyFont, fontSize: 13, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
+                          {REQ_LABELS[d.status] || d.status}: <b>{d.count}</b>
+                        </div>
+                      );
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 4 }}>
-              <div style={{ flex: 1.3, minHeight: 0 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={requisitionBreakdown}
-                      dataKey="count"
-                      nameKey="status"
-                      innerRadius="55%"
-                      outerRadius="88%"
-                      paddingAngle={2}
-                      strokeWidth={1}
-                      stroke={T.panel}
-                    >
-                      {requisitionBreakdown.map((entry) => (
-                        <Cell key={entry.status} fill={REQ_COLORS[entry.status] || T.muted} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.length) return null;
-                        const d = payload[0].payload;
-                        return (
-                          <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 6, padding: "7px 11px", fontFamily: bodyFont, fontSize: 13, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
-                            {REQ_LABELS[d.status] || d.status}: <b>{d.count}</b>
-                          </div>
-                        );
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-                <PieLegendList data={requisitionBreakdown} colorMap={REQ_COLORS} labelMap={REQ_LABELS} total={reqTotal} />
-              </div>
+            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              <PieLegendList data={requisitionBreakdown} colorMap={REQ_COLORS} labelMap={REQ_LABELS} total={reqTotal} />
             </div>
-          )}
+          </div>
         </Panel>
       </div>
     </div>
