@@ -1,4 +1,5 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-stock/page.js
+
 //
 // NOTE: this page uses @tanstack/react-table for the results grid
 // (click any column header to sort, built-in pagination model handles
@@ -127,7 +128,7 @@ const ALL_STOCK_COLUMNS = [
   { key: "invoiceNo", label: "Invoice No.", width: 7, defaultOn: false },
   { key: "buyer", label: "Buyer", width: 8, defaultOn: true },
   { key: "season", label: "Season", width: 6, defaultOn: false },
-  { key: "styleModel", label: "Style / Model", width: 11, defaultOn: true },
+  { key: "styleModel", label: "Style | Model", width: 11, defaultOn: true },
   { key: "warehouse", label: "W/H", width: 5, defaultOn: false },
   { key: "item", label: "Item", width: 7, defaultOn: false },
   { key: "itemCodePdm", label: "Item Code/PDM", width: 9, defaultOn: true },

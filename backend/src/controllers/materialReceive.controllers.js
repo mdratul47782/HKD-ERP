@@ -56,7 +56,7 @@ async function getFullReceive(id) {
  *                              -> matched on the parent Material Receive row,
  *                                 combined with AND. Supplier is optional
  *                                 free text at the invoice/parent level.
- *   - style / model           -> matched on the SAME materialReceiveStyles
+ *   - style | model           -> matched on the SAME materialReceiveStyles
  *                                 row (AND), so "Style=X, Model=Y" only
  *                                 matches a row that has both.
  *   - itemCodePdm / color / fabricDetails

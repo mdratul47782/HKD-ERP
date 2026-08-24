@@ -1,21 +1,4 @@
 // backend/src/controllers/materialInspection.controllers.js
-//
-// Used by the MATERIAL WAREHOUSE side page (Material-warehouse -> Material
-// Inspection). Every batch created by Material Receive starts life as
-// status "pending_inspection" with unassignedRoll/Yds = 0 -- it is NOT
-// available for Location Assignment (rack placement) until someone
-// inspects it here and decides how much actually passed QC.
-//
-// Inspecting a batch sets passedRoll/passedYds (<= received rollQty/yds)
-// and rejectedRoll/rejectedYds (= received - passed), and moves
-// unassignedRoll/unassignedYds to the PASSED amount only -- that's what
-// then shows up on Location Assignment / Material Stock. A batch can be
-// fully rejected (passedRoll = passedYds = 0), in which case it's marked
-// "rejected" and never appears on Location Assignment at all.
-//
-// Notification bell mirrors Cutting Issue's pattern, but at the BATCH
-// (material_receive_items) level instead of the requisition level, since
-// that's the natural inspection unit here.
 
 import { db, schema } from "../db/db.js";
 import { eq, desc, inArray, ne } from "drizzle-orm";

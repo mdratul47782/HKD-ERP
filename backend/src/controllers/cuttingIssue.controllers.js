@@ -16,6 +16,12 @@
 // judge that on the floor. The frontend shows a confirmation prompt when
 // an issue would exceed the requested Yds; the backend only guards against
 // issuing more than a rack physically has available.
+//
+// UPDATE 3: Roll and Yds no longer both have to be > 0 to issue. Some
+// racks are tracked by Yds only, some by Roll only -- the warehouse user
+// can now leave EITHER one at 0 (e.g. Roll=0, Yds=50, or Roll=50, Yds=0)
+// and the row still goes through. Only BOTH being 0 (or missing) is
+// rejected, since that isn't an issue action at all.
 
 import { db, schema } from "../db/db.js";
 import { eq, desc, ne, inArray } from "drizzle-orm";
@@ -210,6 +216,10 @@ async function recomputeRequisitionStatus(tx, requisitionItemId) {
  * limit enforced here is the rack's own availableRoll/Yds, since you
  * physically cannot issue more than what's on the shelf.
  *
+ * Roll and Yds do NOT both have to be > 0 -- either one can be left at 0
+ * (e.g. Roll=0 / Yds=50, or Roll=50 / Yds=0). Only rejected when BOTH are
+ * 0, since that isn't an issue action.
+ *
  * This decrements the SAME material_receive_item_locations.availableRoll/
  * Yds that Material Stock search reads from -- i.e. this is the actual
  * "minus from stock" step. Also logs to cutting_issues (this module's own
@@ -224,8 +234,9 @@ export const issueStock = async (req, res) => {
     if (!allocationId) return res.status(400).json({ message: "Select a Rack to issue from" });
     const roll = Number(rollQty) || 0;
     const y = Number(yds) || 0;
-    if (roll <= 0 || y <= 0) {
-      return res.status(400).json({ message: "Enter both a Roll and a Yds quantity greater than 0 to issue" });
+    // Either Roll or Yds can be 0 -- only reject when BOTH are 0/missing.
+    if (roll <= 0 && y <= 0) {
+      return res.status(400).json({ message: "Enter a Roll or Yds quantity greater than 0 to issue" });
     }
 
     const [reqItem] = await db.select().from(cuttingRequisitionItems).where(eq(cuttingRequisitionItems.id, requisitionItemId));
@@ -321,6 +332,9 @@ export const issueStock = async (req, res) => {
  * same Item Code/PDM + Color as the requisition item, and the same rack
  * can't be picked twice in one batch (combine it into a single row
  * instead -- otherwise which row "wins" is ambiguous).
+ *
+ * Roll and Yds do NOT both have to be > 0 on a row -- either one can be
+ * left at 0. Only rejected when BOTH are 0 on a given row.
  */
 export const issueStockBatch = async (req, res) => {
   try {
@@ -339,8 +353,9 @@ export const issueStockBatch = async (req, res) => {
 
     for (const r of rows) {
       if (!r.allocationId) return res.status(400).json({ message: "Every row needs a Rack selected" });
-      if (r.roll <= 0 || r.yds <= 0) {
-        return res.status(400).json({ message: "Every row needs both Roll and Yds greater than 0" });
+      // Either Roll or Yds can be 0 -- only reject when BOTH are 0/missing.
+      if (r.roll <= 0 && r.yds <= 0) {
+        return res.status(400).json({ message: "Every row needs a Roll or Yds quantity greater than 0" });
       }
     }
     const seen = new Set();

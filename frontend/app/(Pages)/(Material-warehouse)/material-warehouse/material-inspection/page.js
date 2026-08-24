@@ -1,4 +1,5 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-inspection/page.js
+
 //
 // Material Warehouse side: incoming batches from Material Receive show up
 // here as bell-icon notifications (read/unread), one per Item Code/PDM +
@@ -241,7 +242,7 @@ function WorklistItem({ item, forceOpen, onAfterOpen, onDone }) {
               <Field label="Buyer" value={r.buyer} />
               <Field label="Season" value={r.season} />
               <Field label="PO" value={r.po} />
-              <Field label="Style / Model" value={styleLabel || "-"} />
+              <Field label="Style | Model" value={styleLabel || "-"} />
               <Field label="Item" value={r.item} />
               <Field label="Buy" value={r.buy} />
               <Field label="Item Code/PDM" value={item.itemCodePdm} valueClassName="text-[#8a4a24] dark:text-[#d4955e]" />

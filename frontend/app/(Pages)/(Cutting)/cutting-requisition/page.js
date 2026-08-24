@@ -1,4 +1,5 @@
 // frontend/app/(Pages)/(Cutting)/cutting-requisition/page.js
+
 //
 // Cutting side: submit a Requisition to Material Warehouse asking for
 // specific Item Code/PDM + Color + Pcs/Wastage%/Consumption to be issued
@@ -281,7 +282,7 @@ function RecordsPanel({ filters, setFilters, requisitions, loading, expandedIds,
                 <th className="px-3 py-2 text-left font-semibold">Buyer</th>
                 <th className="px-3 py-2 text-left font-semibold">Floor</th>
                 <th className="px-3 py-2 text-left font-semibold">Season</th>
-                <th className="px-3 py-2 text-left font-semibold">Style / Model</th>
+                <th className="px-3 py-2 text-left font-semibold">Style | Model</th>
                 <th className="px-3 py-2 text-left font-semibold">Items</th>
                 <th className="px-3 py-2 text-left font-semibold">Status</th>
                 <th className="px-3 py-2 text-left font-semibold">Actions</th>

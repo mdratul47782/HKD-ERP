@@ -1,4 +1,5 @@
-// frontend/app/(Pages)/(Material-warehouse)/material-warehouse/dashboard-demo/page.js
+// frontend/app/(Pages)/(Material-warehouse)/material-warehouse/dashboard/page.js
+
 //
 // Pure DUMMY-DATA version of the buyer-overview dashboard. No fetch, no
 // backend dependency -- everything on screen is hard-coded so this can be
