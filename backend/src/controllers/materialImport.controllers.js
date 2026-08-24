@@ -34,17 +34,22 @@
 //                                defaultsApplied so it's visible in the
 //                                review table, same as the other
 //                                defaulted fields.
-//   - Available Roll/Yds is ALWAYS set equal to Received Roll/Yds for
-//                                every imported row. The sheet's Inhand
-//                                columns are read but never used to
-//                                compute Available -- they're frequently
-//                                0/blank/inconsistent in the legacy
-//                                file, and the goal is "everything
-//                                received shows up in stock", not a
-//                                perfectly accurate issued/available
-//                                breakdown. Edit a row's real available
-//                                quantity later on the Material Receive
-//                                / Location Assignment pages if needed.
+//   - Received Roll/Yds  -> pushed to DB exactly as the sheet's
+//                                RCVD ROLL / RCVD QTY say (0 if blank).
+//   - Available Roll/Yds -> pushed to DB exactly as the sheet's
+//                                INHAND ROLL / INHAND QTY say (0 if
+//                                blank/missing). This is a change from
+//                                an earlier version of this importer
+//                                that always forced Available = Received
+//                                regardless of what INHAND said -- per
+//                                user request, Available must now match
+//                                the sheet's INHAND columns exactly, not
+//                                be silently overwritten. A blank/0
+//                                INHAND value is flagged in
+//                                defaultsApplied (as "Available Qty" /
+//                                "Available Roll") so it's visible in
+//                                the review table instead of silently
+//                                importing as 0.
 //   - No row is ever "invalid" and nothing is held back at commit time.
 //
 // Design decisions (confirmed with the user):
@@ -117,6 +122,17 @@
 // cell in the review table with no visual flag -- now it gets the same
 // amber highlight + Info icon as any other defaulted field, so it's
 // visible instead of easy to miss.
+//
+// AVAILABLE QTY FIX (this revision): Available Roll/Yds was previously
+// ALWAYS forced to equal Received Roll/Yds, with the sheet's INHAND QTY
+// / INHAND ROLL columns read but discarded. That's why imported rows'
+// Received/Available never matched the source Excel file. Per user
+// request, Available now comes directly from INHAND QTY / INHAND ROLL,
+// exactly as the sheet has them -- nothing is substituted or mirrored
+// from Received anymore. A blank/0 INHAND cell now flags the row in
+// defaultsApplied (same amber-highlight treatment as the other
+// defaulted fields) instead of silently importing as 0 with no
+// indication.
 
 import { eq } from "drizzle-orm";
 import * as XLSX from "xlsx";
@@ -150,8 +166,8 @@ const HEADER_ALIASES = {
   rcvdRoll: ["RCVD ROLL", "ROLL"],
   issueYds: ["ISSUE YDS"],
   issueRoll: ["ISSUE ROLL"],
-  inhandYds: ["INHAND QTY"],
-  inhandRoll: ["INHAND ROLL"],
+  inhandYds: ["INHAND QTY", "STOCK QTY"],
+  inhandRoll: ["INHAND ROLL", "STOCK ROLL"],
   location: ["RACK NO", "RACK", "LOCATION"],
   supplier: ["SUPLIER", "SUPPLIER"],
   origin: ["ORIGIN"],
@@ -311,10 +327,11 @@ function str(v) {
  * Material Receive" objects. Every row is included -- nothing is ever
  * dropped or marked invalid. Missing Item Code/PDM, Color, Rack No, or
  * an unparseable Date are simply defaulted (see header comment) so the
- * row still lands in stock, and Available Roll/Yds is always set equal
- * to Received Roll/Yds regardless of what the sheet's Inhand columns
- * say. `warnings` is a short-form list noting which rows had a default
- * applied, purely informational -- never blocks preview or commit.
+ * row still lands in stock. Received Roll/Yds comes from RCVD ROLL/
+ * RCVD QTY and Available Roll/Yds comes from INHAND ROLL/INHAND QTY,
+ * each pushed to DB exactly as the sheet has them. `warnings` is a
+ * short-form list noting which rows had a default applied, purely
+ * informational -- never blocks preview or commit.
  */
 function parseWorkbook(buffer) {
   // cellDates intentionally OFF -- see the "DATE HANDLING" comment at
@@ -352,15 +369,21 @@ function parseWorkbook(buffer) {
       const rawDateCell = get("date");
       const parsedDate = excelDateToISO(rawDateCell);
 
+      const rawInhandRoll = get("inhandRoll");
+      const rawInhandYds = get("inhandYds");
+
       const rollQty = num(get("rcvdRoll"));
       const yds = num(get("rcvdYds"));
 
-      // ALWAYS available = received. Inhand columns are read but never
-      // used to compute Available -- guarantees no row silently
-      // disappears from Material Stock just because Inhand was
-      // 0 / blank / wrong in the sheet.
-      const availableRoll = rollQty;
-      const availableYds = yds;
+      // Available now comes straight from the sheet's INHAND ROLL /
+      // INHAND QTY columns -- pushed to DB exactly as-is, never
+      // substituted with Received. If the sheet's INHAND value is
+      // wrong/blank, that same wrong/blank value is what lands in DB,
+      // per the "exactly what's in the sheet" import policy. A blank
+      // cell (column present but empty, or column missing entirely)
+      // becomes 0 and is flagged below in defaultsApplied.
+      const availableRoll = num(rawInhandRoll);
+      const availableYds = num(rawInhandYds);
 
       const supplier = str(get("supplier"));
       const origin = str(get("origin"));
@@ -387,6 +410,11 @@ function parseWorkbook(buffer) {
       // (blank cell, no highlight, no Info icon). Now it gets the same
       // visibility as every other defaulted field.
       if (!parsedDate) defaultsApplied.push("Date");
+      // Flag rows where INHAND ROLL / INHAND QTY was blank/missing in
+      // the sheet, so a resulting Available = 0 is visible in the
+      // review table instead of looking like silent data loss.
+      if (str(rawInhandRoll) === "") defaultsApplied.push("Available Roll (INHAND ROLL blank)");
+      if (str(rawInhandYds) === "") defaultsApplied.push("Available Qty (INHAND QTY blank)");
 
       const rec = {
         _key: `${sheetName}-${r + 1}`,
@@ -493,8 +521,9 @@ async function insertRecord(tx, rec) {
 
   // Always create a rack allocation -- location defaults to "UNASSIGNED"
   // when the sheet had no Rack No, so the row is still real stock and
-  // shows up in Material Stock search immediately. Available always
-  // mirrors Received (see parseWorkbook / commitMaterialStock).
+  // shows up in Material Stock search immediately. Available now comes
+  // from the sheet's INHAND ROLL/QTY (see parseWorkbook / commit), not
+  // mirrored from Received.
   const [alloc] = await tx.insert(materialReceiveItemLocations).values({
     itemId: batch.id,
     materialReceiveId,
@@ -588,10 +617,11 @@ export const commitMaterialStock = async (req, res) => {
           item: str(rec.item) || str(rec.itemCodePdm) || DEFAULT_ITEM_CODE,
           rollQty,
           yds,
-          // If the reviewer left Available blank/untouched, mirror it to
-          // Received -- same "never silently zero" guarantee as preview.
-          availableRoll: rec.availableRoll === "" || rec.availableRoll == null ? rollQty : num(rec.availableRoll),
-          availableYds: rec.availableYds === "" || rec.availableYds == null ? yds : num(rec.availableYds),
+          // Available is pushed exactly as given (from INHAND ROLL/QTY
+          // at preview time, or whatever the reviewer typed in the
+          // table) -- no longer silently mirrored to Received.
+          availableRoll: num(rec.availableRoll),
+          availableYds: num(rec.availableYds),
         };
         await insertRecord(tx, safeRec);
         created += 1;
