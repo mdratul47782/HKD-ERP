@@ -28,6 +28,12 @@
 //   - Missing Rack No        -> defaults to "UNASSIGNED" (still a real
 //                                rack allocation, so the row is visible
 //                                in Material Stock immediately)
+//   - Unparseable/missing Date -> row still imports; `date` is stored
+//                                as null (falls back to today's date at
+//                                insert time) and flagged in
+//                                defaultsApplied so it's visible in the
+//                                review table, same as the other
+//                                defaulted fields.
 //   - Available Roll/Yds is ALWAYS set equal to Received Roll/Yds for
 //                                every imported row. The sheet's Inhand
 //                                columns are read but never used to
@@ -79,6 +85,38 @@
 // 2), and every sheet in the workbook is scanned -- sheets that don't
 // look like the stock template at all (no Item Code AND no Color column
 // anywhere) are skipped automatically.
+//
+// DATE HANDLING (fixed, take 3): dates were STILL coming back blank for
+// every row even after the earlier fix that turned cellDates off and
+// routed numeric cells through XLSX.SSF.parse_date_code(). Root cause:
+// XLSX.SSF is not guaranteed to be exposed on the XLSX namespace in
+// every build/version of the "xlsx" package (some ESM/browser-oriented
+// builds omit it, or expose it under a different path). That made
+// `XLSX.SSF?.parse_date_code` silently evaluate to `undefined` on this
+// server, the branch fell through to `return null`, and EVERY numeric
+// date cell in the sheet -- i.e. every date in the file -- came back as
+// null. No error was ever thrown, since the code was written to treat a
+// failed date parse as "just leave it blank" (consistent with the
+// import policy of never blocking a row), so this failed completely
+// silently.
+//
+// Fix: stop depending on XLSX.SSF entirely. excelSerialToYMD() below
+// converts an Excel date serial to a {y, m, d} triple using plain
+// integer/UTC arithmetic against the well-known Excel epoch
+// (Dec 30 1899, which correctly absorbs Excel's fake-1900-leap-year
+// quirk) -- no external helper, no Date-object/timezone mixing, and no
+// dependency on what a given xlsx build does or doesn't export. This is
+// the same category of fix as the original "take 1" date bug: keep
+// every date computation as pure calendar math, never anything that can
+// vary by server timezone or library internals.
+//
+// Also: a row whose date can't be determined at all (blank cell or text
+// that doesn't match any known format) now gets "Date" pushed into
+// defaultsApplied, the same way missing Item Code/Color/Rack already
+// are. Previously a failed date parse just silently produced a blank
+// cell in the review table with no visual flag -- now it gets the same
+// amber highlight + Info icon as any other defaulted field, so it's
+// visible instead of easy to miss.
 
 import { eq } from "drizzle-orm";
 import * as XLSX from "xlsx";
@@ -149,26 +187,111 @@ function buildColumnMap(headerRow) {
   return map;
 }
 
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+const MONTH_MAP = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+/**
+ * Converts an Excel date serial number into { y, m, d } using pure
+ * integer/UTC arithmetic -- no XLSX.SSF, no Date/timezone mixing.
+ *
+ * Excel's epoch is Dec 30 1899 (not Dec 31/Jan 1) because this also
+ * absorbs Excel's famous fake-1900-leap-year bug (it treats 1900 as a
+ * leap year, which it wasn't) -- Dec 30 1899 + serial days lands on the
+ * same calendar date Excel itself displays, for every serial Excel
+ * actually produces (>= 60). Everything here runs through Date.UTC /
+ * getUTC* only, so the result can never drift with the server's local
+ * timezone, regardless of what xlsx build or version is installed.
+ */
+function excelSerialToYMD(serial) {
+  const epochUTC = Date.UTC(1899, 11, 30);
+  const ms = epochUTC + Math.round(serial) * 86400000;
+  const d = new Date(ms);
+  return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate() };
+}
+
+/**
+ * Converts a raw cell value (real Date, Excel serial number, or text
+ * date) into a plain "YYYY-MM-DD" string, always matching the calendar
+ * date the sheet actually shows -- never shifted by a server timezone.
+ *
+ * IMPORTANT: every branch below deliberately avoids mixing UTC output
+ * (toISOString) with a value that was constructed/parsed in local time,
+ * and vice versa -- that mismatch was the original off-by-one-day bug.
+ * The numeric branch additionally avoids XLSX.SSF entirely, since that
+ * turned out to be silently unavailable in this build (see the file
+ * header "DATE HANDLING" comment) and was nulling out every date.
+ */
 function excelDateToISO(value) {
-  if (!value) return null;
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  if (typeof value === "number") {
-    const d = XLSX.SSF?.parse_date_code ? XLSX.SSF.parse_date_code(value) : null;
-    if (d) return `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
-    return null;
+  if (value === null || value === undefined || value === "") return null;
+
+  // 1) Defensive fallback only -- with cellDates left OFF (see file
+  //    header comment), XLSX should no longer hand us Date instances for
+  //    date-formatted cells at all; they arrive as raw serial numbers
+  //    and go through branch (2) instead. If a Date object shows up
+  //    anyway (e.g. a future code change), UTC getters are used since
+  //    that's how XLSX itself would construct it.
+  if (value instanceof Date) {
+    return `${value.getUTCFullYear()}-${pad2(value.getUTCMonth() + 1)}-${pad2(value.getUTCDate())}`;
   }
+
+  // 2) Raw Excel serial number (date cell read without cellDates, or a
+  //    numeric cell XLSX didn't auto-convert). Converted via pure
+  //    integer/UTC math (excelSerialToYMD) -- no XLSX.SSF dependency,
+  //    which is what silently nulled out every date in this file
+  //    previously.
+  if (typeof value === "number") {
+    const { y, m, d } = excelSerialToYMD(value);
+    return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
+
   const s = String(value).trim();
   if (!s) return null;
-  // Common "DD/MM/YY" / "D/M/YYYY" style dates seen in the legacy sheet.
+
+  // 3) "DD/MM/YY" or "D/M/YYYY" -- common in the legacy sheet.
   const dmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (dmy) {
     let [, d, m, y] = dmy;
     if (y.length === 2) y = `20${y}`;
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    return `${y}-${pad2(m)}-${pad2(d)}`;
   }
-  // Handles "2-Jun-25" style text dates via the generic Date parser.
+
+  // 4) Already-ISO text, e.g. "2025-06-02" (possibly with a time part) --
+  //    take the date part as-is, no Date object involved.
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) {
+    const [, y, m, d] = iso;
+    return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
+
+  // 5) "D-MMM-YY" / "D-MMM-YYYY" / "D Mon YYYY" text dates, e.g.
+  //    "2-Jun-25". Parsed explicitly against a month-name map instead
+  //    of new Date(s), so there's no timezone ambiguity at all.
+  const dmyText = s.match(/^(\d{1,2})[\s-]([A-Za-z]{3,})[\s-](\d{2,4})$/);
+  if (dmyText) {
+    const [, d, monRaw, yRaw] = dmyText;
+    const mon = MONTH_MAP[monRaw.toLowerCase().slice(0, 3)];
+    if (mon) {
+      const y = yRaw.length === 2 ? `20${yRaw}` : yRaw;
+      return `${y}-${pad2(mon)}-${pad2(d)}`;
+    }
+  }
+
+  // 6) Last-resort generic parse for anything else recognizable
+  //    (e.g. "June 2, 2025"). new Date(s) interprets non-ISO strings in
+  //    the SERVER's LOCAL timezone, so the result must be read back with
+  //    LOCAL getters (not toISOString/UTC) to match how it was parsed --
+  //    mixing the two is exactly what caused the original off-by-one-day
+  //    bug.
   const parsed = new Date(s);
-  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  if (!Number.isNaN(parsed.getTime())) {
+    return `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(parsed.getDate())}`;
+  }
   return null;
 }
 
@@ -186,15 +309,21 @@ function str(v) {
  * Parses every sheet in the workbook and returns { records, warnings }.
  * `records` is the flat list of "one spreadsheet row = one future
  * Material Receive" objects. Every row is included -- nothing is ever
- * dropped or marked invalid. Missing Item Code/PDM, Color, or Rack No
- * are simply defaulted (see header comment) so the row still lands in
- * stock, and Available Roll/Yds is always set equal to Received
- * Roll/Yds regardless of what the sheet's Inhand columns say.
- * `warnings` is a short-form list noting which rows had a default
+ * dropped or marked invalid. Missing Item Code/PDM, Color, Rack No, or
+ * an unparseable Date are simply defaulted (see header comment) so the
+ * row still lands in stock, and Available Roll/Yds is always set equal
+ * to Received Roll/Yds regardless of what the sheet's Inhand columns
+ * say. `warnings` is a short-form list noting which rows had a default
  * applied, purely informational -- never blocks preview or commit.
  */
 function parseWorkbook(buffer) {
-  const wb = XLSX.read(buffer, { type: "buffer", cellDates: true });
+  // cellDates intentionally OFF -- see the "DATE HANDLING" comment at
+  // the top of this file. Real Excel date cells now come through as raw
+  // serial numbers, which excelDateToISO() converts via pure integer/UTC
+  // math (excelSerialToYMD), with no Date object, no XLSX.SSF dependency,
+  // and therefore no timezone or missing-export issue anywhere in the
+  // path.
+  const wb = XLSX.read(buffer, { type: "buffer", cellDates: false });
   const records = [];
   const warnings = [];
 
@@ -220,6 +349,8 @@ function parseWorkbook(buffer) {
       const rawItemCodePdm = str(get("itemCodePdm"));
       const rawColor = str(get("color"));
       const rawLocation = str(get("location"));
+      const rawDateCell = get("date");
+      const parsedDate = excelDateToISO(rawDateCell);
 
       const rollQty = num(get("rcvdRoll"));
       const yds = num(get("rcvdYds"));
@@ -251,12 +382,17 @@ function parseWorkbook(buffer) {
       if (!rawItemCodePdm) defaultsApplied.push("Item Code/PDM");
       if (!rawColor) defaultsApplied.push("Color");
       if (!rawLocation) defaultsApplied.push("Rack No");
+      // Flag rows where the Date cell was present but unparseable, or
+      // simply blank -- previously this failed completely silently
+      // (blank cell, no highlight, no Info icon). Now it gets the same
+      // visibility as every other defaulted field.
+      if (!parsedDate) defaultsApplied.push("Date");
 
       const rec = {
         _key: `${sheetName}-${r + 1}`,
         sheet: sheetName,
         row: r + 1,
-        date: excelDateToISO(get("date")) || null,
+        date: parsedDate,
         invoiceNo: str(get("invoiceNo")) || `IMPORTED-${sheetName}-${r + 1}`,
         buyer: str(get("buyer")) || DEFAULT_BUYER,
         supplier: supplier || null,
