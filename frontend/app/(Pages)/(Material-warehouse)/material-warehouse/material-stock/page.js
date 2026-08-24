@@ -1,25 +1,30 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-stock/page.js
 //
-// NOTE: this page now uses @tanstack/react-table for the results grid
-// (click any column header to sort). If it isn't already in package.json:
+// NOTE: this page uses @tanstack/react-table for the results grid
+// (click any column header to sort, built-in pagination model handles
+// paging). If it isn't already in package.json:
 //   npm install @tanstack/react-table
 //
-// Visual theme switched from the warm amber/teal palette to a cooler
-// navy/steel-blue "ERP grid" look: solid dark header bar, real cell
-// borders (a visible grid, not just row dividers), tighter zebra
-// striping, and monospace figures -- closer to what SAP/Odoo/NetSuite-
-// style operational screens use than a marketing page. Blue = primary
-// actions/sorting/filters, teal = the secondary "Columns" affordance,
-// green = available stock, same semantic roles as before, new hex
-// values.
+// CHANGE (this revision): the right-hand filter sidebar (FilterOverlay)
+// has been removed. In its place, small inline search boxes sit right
+// under the "Material Stock / Search and manage inventory" header, one
+// per filterable field, in a compact responsive grid. The results table
+// also now paginates (rows-per-page selector + prev/next/first/last),
+// instead of one long scrolling list.
+//
+// Visual theme: cooler navy/steel-blue "ERP grid" look: solid dark header
+// bar, real cell borders, tight zebra striping, monospace figures. Blue =
+// primary actions/sorting/filters, teal = secondary "Columns" affordance,
+// green = available stock.
 
 "use client";
 
-import { ArrowUpDown, Boxes, Check, ChevronDown, ChevronUp, Filter, RotateCcw, Search, SlidersHorizontal, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowUpDown, Boxes, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronUp, RotateCcw, Search, SlidersHorizontal } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
@@ -37,6 +42,8 @@ const btnPrimary =
   "inline-flex items-center gap-1.5 rounded-md bg-[#101a2c] dark:bg-[#2563eb] text-white text-sm px-4 py-2 hover:bg-[#1e3a5f] dark:hover:bg-[#1d4ed8] transition-colors disabled:opacity-50 font-medium";
 const btnSecondary =
   "inline-flex items-center gap-1.5 rounded-md border-[1.5px] border-[#c7ccd6] dark:border-[#334155] bg-white dark:bg-[#111827] text-[#475569] dark:text-[#94a3b8] text-sm px-3 py-2 hover:border-[#2563eb] hover:text-[#2563eb] dark:hover:border-[#3b82f6] dark:hover:text-[#3b82f6] transition-colors disabled:opacity-40 disabled:pointer-events-none font-medium";
+const btnIcon =
+  "inline-flex items-center justify-center rounded-md border-[1.5px] border-[#c7ccd6] dark:border-[#334155] bg-white dark:bg-[#111827] text-[#475569] dark:text-[#94a3b8] w-8 h-8 hover:border-[#2563eb] hover:text-[#2563eb] dark:hover:border-[#3b82f6] dark:hover:text-[#3b82f6] transition-colors disabled:opacity-30 disabled:pointer-events-none";
 const chip = "inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-[#2563eb]/10 text-[#1d4ed8] dark:bg-[#3b82f6]/15 dark:text-[#60a5fa] max-w-full truncate";
 const chipTeal = "inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-[#0f766e]/10 text-[#0f766e] dark:bg-[#14b8a6]/15 dark:text-[#2dd4bf] max-w-full truncate";
 
@@ -125,9 +132,6 @@ const ALL_STOCK_COLUMNS = [
   { key: "item", label: "Item", width: 7, defaultOn: false },
   { key: "itemCodePdm", label: "Item Code/PDM", width: 9, defaultOn: true },
   { key: "color", label: "Color", width: 7, defaultOn: true },
-  // NEW: Fabric Details + Supplier are searchable/displayable but start OFF so
-  // the default table looks exactly like it did before this change -- the
-  // user opts in to them via the Columns picker.
   { key: "fabricDetails", label: "Fabric Details", width: 8, defaultOn: false },
   { key: "supplier", label: "Supplier", width: 8, defaultOn: false },
   { key: "location", label: "Location", width: 6, defaultOn: true },
@@ -140,6 +144,19 @@ const ALL_STOCK_COLUMNS = [
 ];
 
 const DEFAULT_VISIBLE_KEYS = ALL_STOCK_COLUMNS.filter((c) => c.defaultOn).map((c) => c.key);
+
+// Which columns the user has chosen to show, kept in the browser's
+// localStorage so the choice survives a refresh.
+const VISIBLE_COLUMNS_KEY = "materialStock:visibleColumns";
+function loadVisibleColumns() {
+  if (typeof window === "undefined") return DEFAULT_VISIBLE_KEYS;
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(VISIBLE_COLUMNS_KEY));
+    return Array.isArray(saved) && saved.length ? saved : DEFAULT_VISIBLE_KEYS;
+  } catch {
+    return DEFAULT_VISIBLE_KEYS;
+  }
+}
 
 const TABLE_FONT_STYLE = { fontSize: "clamp(0.6rem, 0.45rem + 0.55vw, 0.875rem)" };
 const CELL_PAD = "px-[clamp(2px,0.5vw,10px)] py-[clamp(3px,0.45vw,8px)]";
@@ -230,175 +247,91 @@ function SummaryStrip({ summary }) {
 }
 
 // ============================================================
-// Filter Overlay Sidebar
+// Inline Filters -- small search boxes sitting right under the page
+// header, replacing the old right-hand FilterOverlay sidebar. One
+// compact input per filterable field, arranged in a responsive grid.
 // ============================================================
 
-function FilterOverlay({ isOpen, onClose, filters, setFilters, onSearch, onReset, loading }) {
+function InlineFilters({ filters, setFilters, onSearch, onReset, loading }) {
   const activeCount = Object.values(filters).filter((v) => v && v.trim()).length;
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSearch(e);
-    onClose();
-  };
-
-  const handleReset = () => {
-    onReset();
-    onClose();
-  };
-
-  if (!isOpen) return null;
-
   return (
-    <>
-      <div
-        className="fixed inset-0 bg-[#0f172a]/40 backdrop-blur-sm z-40"
-        onClick={onClose}
-      />
-
-      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-[#f5f6f8] dark:bg-[#0b1120] shadow-2xl z-50 overflow-y-auto animate-slide-in">
-        <div className="sticky top-0 bg-[#101a2c] dark:bg-[#0f172a] border-b border-black/10 px-4 py-3 flex items-center justify-between z-10">
-          <div className="flex items-center gap-2">
-            <Filter size={18} className="text-[#60a5fa]" />
-            <h2 className="font-semibold tracking-tight text-lg text-white">Filters</h2>
-            {activeCount > 0 && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-[#2563eb]/25 text-[#93c5fd]">
-                {activeCount}
-              </span>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-md hover:bg-white/10 transition-colors"
-          >
-            <X size={20} className="text-[#94a3b8]" />
+    <form onSubmit={onSearch} className={`${card} p-3 sm:p-4`}>
+      <div className="flex items-center justify-between gap-2 mb-2.5">
+        <span className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">
+          Search
+          {activeCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] bg-[#2563eb]/10 text-[#1d4ed8] dark:bg-[#3b82f6]/15 dark:text-[#60a5fa]">
+              {activeCount} active
+            </span>
+          )}
+        </span>
+        <div className="flex items-center gap-2">
+          <button type="submit" disabled={loading} className={btnPrimary}>
+            <Search size={14} /> {loading ? "..." : "Search"}
+          </button>
+          <button type="button" onClick={onReset} className={btnSecondary}>
+            <RotateCcw size={14} /> Reset
           </button>
         </div>
-
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          <div className="space-y-3">
-            {STOCK_FILTER_FIELDS.map((f) => (
-              <div key={f.key}>
-                <label className="block text-xs uppercase tracking-wide text-[#64748b] mb-1">
-                  {f.label}
-                </label>
-                <input
-                  type="text"
-                  value={filters[f.key]}
-                  onChange={(e) => setFilters({ ...filters, [f.key]: e.target.value })}
-                  placeholder={f.label}
-                  className={inputCls}
-                />
-              </div>
-            ))}
-          </div>
-
-          <div className="flex gap-2 pt-3 border-t border-[#d7dbe3] dark:border-[#1e293b]">
-            <button type="submit" disabled={loading} className={`${btnPrimary} flex-1 justify-center`}>
-              {loading ? "..." : "Search"}
-            </button>
-            <button type="button" onClick={handleReset} className={btnSecondary}>
-              <RotateCcw size={14} /> Reset
-            </button>
-          </div>
-        </form>
       </div>
-
-      <style jsx>{`
-        @keyframes slide-in {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        .animate-slide-in {
-          animation: slide-in 0.3s ease-out;
-        }
-      `}</style>
-    </>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+        {STOCK_FILTER_FIELDS.map((f) => (
+          <input
+            key={f.key}
+            type="text"
+            value={filters[f.key]}
+            onChange={(e) => setFilters({ ...filters, [f.key]: e.target.value })}
+            placeholder={f.label}
+            title={f.label}
+            className={`${inputCls} !py-1.5 !px-2.5 text-xs`}
+          />
+        ))}
+      </div>
+    </form>
   );
 }
 
 // ============================================================
-// Column Overlay Sidebar
+// Columns picker -- small dropdown tile (not a full sidebar). Ticks
+// which Stock Batches columns show; saved to localStorage so the
+// choice is remembered next time.
 // ============================================================
 
-function ColumnOverlay({ isOpen, onClose, visibleKeys, setVisibleKeys }) {
+function ColumnsMenu({ visibleKeys, setVisibleKeys }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeIfOutside = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", closeIfOutside);
+    return () => document.removeEventListener("mousedown", closeIfOutside);
+  }, [open]);
+
   const toggle = (key) =>
     setVisibleKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
 
-  const selectAll = () => setVisibleKeys(ALL_STOCK_COLUMNS.map((c) => c.key));
-  const resetDefault = () => setVisibleKeys(DEFAULT_VISIBLE_KEYS);
-
-  if (!isOpen) return null;
-
   return (
-    <>
-      <div
-        className="fixed inset-0 bg-[#0f172a]/40 backdrop-blur-sm z-40"
-        onClick={onClose}
-      />
-
-      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-[#f5f6f8] dark:bg-[#0b1120] shadow-2xl z-50 overflow-y-auto animate-slide-in">
-        <div className="sticky top-0 bg-[#0f766e] dark:bg-[#0d5f58] border-b border-black/10 px-4 py-3 flex items-center justify-between z-10">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal size={18} className="text-white" />
-            <h2 className="font-semibold tracking-tight text-lg text-white">Columns</h2>
-            <span className="text-sm text-white/70">({visibleKeys.length} of {ALL_STOCK_COLUMNS.length})</span>
+    <div className="relative" ref={menuRef}>
+      <button type="button" onClick={() => setOpen((o) => !o)} className={btnSecondary}>
+        <SlidersHorizontal size={16} /> Columns
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-20 w-56 rounded-md border border-[#d7dbe3] dark:border-[#1e293b] bg-white dark:bg-[#0b1120] shadow-lg py-1 max-h-80 overflow-y-auto">
+          <div className="flex gap-3 px-2.5 py-1.5 border-b border-[#eef0f4] dark:border-[#1e293b]">
+            <button type="button" onClick={() => setVisibleKeys(ALL_STOCK_COLUMNS.map((c) => c.key))} className="text-xs font-medium text-[#0f766e] dark:text-[#2dd4bf] hover:underline">Select All</button>
+            <button type="button" onClick={() => setVisibleKeys(DEFAULT_VISIBLE_KEYS)} className="text-xs font-medium text-[#0f766e] dark:text-[#2dd4bf] hover:underline ml-auto">Reset</button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-md hover:bg-white/10 transition-colors"
-          >
-            <X size={20} className="text-white/80" />
-          </button>
+          {ALL_STOCK_COLUMNS.map((c) => (
+            <label key={c.key} className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-[#1e293b] dark:text-[#e2e8f0] hover:bg-[#0f766e]/10 cursor-pointer">
+              <input type="checkbox" checked={visibleKeys.includes(c.key)} onChange={() => toggle(c.key)} className="accent-[#0f766e]" />
+              {c.label}
+            </label>
+          ))}
         </div>
-
-        <div className="p-4">
-          <div className="flex gap-2 mb-4">
-            <button type="button" onClick={selectAll} className={`${btnSecondary} flex-1 justify-center`}>
-              Select All
-            </button>
-            <button type="button" onClick={resetDefault} className={`${btnSecondary} flex-1 justify-center`}>
-              Reset
-            </button>
-          </div>
-
-          <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
-            {ALL_STOCK_COLUMNS.map((c) => {
-              const on = visibleKeys.includes(c.key);
-              return (
-                <button
-                  key={c.key}
-                  type="button"
-                  onClick={() => toggle(c.key)}
-                  className={`w-full flex items-center gap-3 rounded-md border-[1.5px] px-3 py-2.5 text-sm transition-all ${on
-                    ? "border-[#0f766e] dark:border-[#2dd4bf] bg-[#0f766e]/10 dark:bg-[#2dd4bf]/10 text-[#0f766e] dark:text-[#2dd4bf]"
-                    : "border-[#d7dbe3] dark:border-[#1e293b] text-[#475569] dark:text-[#94a3b8] hover:border-[#0f766e]/50"
-                    }`}
-                >
-                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 ${on
-                    ? "bg-[#0f766e] dark:bg-[#2dd4bf] border-[#0f766e] dark:border-[#2dd4bf]"
-                    : "border-[#c7ccd6] dark:border-[#334155]"
-                    }`}>
-                    {on && <Check size={13} className="text-white dark:text-[#0b1120]" />}
-                  </span>
-                  {c.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <style jsx>{`
-        @keyframes slide-in {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        .animate-slide-in {
-          animation: slide-in 0.3s ease-out;
-        }
-      `}</style>
-    </>
+      )}
+    </div>
   );
 }
 
@@ -554,11 +487,67 @@ function renderStockCell(colKey, r) {
 }
 
 // ============================================================
-// Results Table -- ERP grid, sortable via @tanstack/react-table
+// Pagination bar -- rows-per-page selector + first/prev/next/last,
+// driven by @tanstack/react-table's built-in pagination state.
 // ============================================================
 
-function ResultsTable({ rows, loading, searched, visibleKeys, onOpenFilters }) {
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+function PaginationBar({ table, totalRows }) {
+  const pageIndex = table.getState().pagination.pageIndex;
+  const pageSize = table.getState().pagination.pageSize;
+  const pageCount = Math.max(table.getPageCount(), 1);
+  const from = totalRows === 0 ? 0 : pageIndex * pageSize + 1;
+  const to = Math.min((pageIndex + 1) * pageSize, totalRows);
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-t border-[#d7dbe3] dark:border-[#1e293b] bg-[#f5f6f8] dark:bg-[#0f172a] text-sm">
+      <div className="flex items-center gap-2 text-[#64748b]">
+        <span>Rows per page</span>
+        <select
+          value={pageSize}
+          onChange={(e) => table.setPageSize(Number(e.target.value))}
+          className="rounded-md border-[1.5px] border-[#c7ccd6] dark:border-[#334155] bg-white dark:bg-[#111827] text-[#1e293b] dark:text-[#e2e8f0] px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563eb]/25"
+        >
+          {PAGE_SIZE_OPTIONS.map((n) => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="text-[#64748b]">
+        {totalRows === 0 ? "0 rows" : `${from}–${to} of ${totalRows}`}
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <button type="button" className={btnIcon} onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()} title="First page">
+          <ChevronsLeft size={14} />
+        </button>
+        <button type="button" className={btnIcon} onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()} title="Previous page">
+          <ChevronLeft size={14} />
+        </button>
+        <span className="px-2 text-[#1e293b] dark:text-[#e2e8f0] font-medium text-xs whitespace-nowrap">
+          Page {pageCount === 0 ? 0 : pageIndex + 1} of {pageCount}
+        </span>
+        <button type="button" className={btnIcon} onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} title="Next page">
+          <ChevronRight size={14} />
+        </button>
+        <button type="button" className={btnIcon} onClick={() => table.setPageIndex(pageCount - 1)} disabled={!table.getCanNextPage()} title="Last page">
+          <ChevronsRight size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Results Table -- ERP grid, sortable + paginated via
+// @tanstack/react-table
+// ============================================================
+
+function ResultsTable({ rows, loading, searched, visibleKeys }) {
   const [sorting, setSorting] = useState([]);
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 });
 
   const tableColumns = useMemo(
     () =>
@@ -575,11 +564,19 @@ function ResultsTable({ rows, loading, searched, visibleKeys, onOpenFilters }) {
   const table = useReactTable({
     data: rows,
     columns: tableColumns,
-    state: { sorting },
+    state: { sorting, pagination },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
   });
+
+  // Jump back to page 1 whenever the underlying result set changes (new
+  // search, filter, or reset) so the user isn't stranded on an empty page.
+  useEffect(() => {
+    setPagination((p) => (p.pageIndex === 0 ? p : { ...p, pageIndex: 0 }));
+  }, [rows]);
 
   const totalWidth = tableColumns.reduce((s, c) => s + c.meta.width, 0) || 1;
 
@@ -595,13 +592,10 @@ function ResultsTable({ rows, loading, searched, visibleKeys, onOpenFilters }) {
             {rows.length}
           </span>
         </div>
-        <button onClick={onOpenFilters} className={btnSecondary}>
-          <Filter size={14} /> Filters
-        </button>
       </div>
 
       <div
-        className="flex-1 overflow-y-auto overflow-x-hidden max-h-[65vh]"
+        className="flex-1 overflow-y-auto overflow-x-hidden max-h-[60vh]"
         style={{ scrollbarWidth: "thin", msOverflowStyle: "auto" }}
       >
         {loading ? (
@@ -611,7 +605,7 @@ function ResultsTable({ rows, loading, searched, visibleKeys, onOpenFilters }) {
           </div>
         ) : rows.length === 0 ? (
           <div className="text-center py-12 text-[#64748b] text-sm px-4">
-            {searched ? "No stock batches match these filters." : "Click Filters to search for stock."}
+            {searched ? "No stock batches match these filters." : "Use the search boxes above to find stock."}
           </div>
         ) : tableColumns.length === 0 ? (
           <div className="text-center py-12 text-[#64748b] text-sm px-4">
@@ -674,6 +668,10 @@ function ResultsTable({ rows, loading, searched, visibleKeys, onOpenFilters }) {
         )}
       </div>
 
+      {!loading && rows.length > 0 && tableColumns.length > 0 && (
+        <PaginationBar table={table} totalRows={rows.length} />
+      )}
+
       <style jsx>{`
         ::-webkit-scrollbar {
           width: 6px;
@@ -712,8 +710,13 @@ export default function MaterialStockPage() {
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
   const [visibleKeys, setVisibleKeys] = useState(DEFAULT_VISIBLE_KEYS);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isColumnOpen, setIsColumnOpen] = useState(false);
+
+  // Load the saved column choice once mounted (avoids an SSR/client
+  // mismatch from reading localStorage up front), then keep it in sync.
+  useEffect(() => { setVisibleKeys(loadVisibleColumns()); }, []);
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem(VISIBLE_COLUMNS_KEY, JSON.stringify(visibleKeys));
+  }, [visibleKeys]);
 
   const runSearch = useCallback(async (f) => {
     setLoading(true); setError("");
@@ -751,18 +754,7 @@ export default function MaterialStockPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={() => setIsFilterOpen(true)}
-              className={btnSecondary}
-            >
-              <Filter size={16} /> Filters
-            </button>
-            <button
-              onClick={() => setIsColumnOpen(true)}
-              className={btnSecondary}
-            >
-              <SlidersHorizontal size={16} /> Columns
-            </button>
+            <ColumnsMenu visibleKeys={visibleKeys} setVisibleKeys={setVisibleKeys} />
           </div>
         </div>
 
@@ -772,21 +764,12 @@ export default function MaterialStockPage() {
           </div>
         )}
 
-        <FilterOverlay
-          isOpen={isFilterOpen}
-          onClose={() => setIsFilterOpen(false)}
+        <InlineFilters
           filters={filters}
           setFilters={setFilters}
           onSearch={handleSubmit}
           onReset={handleReset}
           loading={loading}
-        />
-
-        <ColumnOverlay
-          isOpen={isColumnOpen}
-          onClose={() => setIsColumnOpen(false)}
-          visibleKeys={visibleKeys}
-          setVisibleKeys={setVisibleKeys}
         />
 
         <div className="space-y-4">
@@ -796,7 +779,6 @@ export default function MaterialStockPage() {
             loading={loading}
             searched={searched}
             visibleKeys={visibleKeys}
-            onOpenFilters={() => setIsFilterOpen(true)}
           />
         </div>
       </div>

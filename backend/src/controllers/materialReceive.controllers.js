@@ -13,6 +13,10 @@ const { materialReceives, materialReceiveStyles, materialReceiveItems, materialR
 // safe to edit -- nothing has been racked against them yet.
 const RACKED_STATUSES = ["partial", "approved"];
 
+// Pagination defaults/limits for GET /material-receive.
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
 /** Loads one Material Receive with its Style/Model rows, Item/Color batches,
  * and each batch's rack allocations (locations[]). */
 async function getFullReceive(id) {
@@ -37,11 +41,14 @@ async function getFullReceive(id) {
 
 /**
  * GET /material-receive
- * GET /material-receive?invoiceNo=...&buyer=...&supplier=...&po=...&style=...&model=...&itemCodePdm=...&color=...&fabricDetails=...
+ * GET /material-receive?invoiceNo=...&buyer=...&supplier=...&po=...&style=...&model=...&itemCodePdm=...&color=...&fabricDetails=...&page=1&limit=20
  *
- * Returns every Material Receive with its styles[] (Style + Model) and
- * items[] (Item Code/PDM, Color, Fabric Details, Roll, Yds, unassignedRoll/Yds,
- * status, locations[]).
+ * Returns a PAGE of Material Receives with their styles[] (Style + Model)
+ * and items[] (Item Code/PDM, Color, Fabric Details, Roll, Yds,
+ * unassignedRoll/Yds, status, locations[]).
+ *
+ * Response shape:
+ *   { data: [...], total, page, limit, totalPages }
  *
  * Each query field is matched ONLY against its own column (no more single
  * fuzzy string matching every column at once):
@@ -66,6 +73,12 @@ async function getFullReceive(id) {
  * must satisfy every field the user filled in). Newest Receive first
  * (createdAt DESC) when no filters are supplied; otherwise sorted the same
  * way after filtering.
+ *
+ * PAGINATION: after filtering + sorting, the full id list is sliced down
+ * to just the requested page (?page=, 1-based, default 1; ?limit=, default
+ * 20, capped at 100) BEFORE styles/items/locations are fetched -- so a
+ * request for page 3 never pulls the child rows for the other 1000+
+ * receives, keeping the response small and fast regardless of table size.
  */
 export const getAllMaterialReceives = async (req, res) => {
   try {
@@ -125,7 +138,7 @@ export const getAllMaterialReceives = async (req, res) => {
 
     let receives;
     if (candidateIds === null) {
-      // No filters supplied at all -- return everything.
+      // No filters supplied at all -- return everything (before pagination).
       receives = await db.select().from(materialReceives).orderBy(desc(materialReceives.createdAt));
     } else {
       const ids = Array.from(candidateIds);
@@ -143,7 +156,19 @@ export const getAllMaterialReceives = async (req, res) => {
       return b.id - a.id;
     });
 
-    const receiveIds = receives.map((r) => r.id);
+    // --- Pagination -----------------------------------------------------
+    // Slice the (already filtered + sorted) id list down to one page
+    // BEFORE fetching any child rows, so styles/items/locations are only
+    // ever loaded for the receives actually being returned.
+    const total = receives.length;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(req.query.limit, 10) || DEFAULT_PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const start = (page - 1) * limit;
+    const pageReceives = receives.slice(start, start + limit);
+    // ---------------------------------------------------------------------
+
+    const receiveIds = pageReceives.map((r) => r.id);
     const allStyles = receiveIds.length
       ? await db.select().from(materialReceiveStyles).where(inArray(materialReceiveStyles.materialReceiveId, receiveIds))
       : [];
@@ -155,7 +180,7 @@ export const getAllMaterialReceives = async (req, res) => {
       ? await db.select().from(materialReceiveItemLocations).where(inArray(materialReceiveItemLocations.itemId, allItemIds))
       : [];
 
-    const withDetails = receives.map((r) => {
+    const withDetails = pageReceives.map((r) => {
       const styles = allStyles.filter((s) => s.materialReceiveId === r.id);
       const items = allItems
         .filter((i) => i.materialReceiveId === r.id)
@@ -163,7 +188,7 @@ export const getAllMaterialReceives = async (req, res) => {
       return { ...r, styles, items, totalItems: items.length };
     });
 
-    res.json(withDetails);
+    res.json({ data: withDetails, total, page, limit, totalPages });
   } catch (error) {
     console.error("getAllMaterialReceives error:", error);
     res.status(500).json({ message: "Failed to fetch material receives" });

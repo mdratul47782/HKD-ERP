@@ -62,7 +62,7 @@ const WAREHOUSE_OPTIONS = ["K-1", "K-2", "K-3"];
 // Standard buyer list for the Buyer dropdown.
 const BUYERS = [
   "Decathlon - Knit", "Decathlon - Woven", "Walmart", "Columbia",
-  "ZXY", "CTC", "DIESEL", "Sports Group Denmark", "Identity", "Fifth Avenur",
+  "ZXY", "CTC", "DIESEL", "Sports Group Denmark", "Identity", "Fifth Avenue",
 ];
 
 // All free-text values are forced upper case as the user types.
@@ -111,6 +111,29 @@ const RECORD_FILTER_FIELDS = [
   { key: "color", label: "Color" },
   { key: "fabricDetails", label: "Fabric Details" },
 ];
+
+// Page-size choices for the Saved Records pagination bar.
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+// Which Saved Records columns the user has chosen to show/hide, kept in
+// the browser's localStorage so the choice survives a refresh. Keyed by
+// each column's id (see the `columns` array in RecordsPanel) -> label
+// shown in the picker. "expander" is left out on purpose -- it's the
+// row-expand chevron, not a real data column, so it can't be hidden.
+const COLUMN_VISIBILITY_KEY = "materialReceive:columnVisibility";
+const COLUMN_LABELS = {
+  date: "Date", invoiceNo: "Invoice No.", remark: "Remark", fromType: "From",
+  warehouse: "Warehouse", buyer: "Buyer", supplier: "Supplier", season: "Season",
+  po: "PO", styleModel: "Style | Model", totalItems: "Items", status: "Status", actions: "Actions",
+};
+function loadColumnVisibility() {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(COLUMN_VISIBILITY_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
 
 /* ============================================================
    Small helpers
@@ -773,25 +796,64 @@ function RecordFilterRow({ filters, setFilters }) {
 /* ============================================================
    Records panel -- built on @tanstack/react-table.
 
-   IMPORTANT (why there is never a horizontal scrollbar here):
-   Instead of putting the table body in an `overflow-x-auto`
-   container (which is the usual react-table recipe), less-critical
-   columns are simply HIDDEN per breakpoint via each column's
-   `meta.className` (e.g. "hidden lg:table-cell"). react-table still
-   tracks all 14 columns internally (so `colSpan={14}` on the
-   ItemsBreakdownTable expansion row stays correct), but visually the
-   row only renders however many columns fit the viewport. The
-   scroll container below is therefore `overflow-y-auto
-   overflow-x-hidden` -- vertical scroll for a long list of records,
-   but the x-axis never scrolls, on any screen size.
+   COLUMN WIDTH: the table is a normal auto-layout table (no
+   table-fixed, no per-breakpoint hidden columns). Every column is
+   always shown, sized to fit its content -- like a spreadsheet --
+   and the whole table sits inside a horizontally scrollable strip
+   (`overflow-x-auto`) so wide content never gets clipped, it just
+   scrolls into view.
+
+   PAGINATION: the panel no longer loads every Material Receive at
+   once. `receives` is just the CURRENT PAGE (server-side paginated
+   via ?page=&limit=), and a pagination bar sits below the scroll
+   area showing Page X of Y / total count, a page-size selector, and
+   Prev/Next/First/Last controls.
+
+   STYLE/MODEL OVERFLOW: a Receive can carry many Style+Model rows.
+   The cell shows the first 2 (each truncated at a max width, with
+   a title tooltip); a "+N more" button expands that row only to show
+   every Style/Model, wrapped, with a "Show less" to collapse it back.
    ============================================================ */
 
-function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, toggleExpanded, onEdit, onDelete, onAssigned }) {
+function RecordsPanel({
+  filters, setFilters, receives, loading, expandedIds, toggleExpanded, onEdit, onDelete, onAssigned,
+  page, totalPages, totalCount, pageSize, setPageSize, goToPage,
+}) {
+  // Which rows currently have their full Style/Model list expanded
+  // (keyed by materialReceive id). Independent from `expandedIds`,
+  // which controls the Items-under-Invoice drawer.
+  const [expandedStyleIds, setExpandedStyleIds] = useState(() => new Set());
+  const toggleStyleExpanded = (id) =>
+    setExpandedStyleIds((prev) => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+
+  // Column show/hide picker -- state starts empty (= everything visible)
+  // and is replaced by whatever was saved in localStorage once mounted
+  // (avoids an SSR/client mismatch from reading localStorage up front).
+  // Every change is written straight back to localStorage.
+  const [columnVisibility, setColumnVisibility] = useState({});
+  const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
+  const columnsMenuRef = useRef(null);
+
+  useEffect(() => { setColumnVisibility(loadColumnVisibility()); }, []);
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem(COLUMN_VISIBILITY_KEY, JSON.stringify(columnVisibility));
+  }, [columnVisibility]);
+
+  useEffect(() => {
+    if (!columnsMenuOpen) return;
+    const closeIfOutside = (e) => { if (columnsMenuRef.current && !columnsMenuRef.current.contains(e.target)) setColumnsMenuOpen(false); };
+    document.addEventListener("mousedown", closeIfOutside);
+    return () => document.removeEventListener("mousedown", closeIfOutside);
+  }, [columnsMenuOpen]);
+
   const columns = useMemo(() => [
     {
       id: "expander",
       header: () => "",
-      meta: { className: "w-6" },
       cell: ({ row }) => (expandedIds.has(row.original.id) ? <ChevronUp size={13} /> : <ChevronDown size={13} />),
     },
     {
@@ -809,24 +871,23 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
     {
       accessorKey: "remark",
       header: "Remark",
-      meta: { className: "hidden lg:table-cell" },
       cell: ({ getValue }) => {
         const v = getValue();
         return v
-          ? <span title={v} className="block max-w-[160px] truncate text-[#7a6250] dark:text-[#a8917d]">{v}</span>
+          ? <span title={v} className="block max-w-[220px] truncate text-[#7a6250] dark:text-[#a8917d]">{v}</span>
           : <span className="italic text-[#a08060]">-</span>;
       },
     },
     {
       accessorKey: "fromType",
       header: "From",
-      meta: { className: "hidden md:table-cell" },
+      meta: { className: "whitespace-nowrap" },
       cell: ({ getValue }) => <span className={chip}>{getValue()}</span>,
     },
     {
       accessorKey: "warehouse",
       header: "Warehouse",
-      meta: { className: "hidden md:table-cell" },
+      meta: { className: "whitespace-nowrap" },
       cell: ({ getValue }) => <span className={chip}>{getValue()}</span>,
     },
     {
@@ -838,42 +899,74 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
     {
       accessorKey: "supplier",
       header: "Supplier",
-      meta: { className: "hidden lg:table-cell" },
       cell: ({ getValue }) => {
         const v = getValue();
         return v
-          ? <span title={v} className="block max-w-[140px] truncate text-[#7a6250] dark:text-[#a8917d]">{v}</span>
+          ? <span title={v} className="block max-w-[200px] truncate text-[#7a6250] dark:text-[#a8917d]">{v}</span>
           : <span className="italic text-[#a08060]">-</span>;
       },
     },
     {
       accessorKey: "season",
       header: "Season",
-      meta: { className: "hidden xl:table-cell whitespace-nowrap" },
+      meta: { className: "whitespace-nowrap" },
       cell: ({ getValue }) => getValue(),
     },
     {
       accessorKey: "po",
       header: "PO",
-      meta: { className: "hidden lg:table-cell whitespace-nowrap" },
+      meta: { className: "whitespace-nowrap" },
       cell: ({ getValue }) => getValue(),
     },
     {
+      // Style/Model: collapsed view shows up to 2 chips, each truncated
+      // (title tooltip carries the full text on hover). A "+N more" /
+      // chevron toggle always expands THIS row's cell only, wrapping
+      // freely with no width limit -- so long or many Style/Model pairs
+      // are always fully reachable via a click.
       id: "styleModel",
-      header: "Style / Model",
-      meta: { className: "hidden xl:table-cell" },
-      cell: ({ row }) => (
-        <div className="flex flex-wrap gap-1 max-w-[200px]">
-          {(row.original.styles || []).map((s) => (
-            <span key={s.id ?? s.style} className={chip}>{s.style}{s.model ? ` · ${s.model}` : ""}</span>
-          ))}
-        </div>
-      ),
+      header: "Style | Model",
+      meta: { className: "whitespace-nowrap" },
+      cell: ({ row }) => {
+        const list = row.original.styles || [];
+        const isOpen = expandedStyleIds.has(row.original.id);
+        const shown = isOpen ? list : list.slice(0, 2);
+        const hiddenCount = list.length - shown.length;
+        const fullText = (s) => `${s.style}${s.model ? ` | ${s.model}` : ""}`;
+        return (
+          <div className={`flex items-center gap-1 ${isOpen ? "flex-wrap whitespace-normal max-w-[320px]" : ""}`}>
+            {shown.map((s) => (
+              <span
+                key={s.id ?? s.style}
+                title={fullText(s)}
+                className={`${chip} ${isOpen ? "whitespace-normal break-words" : "max-w-[150px] truncate"}`}
+              >
+                {fullText(s)}
+              </span>
+            ))}
+            {list.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); toggleStyleExpanded(row.original.id); }}
+                title={isOpen ? "Show less" : "Show full Style | Model"}
+                className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold text-[#b87a4a] hover:underline whitespace-nowrap"
+              >
+                {isOpen ? (
+                  <>Show less <ChevronUp size={11} /></>
+                ) : hiddenCount > 0 ? (
+                  <>+{hiddenCount} more <ChevronDown size={11} /></>
+                ) : (
+                  <ChevronDown size={11} />
+                )}
+              </button>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "totalItems",
       header: "Items",
-      meta: { className: "hidden sm:table-cell" },
       cell: ({ getValue }) => <span className={chip}>{getValue()}</span>,
     },
     {
@@ -884,6 +977,7 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
     {
       id: "actions",
       header: "Actions",
+      meta: { className: "whitespace-nowrap" },
       cell: ({ row }) => {
         const r = row.original;
         const isApproved = r.status === "approved";
@@ -891,21 +985,23 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => onEdit(r.id)} disabled={isApproved} title={isApproved ? "Fully approved receives can't be edited" : "Edit"}
               className="inline-flex items-center gap-1 font-medium text-[#b87a4a] hover:underline disabled:opacity-40 disabled:pointer-events-none">
-              <Pencil size={11} /> <span className="hidden sm:inline">Edit</span>
+              <Pencil size={11} /> <span>Edit</span>
             </button>
             <button onClick={() => onDelete(r.id)} disabled={isApproved} title={isApproved ? "Fully approved receives can't be deleted" : "Delete"}
               className="inline-flex items-center gap-1 font-medium text-[#a04a3a] hover:underline disabled:opacity-40 disabled:pointer-events-none">
-              <Trash2 size={11} /> <span className="hidden sm:inline">Delete</span>
+              <Trash2 size={11} /> <span>Delete</span>
             </button>
           </div>
         );
       },
     },
-  ], [expandedIds, onEdit, onDelete]);
+  ], [expandedIds, onEdit, onDelete, expandedStyleIds]);
 
   const table = useReactTable({
     data: receives,
     columns,
+    state: { columnVisibility },
+    onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => String(row.id),
   });
@@ -915,24 +1011,42 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 shrink-0">
         <PackageSearch size={16} className="text-[#b87a4a]" />
         <h2 className="font-serif text-base text-[#1a1208] dark:text-[#f0e8dc]">Saved Records</h2>
-        <span className="text-[11px] text-[#a08060]">({receives.length})</span>
+        <span className="text-[11px] text-[#a08060]">({totalCount})</span>
         <span className="text-[10px] text-[#a08060] ml-auto">Newest first</span>
+
+        {/* Column show/hide picker -- tick which columns to show, saved to
+            localStorage so the choice is remembered next time. */}
+        <div className="relative" ref={columnsMenuRef}>
+          <button type="button" onClick={() => setColumnsMenuOpen((o) => !o)} className={btnSecondary}>
+            Columns
+          </button>
+          {columnsMenuOpen && (
+            <div className={`absolute right-0 top-full mt-1 z-20 w-48 ${card} py-1 shadow-lg max-h-72 overflow-y-auto ${scrollThin}`}>
+              {table.getAllLeafColumns().filter((c) => c.id !== "expander").map((c) => (
+                <label key={c.id} className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] text-[#2c2417] dark:text-[#e8ddd0] hover:bg-[#b87a4a]/10 cursor-pointer">
+                  <input type="checkbox" checked={c.getIsVisible()} onChange={c.getToggleVisibilityHandler()} className="accent-[#b87a4a]" />
+                  {COLUMN_LABELS[c.id] || c.id}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="px-4 py-2.5 border-b border-[#2c2417]/10 dark:border-[#e8ddd0]/10 shrink-0">
         <RecordFilterRow filters={filters} setFilters={setFilters} />
       </div>
 
-      {/* overflow-x-hidden -- columns are hidden per breakpoint instead of
-          scrolled, so there is never a horizontal scrollbar here. Only
-          vertical scroll remains for a long list of records. */}
-      <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden ${scrollThin}`}>
+      {/* overflow-auto both ways -- columns are always shown at their
+          natural (Excel-like) width, so wide content scrolls into view
+          instead of being clipped or hidden per breakpoint. */}
+      <div className={`flex-1 min-h-0 overflow-auto ${scrollThin}`}>
         {loading ? (
           <div className="text-center py-8 text-[#a08060] text-xs">Loading...</div>
         ) : receives.length === 0 ? (
           <div className="text-center py-8 text-[#a08060] text-xs">No material receives found.</div>
         ) : (
-          <table className="w-full text-[11px] border-collapse table-fixed">
+          <table className="min-w-full text-[11px] border-collapse">
             <thead className="sticky top-0 bg-[#e6e0d4]/70 dark:bg-[#221d16] text-[#7a6250] dark:text-[#a8917d] backdrop-blur z-10">
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id}>
@@ -974,6 +1088,30 @@ function RecordsPanel({ filters, setFilters, receives, loading, expandedIds, tog
           </table>
         )}
       </div>
+
+      {/* Pagination bar -- server-side paginated (see fetchReceives),
+          always visible at the bottom of the card regardless of scroll. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 border-t border-[#2c2417]/10 dark:border-[#e8ddd0]/10 shrink-0 text-[11px] text-[#7a6250] dark:text-[#a8917d]">
+        <div className="flex items-center gap-2">
+          <span className="whitespace-nowrap">
+            Page {page} of {totalPages} · {totalCount} total
+          </span>
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value))}
+            className={`${inputCls} !py-1 !w-auto`}
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n} / page</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => goToPage(1)} disabled={page <= 1} className={btnSecondary}>« First</button>
+          <button type="button" onClick={() => goToPage(page - 1)} disabled={page <= 1} className={btnSecondary}>‹ Prev</button>
+          <span className="px-1 whitespace-nowrap">{page} / {totalPages}</span>
+          <button type="button" onClick={() => goToPage(page + 1)} disabled={page >= totalPages} className={btnSecondary}>Next ›</button>
+          <button type="button" onClick={() => goToPage(totalPages)} disabled={page >= totalPages} className={btnSecondary}>Last »</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -996,32 +1134,69 @@ export default function MaterialReceivePage() {
   const [success, setSuccess] = useState("");
   const [formOpen, setFormOpen] = useState(false);
 
+  // Server-side pagination state for the Saved Records table.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
   // Each filter box is sent to the backend as its OWN query param
   // (invoiceNo=, buyer=, supplier=, po=, style=, model=, itemCodePdm=,
   // color=, fabricDetails=) and the backend matches each one only against its
   // own column (AND across whichever fields are filled in). This is what
   // fixes "Item Code/PDM = TEST-2" incorrectly matching a row whose Color
   // happens to be TEST-2.
-  const fetchReceives = useCallback(async (filters = emptyRecordFilters) => {
+  //
+  // Also sends page=/limit= so the backend returns only ONE PAGE of
+  // records (and their styles/items/locations) instead of all 1000+ at
+  // once. Response shape is now { data, total, page, limit, totalPages }.
+  const fetchReceives = useCallback(async (filters = emptyRecordFilters, pageArg = 1, limitArg = 20) => {
     setLoading(true); setError("");
     try {
       const params = new URLSearchParams();
       Object.entries(filters).forEach(([k, v]) => {
         if (v && v.trim()) params.set(k, v.trim());
       });
-      const qs = params.toString();
-      const url = qs ? `${API_URL}/material-receive?${qs}` : `${API_URL}/material-receive`;
-      const res = await fetch(url, { credentials: "include" });
+      params.set("page", pageArg);
+      params.set("limit", limitArg);
+      const res = await fetch(`${API_URL}/material-receive?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load material receives");
-      setReceives(await res.json());
-    } catch (err) { setError(err.message); } finally { setLoading(false); }
+      const body = await res.json();
+      setReceives(body.data || []);
+      setTotalPages(body.totalPages || 1);
+      setTotalCount(body.total || 0);
+      setPage(body.page || 1);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { fetchReceives(); }, [fetchReceives]);
+  // Initial load.
   useEffect(() => {
-    const t = setTimeout(() => fetchReceives(recordFilters), 400);
+    fetchReceives(recordFilters, 1, pageSize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Whenever filters change, debounce and jump back to page 1 (a filtered
+  // result set has its own page count, so staying on e.g. page 12 of the
+  // unfiltered list would very likely be out of range).
+  useEffect(() => {
+    const t = setTimeout(() => fetchReceives(recordFilters, 1, pageSize), 400);
     return () => clearTimeout(t);
-  }, [recordFilters, fetchReceives]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordFilters]);
+
+  const goToPage = (p) => {
+    if (p < 1 || p > totalPages || p === page) return;
+    fetchReceives(recordFilters, p, pageSize);
+  };
+
+  const changePageSize = (n) => {
+    setPageSize(n);
+    fetchReceives(recordFilters, 1, n);
+  };
 
   const resetForm = () => {
     setForm(emptyForm); setStyleRows([newStyleRow()]); setItemCodes([newItemCode()]); setEditingId(null);
@@ -1070,7 +1245,10 @@ export default function MaterialReceivePage() {
       });
       if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to save material receive"); }
       setSuccess(editingId ? "Material receive updated." : "Material receive saved. It now awaits Material Inspection before it can be racked.");
-      resetForm(); fetchReceives(recordFilters);
+      resetForm();
+      // A newly created receive should be visible -- jump back to page 1
+      // (newest-first ordering) rather than the page we happened to be on.
+      fetchReceives(recordFilters, editingId ? page : 1, pageSize);
       setFormOpen(false);
     } catch (err) { setError(err.message); } finally { setSaving(false); }
   };
@@ -1118,7 +1296,11 @@ export default function MaterialReceivePage() {
     try {
       const res = await fetch(`${API_URL}/material-receive/${id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to delete material receive"); }
-      setSuccess("Material receive deleted."); fetchReceives(recordFilters);
+      setSuccess("Material receive deleted.");
+      // If we just deleted the last row on this page (and it wasn't page 1),
+      // step back a page so we don't land on an empty page.
+      const nextPage = receives.length === 1 && page > 1 ? page - 1 : page;
+      fetchReceives(recordFilters, nextPage, pageSize);
     } catch (err) { setError(err.message); }
   };
 
@@ -1174,8 +1356,9 @@ export default function MaterialReceivePage() {
 
           Because each column's scroll container is separate, scrolling
           the form never moves the table and scrolling the table never
-          moves the form -- and now the table actually scrolls once it
-          gets long instead of pushing the page down.
+          moves the form -- and the table now only ever holds ONE PAGE
+          of records (see fetchReceives), so it scrolls smoothly instead
+          of rendering 1000+ rows at once.
         */}
         <div className="flex items-start gap-4">
           {/* FORM COLUMN */}
@@ -1293,7 +1476,13 @@ export default function MaterialReceivePage() {
               toggleExpanded={toggleExpanded}
               onEdit={handleEdit}
               onDelete={handleDelete}
-              onAssigned={() => fetchReceives(recordFilters)}
+              onAssigned={() => fetchReceives(recordFilters, page, pageSize)}
+              page={page}
+              totalPages={totalPages}
+              totalCount={totalCount}
+              pageSize={pageSize}
+              setPageSize={changePageSize}
+              goToPage={goToPage}
             />
           </div>
         </div>
