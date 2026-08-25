@@ -1,13 +1,22 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-import/page.js
+
 //
 // Lets the user upload the legacy "Material Stock" Excel template and
 // bulk-import every row into Material Receive / Stock.
 //
 // IMPORT POLICY: nothing blocks an import. Every row in the sheet gets
-// imported and lands directly in stock, whatever the data looks like --
-// missing Item Code/PDM, Color, Rack No, or wrong Roll/Yds numbers never
-// stop a row from going through. The review table below is there so you
-// CAN tweak values before committing, but editing is entirely optional.
+// imported and lands directly in stock -- exactly what's in the sheet
+// goes in. Missing/blank text fields fall back to a placeholder ONLY
+// because the database requires a value there; missing/blank NUMBER
+// fields (Roll/Yds/Qty/Issue) always become 0, never anything else, and
+// wrong-looking numbers are never "corrected". The review table below is
+// there so you CAN tweak values before committing, but editing is
+// entirely optional.
+//
+// FIXED EXCEL HEADER SET this page/controller is built for:
+//   BUYER, DATE, INVOICE, SEASON, PO NO, STY NO, MODEL, ITEM, ITEM CODE,
+//   COLOR NAME, RCVD QTY, RCVD ROLL, ISSUE YDS, ISSUE ROLL, INHAND QTY,
+//   INHAND ROLL, RACK NO, REMARK, SUPLIER, ORIGIN, DESCRIPTION
 //
 // Two-step flow, matching the backend's preview/commit split:
 //   1. Pick a file -> POST /material-import -> parses the WHOLE workbook
@@ -19,10 +28,12 @@
 //
 // Every imported row becomes its own Material Receive, already
 // "Approved" and racked (rack defaults to "UNASSIGNED" if the sheet had
-// none). Warehouse defaults to K-2, Buyer falls back to
-// "Decathlon - Woven", Item Code/Color fall back to "UNKNOWN". Available
-// Roll/Yds always mirrors Received Roll/Yds. See the backend
-// controller's header comment for the confirmed column mapping.
+// none). Warehouse defaults to K-2 (no column for it in the sheet); every
+// other field (Buyer, From/Origin, Item Code, Color, Fabric
+// Details/Description, etc.) is read straight from its matching column.
+// Issue Yds/Issue Roll have no dedicated database column, so they're
+// folded into Remark as plain text instead of being dropped. See the
+// backend controller's header comment for the full confirmed mapping.
 
 "use client";
 
@@ -59,28 +70,41 @@ const chip = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-m
 const cellInput =
   "w-full min-w-[80px] bg-transparent border-0 border-b border-transparent hover:border-[#2c2417]/20 focus:border-[#b87a4a] focus:outline-none text-[11px] px-1 py-0.5 text-[#1a1208] dark:text-[#f0e8dc] dark:hover:border-[#e8ddd0]/20";
 
+// Exact excel header set this page is built for (order matches the
+// user's confirmed template).
 const REQUIRED_COLUMNS = [
-  "BUYER", "DATE", "INVOICE", "SUP INVOICE", "BOE", "SEASON", "PO NO",
-  "STY NO", "MODEL", "ITEM", "ITEM CODE", "COLOR NAME", "RCVD QTY",
-  "RCVD ROLL", "ISSUE YDS", "ISSUE ROLL", "INHAND QTY", "INHAND ROLL",
-  "RACK NO", "REMARK", "SUPLIER", "ORIGIN", "FABRIC DETAILS",
+  "BUYER", "DATE", "INVOICE", "SEASON", "PO NO", "STY NO", "MODEL",
+  "ITEM", "ITEM CODE", "COLOR NAME", "RCVD QTY", "RCVD ROLL",
+  "ISSUE YDS", "ISSUE ROLL", "INHAND QTY", "INHAND ROLL", "RACK NO",
+  "REMARK", "SUPLIER", "ORIGIN", "DESCRIPTION",
 ];
 
 // Fields exposed as inline-editable cells, in table order. Nothing here
-// is "required" anymore -- every field is optional, everything imports.
+// is "required" -- every field is optional, everything imports exactly
+// as the sheet has it (blank numbers become 0, blank text falls back to
+// a placeholder only where the database needs a value).
 const EDITABLE_FIELDS = [
   { key: "date", label: "Date", width: "w-24" },
   { key: "invoiceNo", label: "Invoice", width: "w-28" },
   { key: "buyer", label: "Buyer", width: "w-32" },
+  { key: "supplier", label: "Supplier", width: "w-28" },
+  { key: "fromType", label: "From (Origin)", width: "w-24" },
+  { key: "season", label: "Season", width: "w-20" },
+  { key: "po", label: "PO", width: "w-20" },
   { key: "style", label: "Style", width: "w-20" },
   { key: "model", label: "Model", width: "w-20" },
+  { key: "item", label: "Item", width: "w-24" },
   { key: "itemCodePdm", label: "Item Code/PDM", width: "w-28" },
   { key: "color", label: "Color", width: "w-24" },
+  { key: "fabricDetails", label: "Fabric Details", width: "w-32" },
   { key: "rollQty", label: "Recv. Roll", width: "w-16", numeric: true },
   { key: "yds", label: "Recv. Yds", width: "w-16", numeric: true },
+  { key: "issueRoll", label: "Issue Roll", width: "w-16", numeric: true },
+  { key: "issueYds", label: "Issue Yds", width: "w-16", numeric: true },
   { key: "availableRoll", label: "Avail. Roll", width: "w-16", numeric: true },
   { key: "availableYds", label: "Avail. Yds", width: "w-16", numeric: true },
   { key: "location", label: "Rack", width: "w-20" },
+  { key: "remark", label: "Remark", width: "w-40" },
 ];
 
 function StepDot({ active, done, label, index }) {
@@ -168,9 +192,10 @@ function DropZone({ file, onFile, onClear, disabled }) {
 
 /* ============================================================
    Editable preview table -- purely optional tweaking, nothing here
-   blocks the import. Rows where the backend applied a default (missing
-   Item Code/Color/Rack in the sheet) get a soft highlight + a small
-   info note, just so you know what happened -- not an error.
+   blocks the import. Rows where the backend applied a fallback (missing
+   Buyer/Item Code/Color/Rack/From/Fabric Details/Date in the sheet) get
+   a soft highlight + a small info note, just so you know what happened
+   -- not an error.
    ============================================================ */
 
 function EditableTable({ pageRecords, onEdit }) {
@@ -346,7 +371,7 @@ export default function MaterialImportPage() {
               Material Stock <em className="italic text-[#b87a4a] dark:text-[#d4955e]">Import</em>
             </h1>
             <p className="text-xs text-[#7a6250] dark:text-[#a8917d]">
-              Upload the legacy Material Stock Excel template — every row is imported straight into stock as-is, whatever the data looks like.
+              Upload the legacy Material Stock Excel template — every row is imported straight into stock exactly as the sheet has it: blank numbers become 0, nothing is validated or blocked.
             </p>
           </div>
         </div>
@@ -371,7 +396,7 @@ export default function MaterialImportPage() {
           <div className={`${card} p-4 space-y-2`}>
             <h2 className="font-serif text-sm text-[#1a1208] dark:text-[#f0e8dc]">Expected columns</h2>
             <p className="text-xs text-[#7a6250] dark:text-[#a8917d]">
-              Column order doesn't matter, and missing columns are fine too — every row imports regardless, with sensible defaults for anything missing.
+              This is the exact header row expected (order doesn't matter). Every row imports regardless of what's missing — blank text gets a placeholder only where the database requires one, blank numbers always become 0.
             </p>
             <div className="flex flex-wrap gap-1.5">
               {REQUIRED_COLUMNS.map((c) => (
@@ -402,14 +427,14 @@ export default function MaterialImportPage() {
               <div className="flex flex-wrap gap-1.5">
                 <span className={chip}>{meta.totalRows} rows found</span>
                 {meta.withoutRack > 0 && <span className={chip}>{meta.withoutRack} defaulted to Rack "UNASSIGNED"</span>}
-                {defaultedCount > 0 && <span className={chip}>{defaultedCount} row(s) had a default applied</span>}
+                {defaultedCount > 0 && <span className={chip}>{defaultedCount} row(s) had a fallback applied</span>}
                 <span className={chip}>Warehouse: {meta.warehouse}</span>
               </div>
             </div>
 
             <div className="rounded-lg bg-[#5ca068]/10 border border-[#5ca068]/25 text-[#3d7a4a] dark:text-[#8fca9c] text-xs px-3 py-2 flex items-center gap-1.5">
               <CheckCircle2 size={13} />
-              Every row here will be imported as-is — nothing is required or validated. Edit anything below only if you want to.
+              Every row here will be imported exactly as-is — blank numbers are 0, nothing is required or validated. Edit anything below only if you want to.
             </div>
 
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -419,7 +444,7 @@ export default function MaterialImportPage() {
                 className={`${btnGhost} ${onlyDefaulted ? "bg-[#2c2417]/8 dark:bg-[#e8ddd0]/8" : ""}`}
                 disabled={defaultedCount === 0}
               >
-                <Info size={12} /> {onlyDefaulted ? "Showing defaulted rows" : "Show only rows with a default applied"}
+                <Info size={12} /> {onlyDefaulted ? "Showing defaulted rows" : "Show only rows with a fallback applied"}
               </button>
 
               <div className="flex items-center gap-1 text-xs text-[#7a6250] dark:text-[#a8917d]">

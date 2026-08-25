@@ -1,4 +1,57 @@
 // backend/src/controllers/materialImport.controllers.js
+//
+// IMPORT POLICY (unchanged): nothing blocks an import. Every row in the
+// sheet gets imported and lands directly in stock, whatever the data
+// looks like. Missing/blank text fields fall back to a placeholder ONLY
+// because the DB column is NOT NULL -- the row itself is never rejected.
+// Missing/blank NUMERIC fields (RCVD QTY, RCVD ROLL, INHAND QTY,
+// INHAND ROLL, ISSUE YDS, ISSUE ROLL) always become 0, never anything
+// else. Whatever the sheet has -- exactly that value -- is what gets
+// pushed to DB. Wrong-looking Roll/Yds math is never "corrected".
+//
+// FIXED HEADER SET (exact columns this file is built for):
+//   BUYER, DATE, INVOICE, SEASON, PO NO, STY NO, MODEL, ITEM, ITEM CODE,
+//   COLOR NAME, RCVD QTY, RCVD ROLL, ISSUE YDS, ISSUE ROLL, INHAND QTY,
+//   INHAND ROLL, RACK NO, REMARK, SUPLIER, ORIGIN, DESCRIPTION
+//
+// Column-to-field mapping actually used (see HEADER_ALIASES below):
+//   BUYER       -> Buyer               (was previously NEVER read -- bug, fixed)
+//   DATE        -> Date
+//   INVOICE     -> Invoice No.
+//   SEASON      -> Season
+//   PO NO       -> PO
+//   STY NO      -> Style
+//   MODEL       -> Model
+//   ITEM        -> Item
+//   ITEM CODE   -> Item Code / PDM
+//   COLOR NAME  -> Color
+//   RCVD QTY    -> Yds (received)
+//   RCVD ROLL   -> Roll (received)
+//   ISSUE YDS   -> folded into Remark as "Issue Yds: n" (no dedicated
+//                  DB column exists for this on material_receive_items,
+//                  so nothing is silently dropped -- it's kept as text)
+//   ISSUE ROLL  -> folded into Remark as "Issue Roll: n" (same reason)
+//   INHAND QTY  -> Available Yds
+//   INHAND ROLL -> Available Roll
+//   RACK NO     -> Location / Rack
+//   REMARK      -> Remark (base text, Issue/Origin appended after)
+//   SUPLIER     -> Supplier
+//   ORIGIN      -> From            (was previously HARDCODED "Overseas"
+//                  regardless of sheet content -- bug, fixed. Whatever
+//                  text is in ORIGIN is pushed exactly as-is into the
+//                  `fromType` column, which is a free-text varchar(20),
+//                  not a restricted enum)
+//   DESCRIPTION -> Fabric Details  (was previously only matching a
+//                  "DETAILS" header, so DESCRIPTION never matched at
+//                  all -- bug, fixed)
+//
+// Two-step flow, matching the frontend's preview/commit split:
+//   1. Pick a file -> POST /material-import -> parses the WHOLE workbook
+//      and returns every row as an editable record. Nothing is written
+//      to the DB yet.
+//   2. Review (optional) -> POST /material-import/commit with the
+//      (optionally edited) records. Every record is inserted -- none
+//      are rejected.
 
 import { eq } from "drizzle-orm";
 import * as XLSX from "xlsx";
@@ -12,9 +65,13 @@ const DEFAULT_ITEM_CODE = "UNKNOWN";
 const DEFAULT_COLOR = "UNKNOWN";
 const DEFAULT_LOCATION = "UNASSIGNED";
 const DEFAULT_FABRIC_DETAILS = "N/A";
+const DEFAULT_FROM_TYPE = "Overseas";
 
 // Canonical field -> acceptable header names (normalized: upper case,
-// trimmed, internal whitespace collapsed to a single space).
+// trimmed, internal whitespace collapsed to a single space). Extra
+// aliases (e.g. "ITEM CODE/PDM", "SUPPLIER") are kept so older sheet
+// variants still map correctly, but the fixed header set above is the
+// one this file is guaranteed to fully support.
 const HEADER_ALIASES = {
   buyer: ["BUYER"],
   date: ["DATE"],
@@ -38,7 +95,7 @@ const HEADER_ALIASES = {
   supplier: ["SUPLIER", "SUPPLIER"],
   origin: ["ORIGIN"],
   remark: ["REMARK", "REMARKS"],
-  fabricDetails: ["FABRIC DETAILS"],
+  fabricDetails: ["DESCRIPTION", "DETAILS", "FABRIC DETAILS"],
 };
 
 function normalizeHeader(h) {
@@ -101,32 +158,14 @@ function excelSerialToYMD(serial) {
  * Converts a raw cell value (real Date, Excel serial number, or text
  * date) into a plain "YYYY-MM-DD" string, always matching the calendar
  * date the sheet actually shows -- never shifted by a server timezone.
- *
- * IMPORTANT: every branch below deliberately avoids mixing UTC output
- * (toISOString) with a value that was constructed/parsed in local time,
- * and vice versa -- that mismatch was the original off-by-one-day bug.
- * The numeric branch additionally avoids XLSX.SSF entirely, since that
- * turned out to be silently unavailable in this build (see the file
- * header "DATE HANDLING" comment) and was nulling out every date.
  */
 function excelDateToISO(value) {
   if (value === null || value === undefined || value === "") return null;
 
-  // 1) Defensive fallback only -- with cellDates left OFF (see file
-  //    header comment), XLSX should no longer hand us Date instances for
-  //    date-formatted cells at all; they arrive as raw serial numbers
-  //    and go through branch (2) instead. If a Date object shows up
-  //    anyway (e.g. a future code change), UTC getters are used since
-  //    that's how XLSX itself would construct it.
   if (value instanceof Date) {
     return `${value.getUTCFullYear()}-${pad2(value.getUTCMonth() + 1)}-${pad2(value.getUTCDate())}`;
   }
 
-  // 2) Raw Excel serial number (date cell read without cellDates, or a
-  //    numeric cell XLSX didn't auto-convert). Converted via pure
-  //    integer/UTC math (excelSerialToYMD) -- no XLSX.SSF dependency,
-  //    which is what silently nulled out every date in this file
-  //    previously.
   if (typeof value === "number") {
     const { y, m, d } = excelSerialToYMD(value);
     return `${y}-${pad2(m)}-${pad2(d)}`;
@@ -135,7 +174,6 @@ function excelDateToISO(value) {
   const s = String(value).trim();
   if (!s) return null;
 
-  // 3) "DD/MM/YY" or "D/M/YYYY" -- common in the legacy sheet.
   const dmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (dmy) {
     let [, d, m, y] = dmy;
@@ -143,17 +181,12 @@ function excelDateToISO(value) {
     return `${y}-${pad2(m)}-${pad2(d)}`;
   }
 
-  // 4) Already-ISO text, e.g. "2025-06-02" (possibly with a time part) --
-  //    take the date part as-is, no Date object involved.
   const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (iso) {
     const [, y, m, d] = iso;
     return `${y}-${pad2(m)}-${pad2(d)}`;
   }
 
-  // 5) "D-MMM-YY" / "D-MMM-YYYY" / "D Mon YYYY" text dates, e.g.
-  //    "2-Jun-25". Parsed explicitly against a month-name map instead
-  //    of new Date(s), so there's no timezone ambiguity at all.
   const dmyText = s.match(/^(\d{1,2})[\s-]([A-Za-z]{3,})[\s-](\d{2,4})$/);
   if (dmyText) {
     const [, d, monRaw, yRaw] = dmyText;
@@ -164,12 +197,6 @@ function excelDateToISO(value) {
     }
   }
 
-  // 6) Last-resort generic parse for anything else recognizable
-  //    (e.g. "June 2, 2025"). new Date(s) interprets non-ISO strings in
-  //    the SERVER's LOCAL timezone, so the result must be read back with
-  //    LOCAL getters (not toISOString/UTC) to match how it was parsed --
-  //    mixing the two is exactly what caused the original off-by-one-day
-  //    bug.
   const parsed = new Date(s);
   if (!Number.isNaN(parsed.getTime())) {
     return `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(parsed.getDate())}`;
@@ -177,35 +204,99 @@ function excelDateToISO(value) {
   return null;
 }
 
+// Blank / missing -> ALWAYS 0. Never any other fallback. Used for every
+// quantity field: RCVD QTY, RCVD ROLL, INHAND QTY, INHAND ROLL,
+// ISSUE YDS, ISSUE ROLL.
+//
+// Handles the real-world cell formats these sheets actually contain:
+//   "1,367"      -> 1367   (thousands separator)
+//   "1367 "      -> 1367   (trailing/leading whitespace, incl. non-
+//                            breaking space copy-pasted from Excel)
+//   "(40)"       -> -40    (accounting-style negative -- parentheses
+//                            mean negative, NOT "ignore this cell".
+//                            Previously Number("(40)") produced NaN and
+//                            silently fell back to 0, which is the exact
+//                            "negative values not preserved" bug.)
+//   "-40"        -> -40    (plain negative, already worked)
+//   "-", "--"    -> 0      (sheets sometimes use a dash for "none")
+//   real number 40 (already numeric from xlsx) -> 40, untouched
 function num(v) {
   if (v === null || v === undefined || v === "") return 0;
-  const n = Number(String(v).replace(/,/g, "").trim());
-  return Number.isFinite(n) ? n : 0;
+
+  let s = String(v).trim();
+  if (s === "" || s === "-" || s === "--") return 0;
+
+  // Accounting-format negative: (40) or (40.50)
+  let negative = false;
+  const parenMatch = s.match(/^\((.*)\)$/);
+  if (parenMatch) {
+    negative = true;
+    s = parenMatch[1].trim();
+  }
+
+  // Strip thousands separators, then strip anything that isn't a digit,
+  // a dot, or a leading minus sign (guards against stray currency
+  // symbols, unit suffixes, weird whitespace, etc. instead of just
+  // giving up and returning 0).
+  s = s.replace(/,/g, "").trim();
+  s = s.replace(/[^\d.\-]/g, "");
+
+  if (s === "" || s === "-" || s === ".") return 0;
+
+  let n = Number(s);
+  if (!Number.isFinite(n)) return 0;
+  if (negative) n = -Math.abs(n);
+  return n;
 }
 
+// Same as num(), but also reports back whether the RAW cell looked like
+// it actually contained a real value that failed to parse cleanly (as
+// opposed to genuinely being blank/zero) -- so the review table can flag
+// it instead of silently turning bad data into an invisible 0.
+function numChecked(raw) {
+  const value = num(raw);
+  const rawStr = str(raw);
+  const looksBlankOrZero = rawStr === "" || /^\(?0*(\.0+)?\)?$/.test(rawStr.replace(/,/g, "").trim());
+  const suspicious = value === 0 && rawStr !== "" && !looksBlankOrZero;
+  return { value, suspicious, rawStr };
+}
+
+// Text-field normalizer. Collapses ANY internal whitespace run --
+// including newlines and tabs from a multi-line Excel cell -- down to a
+// single space, then trims. This does NOT change the actual content
+// (still "exactly what the sheet says"), it only fixes an invisible
+// formatting artifact: Excel lets a cell contain a line break (shown as
+// e.g. "DKT-A07A" on one line and "ORANGE" on the next inside the same
+// cell), which gets read back as "DKT-A07A\nORANGE" instead of
+// "DKT-A07A ORANGE". Left as-is, that newline is invisible in the UI but
+// breaks every substring match against it elsewhere in the app (Cutting
+// Issue's stock lookup, filters, etc. all compare against a normal-space
+// version of the same text and silently find no match). Every free-text
+// field pulled from the sheet (Buyer, Item Code/PDM, Color, Style,
+// Model, Item, Fabric Details, Supplier, Origin, Remark, PO, Season,
+// Invoice No.) goes through this, so a stray line-break in any cell can
+// never again cause a row to silently vanish from search/matching
+// elsewhere.
 function str(v) {
-  return v === null || v === undefined ? "" : String(v).trim();
+  if (v === null || v === undefined) return "";
+  return String(v).replace(/\s+/g, " ").trim();
 }
 
 /**
  * Parses every sheet in the workbook and returns { records, warnings }.
  * `records` is the flat list of "one spreadsheet row = one future
  * Material Receive" objects. Every row is included -- nothing is ever
- * dropped or marked invalid. Missing Item Code/PDM, Color, Rack No, or
- * an unparseable Date are simply defaulted (see header comment) so the
- * row still lands in stock. Received Roll/Yds comes from RCVD ROLL/
- * RCVD QTY and Available Roll/Yds comes from INHAND ROLL/INHAND QTY,
- * each pushed to DB exactly as the sheet has them. `warnings` is a
- * short-form list noting which rows had a default applied, purely
- * informational -- never blocks preview or commit.
+ * dropped or marked invalid. Text fields fall back to a placeholder ONLY
+ * when truly blank (DB requires NOT NULL on some columns); numeric
+ * fields always fall back to 0. `warnings` is a short-form list noting
+ * which rows had a fallback applied, purely informational -- never
+ * blocks preview or commit.
  */
 function parseWorkbook(buffer) {
-  // cellDates intentionally OFF -- see the "DATE HANDLING" comment at
-  // the top of this file. Real Excel date cells now come through as raw
-  // serial numbers, which excelDateToISO() converts via pure integer/UTC
-  // math (excelSerialToYMD), with no Date object, no XLSX.SSF dependency,
-  // and therefore no timezone or missing-export issue anywhere in the
-  // path.
+  // cellDates intentionally OFF -- real Excel date cells come through as
+  // raw serial numbers, which excelDateToISO() converts via pure
+  // integer/UTC math (excelSerialToYMD), with no Date object, no
+  // XLSX.SSF dependency.
   const wb = XLSX.read(buffer, { type: "buffer", cellDates: false });
   const records = [];
   const warnings = [];
@@ -229,58 +320,70 @@ function parseWorkbook(buffer) {
 
       const get = (field) => (colMap[field] !== undefined ? row[colMap[field]] : null);
 
+      const rawBuyer = str(get("buyer"));
       const rawItemCodePdm = str(get("itemCodePdm"));
       const rawColor = str(get("color"));
       const rawLocation = str(get("location"));
+      const rawOrigin = str(get("origin"));
+      const rawFabricDetails = str(get("fabricDetails"));
       const rawDateCell = get("date");
       const parsedDate = excelDateToISO(rawDateCell);
 
-      const rawInhandRoll = get("inhandRoll");
-      const rawInhandYds = get("inhandYds");
+      // --- Numeric fields: blank/missing ALWAYS becomes 0, nothing else.
+      // Accounting-style negatives like "(40)" are preserved as -40 (see
+      // num() above). numChecked() additionally flags a cell that had
+      // real-looking content but still failed to parse, so that case is
+      // visible in the review table instead of quietly becoming a 0 that
+      // looks identical to a genuinely blank cell. ---
+      const rcvdRollChk = numChecked(get("rcvdRoll"));       // RCVD ROLL
+      const rcvdYdsChk = numChecked(get("rcvdYds"));         // RCVD QTY
+      const inhandRollChk = numChecked(get("inhandRoll"));   // INHAND ROLL
+      const inhandYdsChk = numChecked(get("inhandYds"));     // INHAND QTY
+      const issueYdsChk = numChecked(get("issueYds"));       // ISSUE YDS
+      const issueRollChk = numChecked(get("issueRoll"));     // ISSUE ROLL
 
-      const rollQty = num(get("rcvdRoll"));
-      const yds = num(get("rcvdYds"));
-
-      // Available now comes straight from the sheet's INHAND ROLL /
-      // INHAND QTY columns -- pushed to DB exactly as-is, never
-      // substituted with Received. If the sheet's INHAND value is
-      // wrong/blank, that same wrong/blank value is what lands in DB,
-      // per the "exactly what's in the sheet" import policy. A blank
-      // cell (column present but empty, or column missing entirely)
-      // becomes 0 and is flagged below in defaultsApplied.
-      const availableRoll = num(rawInhandRoll);
-      const availableYds = num(rawInhandYds);
+      const rollQty = rcvdRollChk.value;
+      const yds = rcvdYdsChk.value;
+      const availableRoll = inhandRollChk.value;
+      const availableYds = inhandYdsChk.value;
+      const issueYds = issueYdsChk.value;
+      const issueRoll = issueRollChk.value;
 
       const supplier = str(get("supplier"));
-      const origin = str(get("origin"));
       const remarkRaw = str(get("remark"));
       const supInvoice = str(get("supInvoice"));
       const boe = str(get("boe"));
 
-      // Fold SUP INVOICE / BOE / ORIGIN into Remark so nothing from the
-      // sheet is silently lost, even though they aren't first-class
-      // fields in this schema.
+      // Nothing from the sheet is silently lost: SUP INVOICE / BOE /
+      // Issue Yds / Issue Roll have no dedicated DB column on
+      // material_receive_items, so they're folded into Remark as plain
+      // text instead of being dropped. Issue Yds/Roll are only appended
+      // when non-zero, so a row with no issue activity keeps a clean
+      // Remark.
       const remark = [
         remarkRaw,
         supInvoice ? `Sup Invoice: ${supInvoice}` : "",
         boe ? `BOE: ${boe}` : "",
-        origin ? `Origin: ${origin}` : "",
+        issueYds ? `Issue Yds: ${issueYds}` : "",
+        issueRoll ? `Issue Roll: ${issueRoll}` : "",
       ].filter(Boolean).join(" | ") || null;
 
       const defaultsApplied = [];
+      if (!rawBuyer) defaultsApplied.push("Buyer");
       if (!rawItemCodePdm) defaultsApplied.push("Item Code/PDM");
       if (!rawColor) defaultsApplied.push("Color");
       if (!rawLocation) defaultsApplied.push("Rack No");
-      // Flag rows where the Date cell was present but unparseable, or
-      // simply blank -- previously this failed completely silently
-      // (blank cell, no highlight, no Info icon). Now it gets the same
-      // visibility as every other defaulted field.
+      if (!rawOrigin) defaultsApplied.push("From (Origin)");
+      if (!rawFabricDetails) defaultsApplied.push("Fabric Details (Description)");
       if (!parsedDate) defaultsApplied.push("Date");
-      // Flag rows where INHAND ROLL / INHAND QTY was blank/missing in
-      // the sheet, so a resulting Available = 0 is visible in the
-      // review table instead of looking like silent data loss.
-      if (str(rawInhandRoll) === "") defaultsApplied.push("Available Roll (INHAND ROLL blank)");
-      if (str(rawInhandYds) === "") defaultsApplied.push("Available Qty (INHAND QTY blank)");
+      // Cell had real-looking content but couldn't be read as a number --
+      // surfaced here instead of silently becoming an indistinguishable 0.
+      if (rcvdRollChk.suspicious) defaultsApplied.push(`RCVD ROLL unreadable ("${rcvdRollChk.rawStr}") -> 0`);
+      if (rcvdYdsChk.suspicious) defaultsApplied.push(`RCVD QTY unreadable ("${rcvdYdsChk.rawStr}") -> 0`);
+      if (inhandRollChk.suspicious) defaultsApplied.push(`INHAND ROLL unreadable ("${inhandRollChk.rawStr}") -> 0`);
+      if (inhandYdsChk.suspicious) defaultsApplied.push(`INHAND QTY unreadable ("${inhandYdsChk.rawStr}") -> 0`);
+      if (issueYdsChk.suspicious) defaultsApplied.push(`ISSUE YDS unreadable ("${issueYdsChk.rawStr}") -> 0`);
+      if (issueRollChk.suspicious) defaultsApplied.push(`ISSUE ROLL unreadable ("${issueRollChk.rawStr}") -> 0`);
 
       const rec = {
         _key: `${sheetName}-${r + 1}`,
@@ -288,7 +391,8 @@ function parseWorkbook(buffer) {
         row: r + 1,
         date: parsedDate,
         invoiceNo: str(get("invoiceNo")) || `IMPORTED-${sheetName}-${r + 1}`,
-        buyer: str(get("buyer")) || DEFAULT_BUYER,
+        buyer: rawBuyer || DEFAULT_BUYER,
+        fromType: rawOrigin || DEFAULT_FROM_TYPE,
         supplier: supplier || null,
         season: str(get("season")) || "N/A",
         po: str(get("po")) || "N/A",
@@ -298,12 +402,14 @@ function parseWorkbook(buffer) {
         model: str(get("model")) || null,
         itemCodePdm: rawItemCodePdm || DEFAULT_ITEM_CODE,
         color: rawColor || DEFAULT_COLOR,
-        fabricDetails: str(get("fabricDetails")) || str(get("itemName")) || DEFAULT_FABRIC_DETAILS,
+        fabricDetails: rawFabricDetails || DEFAULT_FABRIC_DETAILS,
         rollQty,
         yds,
         location: rawLocation || DEFAULT_LOCATION,
         availableRoll,
         availableYds,
+        issueYds,
+        issueRoll,
         // Purely informational -- never blocks preview or commit.
         defaultsApplied: defaultsApplied.length ? defaultsApplied : null,
       };
@@ -329,7 +435,7 @@ async function insertRecord(tx, rec) {
   const [inserted] = await tx.insert(materialReceives).values({
     date: rec.date || new Date().toISOString().slice(0, 10),
     invoiceNo: rec.invoiceNo,
-    fromType: "Overseas",
+    fromType: rec.fromType || DEFAULT_FROM_TYPE, // from sheet's ORIGIN column, exact text
     warehouse: DEFAULT_WAREHOUSE,
     buyer: rec.buyer,
     supplier: rec.supplier,
@@ -348,6 +454,8 @@ async function insertRecord(tx, rec) {
     model: rec.model,
   });
 
+  // Received Roll/Yds -- exactly what the sheet has (0 if blank), never
+  // recalculated or "corrected".
   const passedRoll = num(rec.rollQty);
   const passedYds = num(rec.yds);
 
@@ -387,9 +495,9 @@ async function insertRecord(tx, rec) {
 
   // Always create a rack allocation -- location defaults to "UNASSIGNED"
   // when the sheet had no Rack No, so the row is still real stock and
-  // shows up in Material Stock search immediately. Available now comes
-  // from the sheet's INHAND ROLL/QTY (see parseWorkbook / commit), not
-  // mirrored from Received.
+  // shows up in Material Stock search immediately. Available comes from
+  // the sheet's INHAND ROLL/QTY exactly (0 if blank), not mirrored from
+  // Received.
   const [alloc] = await tx.insert(materialReceiveItemLocations).values({
     itemId: batch.id,
     materialReceiveId,
@@ -417,7 +525,7 @@ async function insertRecord(tx, rec) {
  * multipart/form-data, field "file" -- the .xlsx workbook.
  *
  * Preview only -- parses the workbook and returns EVERY parsed record
- * plus a purely-informational warnings list (which rows had a default
+ * plus a purely-informational warnings list (which rows had a fallback
  * applied). Nothing is written to the DB. Use POST /material-import/commit
  * to actually insert -- every record there succeeds, none are rejected.
  */
@@ -451,9 +559,11 @@ export const importMaterialStock = async (req, res) => {
  * application/json body: { records: [...] }
  *
  * `records` should be the array returned by the preview step above,
- * optionally hand-edited. Does NOT touch the original uploaded file.
- * Every record is inserted in one transaction -- nothing is rejected,
- * nothing needs to pass a validation check first.
+ * optionally hand-edited. Every record is inserted in one transaction --
+ * nothing is rejected, nothing needs to pass a validation check first.
+ * Numeric fields blank/missing always resolve to 0 here too, in case
+ * records were constructed/edited client-side without going through
+ * preview.
  */
 export const commitMaterialStock = async (req, res) => {
   try {
@@ -467,15 +577,19 @@ export const commitMaterialStock = async (req, res) => {
       for (const rec of records) {
         const rollQty = num(rec.rollQty);
         const yds = num(rec.yds);
-        // Re-apply the same defaults here too, in case records were
-        // constructed/edited client-side without going through preview.
+        const issueYds = num(rec.issueYds);
+        const issueRoll = num(rec.issueRoll);
+
+        // Re-apply the same fallbacks here too. Numeric -> always 0.
+        // Text -> placeholder ONLY if truly blank (DB NOT NULL columns).
         const safeRec = {
           ...rec,
+          buyer: str(rec.buyer) || DEFAULT_BUYER,
+          fromType: str(rec.fromType) || DEFAULT_FROM_TYPE,
           itemCodePdm: str(rec.itemCodePdm) || DEFAULT_ITEM_CODE,
           color: str(rec.color) || DEFAULT_COLOR,
           location: str(rec.location) || DEFAULT_LOCATION,
           fabricDetails: str(rec.fabricDetails) || DEFAULT_FABRIC_DETAILS,
-          buyer: str(rec.buyer) || DEFAULT_BUYER,
           season: str(rec.season) || "N/A",
           po: str(rec.po) || "N/A",
           style: str(rec.style) || "N/A",
@@ -483,11 +597,10 @@ export const commitMaterialStock = async (req, res) => {
           item: str(rec.item) || str(rec.itemCodePdm) || DEFAULT_ITEM_CODE,
           rollQty,
           yds,
-          // Available is pushed exactly as given (from INHAND ROLL/QTY
-          // at preview time, or whatever the reviewer typed in the
-          // table) -- no longer silently mirrored to Received.
           availableRoll: num(rec.availableRoll),
           availableYds: num(rec.availableYds),
+          issueYds,
+          issueRoll,
         };
         await insertRecord(tx, safeRec);
         created += 1;

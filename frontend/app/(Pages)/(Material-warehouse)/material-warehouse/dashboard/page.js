@@ -341,7 +341,7 @@ export default function DummyDashboardPage() {
           </div>
           <div style={{ fontFamily: displayFont, fontSize: 20, fontWeight: 700, color: T.text }}>
             <em style={{ color: T.amber, fontStyle: "italic" }}>Overview</em>
-            <span style={{ fontFamily: monoFont, fontSize: 11, color: T.muted, marginLeft: 10, fontStyle: "normal" }}>(demo data)</span>
+            
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>

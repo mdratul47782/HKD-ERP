@@ -24,6 +24,21 @@ const { materialReceives, materialReceiveItems, materialReceiveItemLocations, ma
  * both included in every row and are filterable the same way as the other
  * fields, so the frontend can search/display them without changing what
  * columns show by default.
+ *
+ * VISIBILITY POLICY: this endpoint used to hide any rack allocation with
+ * availableRoll <= 0 AND availableYds <= 0, on the theory that "0 stock
+ * isn't really stock". That silently hid rows that DO exist in the DB --
+ * including legacy-import rows where the sheet's INHAND value was
+ * genuinely 0, or even NEGATIVE (accounting-format cells like "(40)",
+ * meaning -40, which happens when a sheet records more issued than was
+ * ever received). Since the whole import pipeline's rule is "whatever's
+ * in the sheet is exactly what lands in DB and stays visible", that
+ * filter contradicted the data it was hiding. It has been removed --
+ * EVERY rack allocation row now always shows up here, exactly as stored.
+ * A `hasStock` boolean is added to each row (true only when
+ * availableRoll > 0 OR availableYds > 0) so the frontend can badge
+ * zero/negative rows distinctly (e.g. "No stock" / "Adjustment") instead
+ * of presenting them as normal available inventory.
  */
 export const searchMaterialStock = async (req, res) => {
   try {
@@ -80,10 +95,13 @@ export const searchMaterialStock = async (req, res) => {
         if (style && !r.styles.some((s) => q(s.style).includes(q(style)))) return false;
         if (model && !r.styles.some((s) => q(s.model).includes(q(model)))) return false;
         return true;
-      })
-      // Keep only rack allocations that still have stock left — zero-quantity
-      // history stays in the DB for FIFO/audit but isn't "available stock".
-      .filter((r) => Number(r.availableRoll) > 0 || Number(r.availableYds) > 0);
+      });
+      // NOTE: the old ".filter((r) => Number(r.availableRoll) > 0 ||
+      // Number(r.availableYds) > 0)" step that used to sit here has been
+      // removed on purpose -- every rack allocation is shown now,
+      // including 0 and negative available quantities, since those are
+      // real rows in the DB and hiding them contradicted the "exact
+      // sheet data, always visible" import policy.
 
     const summaryMap = new Map();
     for (const r of results) {
@@ -102,8 +120,19 @@ export const searchMaterialStock = async (req, res) => {
     // itemId in the response = allocationId, so the frontend (which keys
     // table rows off r.itemId) gets a unique key per rack row, and each
     // row's Roll/Yds/Available already reflect that specific rack.
+    //
+    // hasStock: true only when this specific rack row actually has
+    // positive available quantity. false covers both "0 available" and
+    // "negative available" (an over-issued/adjustment row) -- the
+    // frontend can use this to show a "No stock" / "Adjustment" badge
+    // instead of presenting the row as normal available inventory, while
+    // still keeping it visible and searchable.
     res.json({
-      rows: results.map((r) => ({ ...r, itemId: r.allocationId })),
+      rows: results.map((r) => ({
+        ...r,
+        itemId: r.allocationId,
+        hasStock: Number(r.availableRoll) > 0 || Number(r.availableYds) > 0,
+      })),
       summary: Array.from(summaryMap.values()),
     });
   } catch (error) {

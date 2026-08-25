@@ -1,19 +1,5 @@
 // backend/src/routes/materialImport.routes.js
-//
-// Mount this in your main app file (e.g. app.js / server.js) alongside
-// your other route registrations:
-//
-//   import materialImportRoutes from "./routes/materialImport.routes.js";
-//   app.use("/", materialImportRoutes);
-//
-// Requires: npm install multer xlsx   (in the backend package, not frontend)
-//
-// Two-step flow:
-//   1) POST /material-import          multipart "file" -> preview (parses
-//      and returns every record + warning, writes nothing to the DB)
-//   2) POST /material-import/commit   application/json { records: [...] }
-//      -> inserts exactly the records in the body (which may have been
-//      edited by the user after seeing the preview). Nothing is rejected.
+
 
 import { Router } from "express";
 import express from "express";

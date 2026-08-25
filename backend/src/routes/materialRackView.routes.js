@@ -1,4 +1,4 @@
-// backend/src/routes/dashboard.routes.js
+// backend/src/routes/materialRackView.routes.js
 
 import { Router } from "express";
 import { materialRackView } from "../controllers/materialRackView.controllers.js";
