@@ -20,33 +20,30 @@
 //
 // UPDATE 2: "What Cutting requested" and "What's available in stock" are
 // now two clearly separated, distinctly labeled blocks instead of being
-// visually blended together in small print:
-//   - Each requisition item now renders as a "Cutting Requested" card
-//     showing Item Code/PDM, Color, Pcs, Wastage %, Consumption, and the
-//     resulting Requested Yds (all labeled, larger text) -- previously
-//     only Requested Yds was shown even though Pcs/Wastage/Consumption
-//     were already coming back from the API.
-//   - The "Check stock" panel now opens with its own "Available Stock"
-//     heading, separate from a distinctly bordered/colored "You
-//     requested" banner above it, so it's obvious which numbers are the
-//     ask and which are what's on the shelf.
+// visually blended together in small print.
 //
-// UPDATE 3:
-//   - Issuing no longer requires BOTH Roll and Yds to be filled in on a
-//     picked rack row -- either one can be left at 0/blank (e.g. only
-//     Yds for a Yds-only rack, or only Roll for a Roll-only rack). Only
-//     rejected when BOTH are 0/blank on a row, since that isn't an issue
-//     action at all.
-//   - A rack row you've picked in the "Check stock" table is now
-//     visually colorized (green background + a "Picked" label on the
-//     button) so it's obvious at a glance which racks are already queued
-//     up for this issue action, instead of only being reflected in the
-//     cart list below.
+// UPDATE 3: Issuing no longer requires BOTH Roll and Yds to be filled in
+// on a picked rack row, and a picked rack row is visually colorized
+// (green) in the stock table.
+//
+// UPDATE 4:
+//   - The "Cutting Requested" card now shows Requested Yds, Issued So Far,
+//     AND Remaining Yds as three clearly labeled figures side by side --
+//     previously "how much is still needed" had to be worked out by hand
+//     from Requested minus Issued. Remaining is highlighted (amber if
+//     something's still needed, green once nothing is).
+//   - Every picked-rack row in the issue cart now shows a "Need: X Yds"
+//     badge right next to it (not just once, buried in the footer note),
+//     so the exact remaining requirement is visible right where the user
+//     is typing the amount to issue.
+//   - Any error message (issue failed, validation failed, etc.) is now
+//     shown as a large, bold, red, boxed banner instead of small grey
+//     text, so it can't be missed.
 
 "use client";
 
 import { useCallback, useEffect, useState, Fragment } from "react";
-import { Bell, PackageSearch, ChevronDown, ChevronUp, MapPin, Search, History as HistoryIcon, ClipboardList, ClipboardCheck, Boxes, Check } from "lucide-react";
+import { Bell, PackageSearch, ChevronDown, ChevronUp, MapPin, Search, History as HistoryIcon, ClipboardList, ClipboardCheck, Boxes, Check, AlertTriangle } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -61,6 +58,11 @@ const chip = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font
 const chipPending = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#b8933a]/15 text-[#8a6a1a] dark:bg-[#e0c068]/15 dark:text-[#e0c068]";
 const chipPartial = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#3d6a8a]/15 text-[#2c4a63] dark:bg-[#6fa8d0]/15 dark:text-[#6fa8d0]";
 const chipFulfilled = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#5ca068]/15 text-[#3d7a4a] dark:bg-[#8fca9c]/15 dark:text-[#8fca9c]";
+// Small badge used to show "how much Yds is still needed" right next to a
+// picked rack row -- amber while something's still outstanding, green
+// once the remaining amount is 0.
+const chipNeedAmber = "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#b8933a]/15 text-[#8a6a1a] dark:bg-[#e0c068]/15 dark:text-[#e0c068] whitespace-nowrap";
+const chipNeedDone = "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#5ca068]/15 text-[#3d7a4a] dark:bg-[#8fca9c]/15 dark:text-[#8fca9c] whitespace-nowrap";
 
 const scrollThin =
   "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent " +
@@ -72,6 +74,21 @@ function statusChip(status) {
   if (status === "fulfilled") return <span className={chipFulfilled}>Fulfilled</span>;
   if (status === "partial") return <span className={chipPartial}>Partially Issued</span>;
   return <span className={chipPending}>Pending</span>;
+}
+
+// Large, impossible-to-miss error banner -- bold red text in a bordered
+// box, used everywhere an issue/validation error needs to be shown
+// (previously this was tiny grey text that was easy to miss).
+function ErrorBanner({ message }) {
+  if (!message) return null;
+  return (
+    <div className="flex items-start gap-2 rounded-lg border-2 border-red-400 dark:border-red-700 bg-red-50 dark:bg-red-950/40 px-3 py-2.5">
+      <AlertTriangle size={18} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+      <span className="text-base md:text-lg font-extrabold text-red-600 dark:text-red-400 leading-snug">
+        {message}
+      </span>
+    </div>
+  );
 }
 
 // Small labeled value used inside the "Cutting Requested" / "Available
@@ -153,32 +170,15 @@ function NotificationBell({ notifications, unreadCount, onRefresh, onSelect }) {
    right Buyer / right Style) before picking a rack, not just the
    right Item Code/PDM + Color.
 
-   The panel is now split into two clearly separated, distinctly
-   colored blocks:
-     1. "You requested" (amber/orange, matches the request card above
-        it) -- a compact restatement of the Requisition's own
-        Season/Style/Model/Buyer + this item's Item Code/PDM + Color,
-        so it's obvious what's being matched against.
-     2. "Available Stock" (blue, matches the rest of the app's stock
-        styling) -- the rack-wise table itself, under its own heading,
-        with a red highlight on any row whose Season doesn't match the
-        Requisition's Season, and a GREEN highlight on any row that's
-        already been picked into this issue action (takes priority over
-        the red season-mismatch highlight, since "already picked" is the
-        more important thing to notice at a glance).
-
    Clicking "Pick" on a rack row ADDS it to a picked-racks list below
    (instead of immediately issuing) -- so the user can pick several
    racks (e.g. Rack-1 + Rack-3), type a Roll/Yds amount for EACH one,
    and hit "Issue All" once to apply every row together in a single
-   request/transaction. Roll is entirely the warehouse's own call --
-   Cutting never asked for a specific Roll count, only a Yds total.
-   Roll and Yds do NOT both have to be filled in on a picked row --
-   either one can be left blank/0 (e.g. only Yds, or only Roll); only
-   rejected when BOTH are 0 on a row. If the total Yds being issued
-   would push the item's issued Yds past its Requested Yds, the user is
-   asked to confirm before it goes through (there is no hard cap on the
-   backend).
+   request/transaction. Each picked row now shows a "Need: X Yds" badge
+   (remaining requested Yds MINUS whatever's already typed into the other
+   picked rows) right next to its inputs, so the user always knows how
+   much is still outstanding without having to scroll up to the request
+   card. The badge turns green once nothing more is needed.
    ============================================================ */
 
 function IssueForm({ item, requisition, onIssued }) {
@@ -197,6 +197,12 @@ function IssueForm({ item, requisition, onIssued }) {
   const pickedTotalRoll = picked.reduce((s, p) => s + (Number(p.roll) || 0), 0);
   const pickedTotalYds = picked.reduce((s, p) => s + (Number(p.yds) || 0), 0);
   const pickedIds = new Set(picked.map((p) => p.allocationId));
+
+  // Still-needed amount AFTER accounting for everything currently typed
+  // into the picked-rack cart -- this is what's shown per-row so the
+  // number always reflects "what's left once these amounts go through",
+  // not just the static Requisition-level remaining figure.
+  const stillNeededAfterCart = Math.max(0, remainingYds - pickedTotalYds);
 
   const checkStock = async () => {
     if (stockOpen) { setStockOpen(false); return; }
@@ -379,36 +385,52 @@ function IssueForm({ item, requisition, onIssued }) {
       )}
 
       <div className="bg-white dark:bg-[#2a241b] border border-[#2c2417]/8 dark:border-[#e8ddd0]/8 rounded-md p-2 space-y-1.5">
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#4a6578] dark:text-[#8fb0c4]">
-          {picked.length === 0 ? "Pick one or more racks above to issue from" : `${picked.length} rack${picked.length > 1 ? "s" : ""} picked`}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-[#4a6578] dark:text-[#8fb0c4]">
+            {picked.length === 0 ? "Pick one or more racks above to issue from" : `${picked.length} rack${picked.length > 1 ? "s" : ""} picked`}
+          </div>
+          {/* Live "still need X Yds" summary, updates as amounts are typed
+              into the picked rows below. */}
+          {picked.length > 0 && (
+            <span className={stillNeededAfterCart > 0 ? chipNeedAmber : chipNeedDone}>
+              {stillNeededAfterCart > 0 ? `Still need: ${stillNeededAfterCart} Yds` : "Fully covered"}
+            </span>
+          )}
         </div>
 
         {picked.length > 0 && (
           <div className="space-y-1">
             {picked.map((p) => (
-              <div key={p.allocationId} className="flex items-center gap-1.5">
+              <div key={p.allocationId} className="flex items-center gap-1.5 flex-wrap">
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#3d7a4a] dark:text-[#8fca9c] w-16 shrink-0">
                   <MapPin size={10} />{p.location}
                 </span>
                 <input
                   type="number" placeholder="Roll" value={p.roll}
                   onChange={(e) => updatePicked(p.allocationId, "roll", e.target.value)}
-                  className={`${inputCls} flex-1`}
+                  className={`${inputCls} flex-1 min-w-[70px]`}
                 />
                 <input
                   type="number" placeholder="Yds" value={p.yds}
                   onChange={(e) => updatePicked(p.allocationId, "yds", e.target.value)}
-                  className={`${inputCls} flex-1`}
+                  className={`${inputCls} flex-1 min-w-[70px]`}
                 />
-                <span className="text-[10px] text-[#a08060] w-24 shrink-0 whitespace-nowrap">
+                <span className="text-[10px] text-[#a08060] shrink-0 whitespace-nowrap">
                   max {p.availableRoll}/{p.availableYds}
+                </span>
+                {/* Per-row "Need: X Yds" badge -- sits right next to this
+                    picked rack so the outstanding requirement is visible
+                    exactly where the user is typing the amount, without
+                    needing to scroll up to the request card. */}
+                <span className={stillNeededAfterCart > 0 ? chipNeedAmber : chipNeedDone}>
+                  {stillNeededAfterCart > 0 ? `Need: ${stillNeededAfterCart} Yds` : "Covered"}
                 </span>
                 <button type="button" onClick={() => removePicked(p.allocationId)} className="text-[11px] font-medium text-[#a04a3a] hover:underline shrink-0">
                   Remove
                 </button>
               </div>
             ))}
-            <div className="flex items-center gap-2 pt-0.5">
+            <div className="flex items-center gap-2 pt-0.5 flex-wrap">
               <span className="text-[11px] text-[#7a6250] dark:text-[#a8917d]">
                 Total: <b>{pickedTotalRoll} Roll / {pickedTotalYds} Yds</b>
               </span>
@@ -429,7 +451,7 @@ function IssueForm({ item, requisition, onIssued }) {
           asked to confirm).
           {isDone && <span className="text-[#3d7a4a] dark:text-[#8fca9c] font-medium"> This item is already marked Fulfilled.</span>}
         </div>
-        {err && <div className="text-[11px] text-[#a04a3a]">{err}</div>}
+        <ErrorBanner message={err} />
       </div>
     </div>
   );
@@ -459,43 +481,56 @@ function WorklistItem({ req, forceOpen, onAfterOpen, onIssued }) {
 
       {open && (
         <div className="border-t border-[#2c2417]/10 dark:border-[#e8ddd0]/10 divide-y divide-[#2c2417]/8 dark:divide-[#e8ddd0]/8">
-          {req.items.map((item) => (
-            <div key={item.id} className="p-3 space-y-2.5">
-              {/* "Cutting Requested" card -- everything Cutting actually
-                 typed in (Pcs / Wastage % / Consumption) plus the Requested
-                 Yds calculated from them, and what's been Issued so far so
-                 far against it. This used to only show Item Code/PDM,
-                 Color, and Requested Yds in small mixed-color text; now
-                 every number has its own label and larger type. */}
-              <div className="rounded-lg border-2 border-[#b87a4a]/25 dark:border-[#d4955e]/25 bg-[#b87a4a]/6 dark:bg-[#d4955e]/6 px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[#8a4a24] dark:text-[#d4955e]">
-                    <ClipboardList size={12} /> Cutting Requested
+          {req.items.map((item) => {
+            // Remaining = Requested minus Issued, floored at 0 -- shown as
+            // its own labeled figure so it never has to be worked out by
+            // hand from the other two numbers.
+            const remaining = Math.max(0, Number(item.requestedYds) - Number(item.issuedYds));
+            const remainingClass = remaining > 0
+              ? "text-[#8a6a1a] dark:text-[#e0c068]"
+              : "text-[#3d7a4a] dark:text-[#8fca9c]";
+            return (
+              <div key={item.id} className="p-3 space-y-2.5">
+                {/* "Cutting Requested" card -- everything Cutting actually
+                   typed in (Pcs / Wastage % / Consumption) plus the
+                   Requested Yds calculated from them, what's been Issued
+                   so far, and how much is still Remaining -- all as their
+                   own clearly labeled figures. */}
+                <div className="rounded-lg border-2 border-[#b87a4a]/25 dark:border-[#d4955e]/25 bg-[#b87a4a]/6 dark:bg-[#d4955e]/6 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[#8a4a24] dark:text-[#d4955e]">
+                      <ClipboardList size={12} /> Cutting Requested
+                    </div>
+                    {statusChip(item.status)}
                   </div>
-                  {statusChip(item.status)}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
+                    <Field label="Buyer" value={req.buyer} />
+                    <Field label="Floor" value={req.floor} />
+                    <Field label="Season" value={req.season} />
+                    <Field label="Style | Model" value={req.model ? `${req.style} | ${req.model}` : req.style} />
+                    <Field label="Item Code/PDM" value={item.itemCodePdm} valueClassName="text-[#8a4a24] dark:text-[#d4955e]" />
+                    <Field label="Color" value={item.color} />
+                    <Field label="Pcs" value={item.pcs} />
+                    <Field label="Wastage %" value={`${item.percentage}%`} />
+                    <Field label="Consumption" value={`${item.consumption} yds/pc`} />
+                    <Field label="Requested Yds" value={`${item.requestedYds} Yds`} valueClassName="text-base" />
+                    <Field
+                      label="Issued So Far"
+                      value={`${item.issuedRoll} Roll / ${item.issuedYds} Yds`}
+                      valueClassName="text-[#3d7a4a] dark:text-[#8fca9c]"
+                    />
+                    <Field
+                      label="Remaining Yds"
+                      value={`${remaining} Yds`}
+                      valueClassName={`text-base ${remainingClass}`}
+                    />
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
-                  <Field label="Buyer" value={req.buyer} />
-                  <Field label="Floor" value={req.floor} />
-                  <Field label="Season" value={req.season} />
-                  <Field label="Style | Model" value={req.model ? `${req.style} | ${req.model}` : req.style} />
-                  <Field label="Item Code/PDM" value={item.itemCodePdm} valueClassName="text-[#8a4a24] dark:text-[#d4955e]" />
-                  <Field label="Color" value={item.color} />
-                  <Field label="Pcs" value={item.pcs} />
-                  <Field label="Wastage %" value={`${item.percentage}%`} />
-                  <Field label="Consumption" value={`${item.consumption} yds/pc`} />
-                  <Field label="Requested Yds" value={`${item.requestedYds} Yds`} valueClassName="text-base" />
-                  <Field
-                    label="Issued So Far"
-                    value={`${item.issuedRoll} Roll / ${item.issuedYds} Yds`}
-                    valueClassName="text-[#3d7a4a] dark:text-[#8fca9c]"
-                  />
-                </div>
-              </div>
 
-              <IssueForm item={item} requisition={req} onIssued={onIssued} />
-            </div>
-          ))}
+                <IssueForm item={item} requisition={req} onIssued={onIssued} />
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -640,7 +675,7 @@ export default function CuttingIssuePage() {
           <NotificationBell notifications={notifications} unreadCount={unreadCount} onRefresh={fetchNotifications} onSelect={handleSelectNotification} />
         </div>
 
-        {error && <div className="rounded-lg bg-[#b87a4a]/10 border border-[#b87a4a]/25 text-[#8a4a24] dark:text-[#e0a878] text-xs px-3 py-2"><b>Error:</b> {error}</div>}
+        <ErrorBanner message={error} />
 
         <div className="flex gap-2">
           <button type="button" onClick={() => setTab("worklist")} className={tab === "worklist" ? btnPrimary : btnSecondary}>
