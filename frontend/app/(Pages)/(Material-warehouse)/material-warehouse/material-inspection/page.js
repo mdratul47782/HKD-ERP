@@ -1,19 +1,5 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-inspection/page.js
 
-//
-// Material Warehouse side: incoming batches from Material Receive show up
-// here as bell-icon notifications (read/unread), one per Item Code/PDM +
-// Color batch (status "pending_inspection"). Expanding a batch shows the
-// full Received info (Date, Invoice, Buyer, Season, PO, Style/Model, Item
-// Code/PDM, Color, Received Roll/Yds), then lets the user enter a Passed
-// Roll / Passed Yds (<= received). Whatever isn't passed is automatically
-// recorded as Rejected. Saving moves the batch to "pending" (ready for
-// Location Assignment) or "rejected" (if 0/0 passed) -- either way it
-// leaves the inspection worklist and shows up in the History tab instead.
-//
-// "Reject All" is a one-click shortcut that passes 0/0 without having to
-// type it in manually.
-
 "use client";
 
 import { useCallback, useEffect, useState } from "react";

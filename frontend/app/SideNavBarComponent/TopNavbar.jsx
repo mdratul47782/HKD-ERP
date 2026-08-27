@@ -30,7 +30,7 @@ import UserPanel from "./UserPanel";
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home },
   { href: "/admin/users", label: "Manage Users", icon: ShieldUser },
-  { href: "/StyleRegister", label: "Style Register", icon: Palette },
+  
 ];
 
 // Departments — mirrors DeptSidebar, used for the mobile drawer since the

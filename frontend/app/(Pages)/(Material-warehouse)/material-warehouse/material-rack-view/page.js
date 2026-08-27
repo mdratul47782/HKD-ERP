@@ -19,21 +19,22 @@ import {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 /* ============================================================
-   TOKENS -- same palette as the reference dashboard
+   TOKENS -- warm coffee-toned light palette (latte bg, espresso
+   text, caramel/mocha accents instead of flat gray/white)
    ============================================================ */
 const T = {
-  bg: "#14151A",
-  panel: "#1B1D24",
-  panelAlt: "#20222B",
-  line: "#2C2F3A",
-  amber: "#E3A008",
-  teal: "#5B8C85",
-  sage: "#6FA96B",
-  brick: "#C4544D",
-  slateBlue: "#7C8AA3",
-  gray: "#8B8D97",
-  text: "#F2EFE9",
-  muted: "#8B8D97",
+  bg: "#EFE6D8",
+  panel: "#FBF6EE",
+  panelAlt: "#F3E9D8",
+  line: "#DCC9AC",
+  amber: "#B0700E",
+  teal: "#5C7A5A",
+  sage: "#7A8C4C",
+  brick: "#A8522E",
+  slateBlue: "#7A6248",
+  gray: "#9C8568",
+  text: "#3A2A1A",
+  muted: "#8A7256",
 };
 
 const displayFont = `'Barlow Condensed', 'Oswald', sans-serif`;
@@ -111,6 +112,7 @@ function Panel({ eyebrow, title, right, children }) {
         // instead.
         minWidth: 0,
         height: "100%",
+        boxShadow: "0 1px 2px rgba(58,42,26,0.04)",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10, flexShrink: 0 }}>
@@ -132,7 +134,7 @@ function Panel({ eyebrow, title, right, children }) {
 function CustomTooltip({ active, payload, label, unit }) {
   if (!active || !payload || !payload.length) return null;
   return (
-    <div style={{ background: T.panelAlt, border: `1px solid ${T.line}`, borderRadius: 3, padding: "7px 11px", fontFamily: monoFont, fontSize: 11, color: T.text }}>
+    <div style={{ background: T.panelAlt, border: `1px solid ${T.line}`, borderRadius: 3, padding: "7px 11px", fontFamily: monoFont, fontSize: 11, color: T.text, boxShadow: "0 2px 8px rgba(58,42,26,0.08)" }}>
       <div style={{ color: T.muted, marginBottom: 2 }}>{label}</div>
       {payload.map((p, i) => (
         <div key={i} style={{ color: p.color || p.fill }}>
@@ -255,6 +257,7 @@ export default function MaterialDashboardPage() {
             background: T.panel, border: `1px solid ${T.line}`, borderRadius: 4,
             padding: "12px 16px", width: 210, flexShrink: 0, position: "relative", overflow: "hidden",
             display: "flex", flexDirection: "column", justifyContent: "center", gap: 10,
+            boxShadow: "0 1px 2px rgba(58,42,26,0.04)",
           }}
         >
           <div style={{ position: "absolute", top: 0, left: 0, width: 3, height: "100%", background: T.sage }} />
@@ -296,7 +299,7 @@ export default function MaterialDashboardPage() {
                   tickLine={false}
                   width={110}
                 />
-                <Tooltip content={<CustomTooltip unit=" yds" />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                <Tooltip content={<CustomTooltip unit=" yds" />} cursor={{ fill: "rgba(58,42,26,0.04)" }} />
                 <Bar dataKey="yds" fill={T.amber} radius={[0, 3, 3, 0]} barSize={14} />
               </BarChart>
             </ResponsiveContainer>
@@ -334,12 +337,12 @@ export default function MaterialDashboardPage() {
                       onMouseLeave={handleRackLeave}
                       style={{
                         borderRadius: 3, cursor: "default", padding: "6px 4px",
-                        background: `rgba(227,160,8,${alpha})`, border: `1px solid ${T.line}`,
+                        background: `rgba(176,112,14,${alpha})`, border: `1px solid ${T.line}`,
                         display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
                       }}
                     >
-                      <MapPin size={10} color={T.text} style={{ opacity: 0.8 }} />
-                      <span style={{ fontFamily: monoFont, fontSize: 8.5, color: T.text, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
+                      <MapPin size={10} color={alpha > 0.45 ? "#FFFFFF" : T.text} style={{ opacity: 0.85 }} />
+                      <span style={{ fontFamily: monoFont, fontSize: 8.5, color: alpha > 0.45 ? "#FFFFFF" : T.text, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
                         {r.location}
                       </span>
                     </div>
@@ -361,14 +364,14 @@ export default function MaterialDashboardPage() {
             left: hoveredRack.x,
             top: hoveredRack.y - 8,
             transform: "translate(-50%, -100%)",
-            background: T.panelAlt,
+            background: T.panel,
             border: `1px solid ${T.line}`,
             borderRadius: 4,
             padding: "8px 10px",
             minWidth: 170,
             maxWidth: 240,
             zIndex: 1000,
-            boxShadow: "0 6px 18px rgba(0,0,0,0.5)",
+            boxShadow: "0 6px 18px rgba(58,42,26,0.14)",
             pointerEvents: "none",
           }}
         >
@@ -400,7 +403,7 @@ export default function MaterialDashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke={T.line} vertical={false} />
               <XAxis dataKey="warehouse" tick={{ fill: T.muted, fontSize: 10, fontFamily: monoFont }} axisLine={{ stroke: T.line }} tickLine={false} />
               <YAxis tick={{ fill: T.muted, fontSize: 9, fontFamily: monoFont }} axisLine={false} tickLine={false} width={40} />
-              <Tooltip content={<CustomTooltip unit=" yds" />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+              <Tooltip content={<CustomTooltip unit=" yds" />} cursor={{ fill: "rgba(58,42,26,0.04)" }} />
               <Bar dataKey="yds" fill={T.teal} radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -441,7 +444,7 @@ export default function MaterialDashboardPage() {
                       tickFormatter={(v) => (typeof v === "string" && v.length > 8 ? `${v.slice(0, 8)}…` : v)}
                     />
                     <YAxis tick={{ fill: T.muted, fontSize: 9, fontFamily: monoFont }} axisLine={false} tickLine={false} width={40} />
-                    <Tooltip content={<CustomTooltip unit=" yds" />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                    <Tooltip content={<CustomTooltip unit=" yds" />} cursor={{ fill: "rgba(58,42,26,0.04)" }} />
                     <Bar dataKey="yds" fill={T.brick} radius={[3, 3, 0, 0]} barSize={22} />
                   </BarChart>
                 </ResponsiveContainer>

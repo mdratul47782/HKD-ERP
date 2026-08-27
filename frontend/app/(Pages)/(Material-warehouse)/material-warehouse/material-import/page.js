@@ -1,40 +1,5 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-import/page.js
 
-//
-// Lets the user upload the legacy "Material Stock" Excel template and
-// bulk-import every row into Material Receive / Stock.
-//
-// IMPORT POLICY: nothing blocks an import. Every row in the sheet gets
-// imported and lands directly in stock -- exactly what's in the sheet
-// goes in. Missing/blank text fields fall back to a placeholder ONLY
-// because the database requires a value there; missing/blank NUMBER
-// fields (Roll/Yds/Qty/Issue) always become 0, never anything else, and
-// wrong-looking numbers are never "corrected". The review table below is
-// there so you CAN tweak values before committing, but editing is
-// entirely optional.
-//
-// FIXED EXCEL HEADER SET this page/controller is built for:
-//   BUYER, DATE, INVOICE, SEASON, PO NO, STY NO, MODEL, ITEM, ITEM CODE,
-//   COLOR NAME, RCVD QTY, RCVD ROLL, ISSUE YDS, ISSUE ROLL, INHAND QTY,
-//   INHAND ROLL, RACK NO, REMARK, SUPLIER, ORIGIN, DESCRIPTION
-//
-// Two-step flow, matching the backend's preview/commit split:
-//   1. Pick a file -> POST /material-import -> parses the WHOLE workbook
-//      and returns every row as an editable record. Nothing is written
-//      to the DB yet.
-//   2. Review (optional) -> POST /material-import/commit with the
-//      (optionally edited) records. Every record is inserted -- none
-//      are rejected.
-//
-// Every imported row becomes its own Material Receive, already
-// "Approved" and racked (rack defaults to "UNASSIGNED" if the sheet had
-// none). Warehouse defaults to K-2 (no column for it in the sheet); every
-// other field (Buyer, From/Origin, Item Code, Color, Fabric
-// Details/Description, etc.) is read straight from its matching column.
-// Issue Yds/Issue Roll have no dedicated database column, so they're
-// folded into Remark as plain text instead of being dropped. See the
-// backend controller's header comment for the full confirmed mapping.
-
 "use client";
 
 import {

@@ -124,7 +124,7 @@ const COLUMN_VISIBILITY_KEY = "materialReceive:columnVisibility";
 const COLUMN_LABELS = {
   date: "Date", invoiceNo: "Invoice No.", remark: "Remark", fromType: "From",
   warehouse: "Warehouse", buyer: "Buyer", supplier: "Supplier", season: "Season",
-  po: "PO", styleModel: "Style | Model", totalItems: "Items", status: "Status", actions: "Actions",
+  po: "PO", style: "Style", model: "Model", totalItems: "Items", status: "Status", actions: "Actions",
 };
 function loadColumnVisibility() {
   if (typeof window === "undefined") return {};
@@ -809,27 +809,16 @@ function RecordFilterRow({ filters, setFilters }) {
    area showing Page X of Y / total count, a page-size selector, and
    Prev/Next/First/Last controls.
 
-   STYLE/MODEL OVERFLOW: a Receive can carry many Style+Model rows.
-   The cell shows the first 2 (each truncated at a max width, with
-   a title tooltip); a "+N more" button expands that row only to show
-   every Style/Model, wrapped, with a "Show less" to collapse it back.
+   STYLE / MODEL COLUMNS: Style and Model are two separate columns,
+   each stacking one line per Style row (in the same order), so
+   Model row N always lines up beside Style row N -- a Receive with
+   three Styles shows three stacked lines in both columns, aligned.
    ============================================================ */
 
 function RecordsPanel({
   filters, setFilters, receives, loading, expandedIds, toggleExpanded, onEdit, onDelete, onAssigned,
   page, totalPages, totalCount, pageSize, setPageSize, goToPage,
 }) {
-  // Which rows currently have their full Style/Model list expanded
-  // (keyed by materialReceive id). Independent from `expandedIds`,
-  // which controls the Items-under-Invoice drawer.
-  const [expandedStyleIds, setExpandedStyleIds] = useState(() => new Set());
-  const toggleStyleExpanded = (id) =>
-    setExpandedStyleIds((prev) => {
-      const n = new Set(prev);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
-
   // Column show/hide picker -- state starts empty (= everything visible)
   // and is replaced by whatever was saved in localStorage once mounted
   // (avoids an SSR/client mismatch from reading localStorage up front).
@@ -918,48 +907,39 @@ function RecordsPanel({
       meta: { className: "whitespace-nowrap" },
       cell: ({ getValue }) => getValue(),
     },
+    // Style and Model are two separate, aligned columns: each renders one
+    // stacked line per style entry, in the same order, so line N in Style
+    // always sits beside line N in Model -- no wrapping/expand logic needed.
     {
-      // Style/Model: collapsed view shows up to 2 chips, each truncated
-      // (title tooltip carries the full text on hover). A "+N more" /
-      // chevron toggle always expands THIS row's cell only, wrapping
-      // freely with no width limit -- so long or many Style/Model pairs
-      // are always fully reachable via a click.
-      id: "styleModel",
-      header: "Style | Model",
-      meta: { className: "whitespace-nowrap" },
+      id: "style",
+      header: "Style",
       cell: ({ row }) => {
         const list = row.original.styles || [];
-        const isOpen = expandedStyleIds.has(row.original.id);
-        const shown = isOpen ? list : list.slice(0, 2);
-        const hiddenCount = list.length - shown.length;
-        const fullText = (s) => `${s.style}${s.model ? ` | ${s.model}` : ""}`;
+        if (!list.length) return <span className="italic text-[#a08060]">-</span>;
         return (
-          <div className={`flex items-center gap-1 ${isOpen ? "flex-wrap whitespace-normal max-w-[320px]" : ""}`}>
-            {shown.map((s) => (
-              <span
-                key={s.id ?? s.style}
-                title={fullText(s)}
-                className={`${chip} ${isOpen ? "whitespace-normal break-words" : "max-w-[150px] truncate"}`}
-              >
-                {fullText(s)}
-              </span>
+          <div className="flex flex-col gap-1">
+            {list.map((s) => (
+              <div key={s.id ?? s.style} className="truncate max-w-[140px]" title={s.style}>
+                {s.style}
+              </div>
             ))}
-            {list.length > 0 && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); toggleStyleExpanded(row.original.id); }}
-                title={isOpen ? "Show less" : "Show full Style | Model"}
-                className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold text-[#b87a4a] hover:underline whitespace-nowrap"
-              >
-                {isOpen ? (
-                  <>Show less <ChevronUp size={11} /></>
-                ) : hiddenCount > 0 ? (
-                  <>+{hiddenCount} more <ChevronDown size={11} /></>
-                ) : (
-                  <ChevronDown size={11} />
-                )}
-              </button>
-            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: "model",
+      header: "Model",
+      cell: ({ row }) => {
+        const list = row.original.styles || [];
+        if (!list.length) return <span className="italic text-[#a08060]">-</span>;
+        return (
+          <div className="flex flex-col gap-1">
+            {list.map((s) => (
+              <div key={s.id ?? s.style} className="truncate max-w-[140px]" title={s.model || "-"}>
+                {s.model || <span className="italic text-[#a08060]">-</span>}
+              </div>
+            ))}
           </div>
         );
       },
@@ -995,7 +975,7 @@ function RecordsPanel({
         );
       },
     },
-  ], [expandedIds, onEdit, onDelete, expandedStyleIds]);
+  ], [expandedIds, onEdit, onDelete]);
 
   const table = useReactTable({
     data: receives,

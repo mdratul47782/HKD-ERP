@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSidebar } from "@/app/provider/SidebarContext";
 import {
   TrendingUp, Box, Wrench, Warehouse, PackageSearch, MapPin, Boxes,
-  PanelLeft, PanelLeftClose, FolderClosed, ChevronRight, Scissors, ClipboardList, ClipboardCheck, LayoutDashboard,SquareDashedKanban
+  PanelLeft, PanelLeftClose, FolderClosed, ChevronRight, Scissors, ClipboardList, ClipboardCheck, LayoutDashboard, SquareDashedKanban, FileInput
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -38,6 +38,7 @@ const DEPARTMENTS = [
         icon: FolderClosed,
         items: [
           { href: "/material-warehouse/material-receive", label: "Material Receive", icon: PackageSearch },
+          { href: "/material-warehouse/material-import", label: "Material Import", icon: FileInput },
           // notificationKey ties this item to the live unread count fetched
           // from GET /material-inspection/notifications below -- badge only
           // shows up on the item(s) that opt in with this key.
