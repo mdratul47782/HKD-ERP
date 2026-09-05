@@ -38,19 +38,30 @@ import {
 /* ============================================================
    DUMMY DATA
    ============================================================ */
-
 const BUYERS = [
-  "Decathlon - Knit",
-  "Decathlon - Woven",
-  "Walmart",
+  "Decathlon(W)",
+  "Decathlon(K)",
   "Columbia",
+  "Walmart",
   "ZXY",
   "CTC",
   "DIESEL",
-  "Sports Group Denmark",
+  "SGD",
   "Identity",
   "Fifth Avenur",
 ];
+// const BUYERS = [
+//   "Decathlon - Knit",
+//   "Decathlon - Woven",
+//   "Walmart",
+//   "Columbia",
+//   "ZXY",
+//   "CTC",
+//   "DIESEL",
+//   "Sports Group Denmark",
+//   "Identity",
+//   "Fifth Avenur",
+// ];
 
 // Hand-picked descending Roll figures per buyer above, Yds derived at a
 // roughly realistic ~185 yds/roll factor.
@@ -374,8 +385,8 @@ export default function DummyDashboardPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, flexShrink: 0, height: 150 }}>
         <KpiCard icon={Boxes} label="Available Roll" value={KPIS.totalAvailableRoll} unit="Roll" accent={T.amber} />
         <KpiCard icon={Layers} label="Available Yds" value={KPIS.totalAvailableYds} unit="Yds" accent={T.teal} />
-        <KpiCard icon={ClipboardCheck} label="Inspection Pending" value={KPIS.pendingInspectionCount} unit="batches" accent="#7a4a8a" />
-        <KpiCard icon={PackageSearch} label="Total Receiving" value={KPIS.totalReceivingCount} unit="invoices" accent={T.slate} />
+        <KpiCard icon={ClipboardCheck} label="Inspection Pending" value={KPIS.pendingInspectionCount} unit="Invoices" accent="#7a4a8a" />
+        <KpiCard icon={PackageSearch} label="Total Receiving" value={KPIS.totalReceivingCount} unit="Invoices" accent={T.slate} />
       </div>
 
       {/* Charts row -- 4 columns: buyer bar, item-code bar, batch pie, requisition pie */}
@@ -438,7 +449,7 @@ export default function DummyDashboardPage() {
         </Panel>
 
         {/* Batch status pie -- demo-derived per selected date */}
-        <Panel eyebrow={`Stock Batches · ${selectedDate}`} title="Status Breakdown">
+        <Panel eyebrow={`Stock Invoices · ${selectedDate}`} title="Status Breakdown">
           <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 4 }}>
             <div style={{ flex: 1.3, minHeight: 0 }}>
               <ResponsiveContainer width="100%" height="100%">

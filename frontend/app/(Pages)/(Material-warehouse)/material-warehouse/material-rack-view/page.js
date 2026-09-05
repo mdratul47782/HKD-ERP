@@ -236,7 +236,7 @@ export default function MaterialDashboardPage() {
         .rack-tooltip-empty { font-family: ${bodyFont}; font-size: 10.5px; color: ${T.muted}; }
       `}</style>
 
-      {/* ===== Header ===== */}
+      {/* ===== Header =====
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
         <div>
           <div style={{ fontFamily: monoFont, fontSize: 10, letterSpacing: "0.16em", color: T.muted, textTransform: "uppercase", marginBottom: 3 }}>
@@ -248,7 +248,7 @@ export default function MaterialDashboardPage() {
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.sage, display: "inline-block" }} />
           Live
         </div>
-      </div>
+      </div> */}
 
       {/* ===== Row 1: compact KPI + Top Items (moved up) ===== */}
       <div style={{ display: "flex", gap: 12, flexShrink: 0, height: 180 }}>

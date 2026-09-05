@@ -19,11 +19,13 @@ import {
   PackageSearch,
   MapPin,
   Boxes,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import UserPanel from "./UserPanel";
 
 // Primary nav — lives in the top navbar now
@@ -48,6 +50,26 @@ export default function TopNavbar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Track fullscreen state so the icon/tooltip stays in sync,
+  // e.g. if the user exits fullscreen with a remote/back button.
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
 
   const handleLogout = () => {
     setMobileMenuOpen(false);
@@ -105,6 +127,18 @@ export default function TopNavbar() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+            className="h-8 w-8 rounded-md flex items-center justify-center text-slate-500 dark:text-[#8a8a8a] hover:bg-black/5 dark:hover:bg-white/[0.06] transition-all"
+          >
+            {isFullscreen ? (
+              <Minimize size={16} strokeWidth={1.75} />
+            ) : (
+              <Maximize size={16} strokeWidth={1.75} />
+            )}
+          </button>
+
           <button
             onClick={toggleDark}
             className="h-8 w-8 rounded-md flex items-center justify-center text-slate-500 dark:text-[#8a8a8a] hover:bg-black/5 dark:hover:bg-white/[0.06] transition-all"
@@ -178,6 +212,17 @@ export default function TopNavbar() {
           </span>
         </Link>
         <div className="flex items-center gap-1">
+          <button
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+            className="h-9 w-9 rounded-xl flex items-center justify-center text-slate-500 dark:text-[#8a8a8a] hover:bg-black/5 dark:hover:bg-white/[0.06] transition-all"
+          >
+            {isFullscreen ? (
+              <Minimize size={17} strokeWidth={1.75} />
+            ) : (
+              <Maximize size={17} strokeWidth={1.75} />
+            )}
+          </button>
           <button
             onClick={toggleDark}
             className="h-9 w-9 rounded-xl flex items-center justify-center text-slate-500 dark:text-[#8a8a8a] hover:bg-black/5 dark:hover:bg-white/[0.06] transition-all"
@@ -385,6 +430,19 @@ export default function TopNavbar() {
 
             {/* Actions */}
             <div className="px-3 pb-8 space-y-0.5">
+              <button
+                onClick={toggleFullscreen}
+                className="w-full flex items-center gap-3 h-11 px-3 rounded-xl text-[14px] font-medium
+                  text-slate-600 dark:text-[#aaa] hover:bg-black/5 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-[#ececec] transition-all"
+              >
+                {isFullscreen ? (
+                  <Minimize size={17} strokeWidth={1.75} />
+                ) : (
+                  <Maximize size={17} strokeWidth={1.75} />
+                )}
+                {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+              </button>
+
               <button
                 onClick={toggleDark}
                 className="w-full flex items-center gap-3 h-11 px-3 rounded-xl text-[14px] font-medium
