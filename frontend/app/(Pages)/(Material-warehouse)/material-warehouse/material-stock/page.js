@@ -4,7 +4,7 @@
 
 import {
   ArrowUpDown, Boxes, ChevronDown, ChevronLeft, ChevronRight,
-  ChevronsLeft, ChevronsRight, ChevronUp, Database, Filter,
+  ChevronsLeft, ChevronsRight, ChevronUp, Clock, Database, Filter,
   RotateCcw, Search, SlidersHorizontal, TrendingUp,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -46,10 +46,15 @@ const btnIcon =
   "transition-colors disabled:opacity-30 disabled:pointer-events-none";
 
 // ─── Filter / column config ───────────────────────────────────────────────────
+// dateFrom / dateTo are handled with dedicated <input type="date"> controls
+// in FilterPanel (see below) rather than the generic FILTER_FIELDS text-input
+// loop, but they still live in the same `filters` state object so the
+// existing "build querystring from every non-empty filter" logic in
+// runSearch() picks them up automatically with no extra plumbing.
 const emptyFilters = {
   itemCodePdm: "", style: "", color: "", model: "", season: "",
   buyer: "", invoiceNo: "", item: "", warehouse: "", location: "",
-  supplier: "", fabricDetails: "",
+  supplier: "", fabricDetails: "", dateFrom: "", dateTo: "",
 };
 
 const FILTER_FIELDS = [
@@ -66,6 +71,17 @@ const FILTER_FIELDS = [
   { key: "supplier",      label: "Supplier" },
   { key: "fabricDetails", label: "Fabric Details" },
 ];
+
+// Age-bucket display order + colors, shared by the Ageing summary card and
+// the optional "Age Bucket" table column. Must match the backend's
+// AGE_BUCKET_ORDER in materialStock.controllers.js.
+const AGE_BUCKET_COLORS = {
+  "0-30 days":   "#22c55e",
+  "31-60 days":  "#84cc16",
+  "61-90 days":  "#f59e0b",
+  "91-180 days": "#f97316",
+  "180+ days":   "#ef4444",
+};
 
 const ALL_COLUMNS = [
   { key: "date",          label: "Date",           width: 6,  defaultOn: true },
@@ -86,6 +102,8 @@ const ALL_COLUMNS = [
   { key: "rollChart",     label: "Roll %",         width: 6,  align: "center", defaultOn: true },
   { key: "availableYds",  label: "Avail. Yds",     width: 6,  align: "right", defaultOn: true },
   { key: "ydsChart",      label: "Yds %",          width: 6,  align: "center", defaultOn: true },
+  { key: "ageDays",       label: "Age (Days)",     width: 6,  align: "right",  defaultOn: false },
+  { key: "ageBucket",     label: "Age Bucket",     width: 7,  align: "center", defaultOn: false },
 ];
 
 const DEFAULT_KEYS = ALL_COLUMNS.filter((c) => c.defaultOn).map((c) => c.key);
@@ -222,6 +240,40 @@ function FilterPanel({ filters, setFilters, onSearch, onReset, loading }) {
 </button>
         </div>
       </div>
+
+      {/* Date range — filters against the parent Receive's Date, inclusive
+          on both ends. Kept separate from the generic text-field grid below
+          since these need type="date" pickers rather than free text. */}
+      <div className="flex flex-wrap items-end gap-3 px-4 pt-4 pb-4 border-b border-gray-100 bg-gray-50/60">
+        <div>
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Date From</label>
+          <input
+            type="date"
+            value={filters.dateFrom}
+            onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+            className={`${inputCls} !py-2 !text-xs w-40 ${filters.dateFrom ? "border-[#3B9ED4]/60 bg-[#EEF6FC]" : ""}`}
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Date To</label>
+          <input
+            type="date"
+            value={filters.dateTo}
+            onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+            className={`${inputCls} !py-2 !text-xs w-40 ${filters.dateTo ? "border-[#3B9ED4]/60 bg-[#EEF6FC]" : ""}`}
+          />
+        </div>
+        {(filters.dateFrom || filters.dateTo) && (
+          <button
+            type="button"
+            onClick={() => setFilters({ ...filters, dateFrom: "", dateTo: "" })}
+            className="text-[10px] font-semibold hover:underline text-gray-400 mb-2.5"
+          >
+            Clear dates
+          </button>
+        )}
+      </div>
+
       <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
         {FILTER_FIELDS.map((f) => (
           <div key={f.key} className="relative">
@@ -309,6 +361,78 @@ function SummaryTable({ summary }) {
                       </td>
                       <td className="px-5 py-3 text-xs text-right font-bold text-green-600 font-mono">
                         <span style={{ fontSize: numFs(s.totalAvailableYds) }}>{fmtNum(s.totalAvailableYds)}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+      )}
+    </div>
+  );
+}
+
+// ─── Inventory Ageing summary (Table 1b) ───────────────────────────────────────
+// Mirrors SummaryTable's shape/behavior (collapsible card + table) but for
+// the ageingSummary array from the backend: one row per age bucket
+// (0-30 / 31-60 / 61-90 / 91-180 / 180+ days), always all five buckets in
+// a fixed order, showing how many batches and how much available stock has
+// been sitting that long. Helps spot slow-moving / dead stock at a glance.
+function AgeingSummary({ ageing }) {
+  const [open, setOpen] = useState(false);
+  if (!ageing?.length) return null;
+
+  const totalBatches = ageing.reduce((s, a) => s + (a.batchCount || 0), 0);
+  const HEADERS = ["Age Bucket", "Batches", "Avail. Roll", "Avail. Yds"];
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100">
+        <div className="flex items-center gap-2.5">
+          <Clock size={16} style={{ color: BLUE }} />
+          <span className="font-bold text-sm text-gray-800">Inventory Ageing</span>
+          <span className="text-xs px-2 py-0.5 rounded-full font-semibold text-white" style={{ background: BLUE }}>
+            {totalBatches} batches
+          </span>
+        </div>
+        <button type="button" onClick={() => setOpen((o) => !o)} className={btnSecondary}>
+          {open ? "Hide" : "Show"}
+        </button>
+      </div>
+
+      {open && (
+        totalBatches === 0
+          ? <p className="text-sm text-gray-400 italic px-5 py-4">No stock in the current results to age.</p>
+          : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr style={{ background: BLUE_HDR }}>
+                    {HEADERS.map((h, i) => (
+                      <th key={h}
+                        className={`px-5 py-3 text-xs font-bold uppercase tracking-wider text-gray-700 border-b border-[#A8D3EC] ${i >= 1 ? "text-right" : "text-left"}`}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ageing.map((a, i) => (
+                    <tr key={a.ageBucket}
+                      className={`border-b border-gray-100 hover:bg-[${BLUE_FAINT}] transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#EEF6FC]"}`}>
+                      <td className="px-5 py-3 text-xs">
+                        <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold text-white"
+                          style={{ background: AGE_BUCKET_COLORS[a.ageBucket] || "#6b7280" }}>
+                          {a.ageBucket}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-xs text-right font-semibold text-gray-600">{a.batchCount}</td>
+                      <td className="px-5 py-3 text-xs text-right font-bold text-green-600 font-mono">
+                        <span style={{ fontSize: numFs(a.totalAvailableRoll) }}>{fmtNum(a.totalAvailableRoll)}</span>
+                      </td>
+                      <td className="px-5 py-3 text-xs text-right font-bold text-green-600 font-mono">
+                        <span style={{ fontSize: numFs(a.totalAvailableYds) }}>{fmtNum(a.totalAvailableYds)}</span>
                       </td>
                     </tr>
                   ))}
@@ -409,6 +533,8 @@ function getSortValue(key, r) {
     case "rollChart": return r.rollQty ? Math.round((Number(r.availableRoll) / Number(r.rollQty)) * 100) : 0;
     case "availableYds": return Number(r.availableYds) || 0;
     case "ydsChart": return r.yds ? Math.round((Number(r.availableYds) / Number(r.yds)) * 100) : 0;
+    case "ageDays": return Number(r.ageDays) || 0;
+    case "ageBucket": return r.ageBucket || "";
     default: return "";
   }
 }
@@ -419,6 +545,10 @@ function renderCell(key, r) {
   );
   const whChip = (v) => (
     <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold" style={{ background: BLUE + "18", color: BLUE }}>{v}</span>
+  );
+  const ageBucketChip = (v) => (
+    <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold text-white"
+      style={{ background: AGE_BUCKET_COLORS[v] || "#6b7280" }}>{v}</span>
   );
   switch (key) {
     case "date":          return <TCell key="date" title={r.date?.slice(0,10)}>{r.date?.slice(0,10)}</TCell>;
@@ -445,6 +575,8 @@ function renderCell(key, r) {
       const p = r.yds ? Math.round((r.availableYds / r.yds) * 100) : 0;
       return <PctCell key="ydsChart" percent={p} title={`${p}% of received yards available`} />;
     }
+    case "ageDays":   return <NumCell key="ageDays" value={r.ageDays} />;
+    case "ageBucket": return <TCell key="ageBucket" align="center">{r.ageBucket ? ageBucketChip(r.ageBucket) : <span className="text-gray-300 italic">—</span>}</TCell>;
     default: return null;
   }
 }
@@ -607,13 +739,14 @@ function StockTable({ rows, loading, searched, visibleKeys }) {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function MaterialStockPage() {
-  const [filters, setFilters]         = useState(emptyFilters);
-  const [rows, setRows]               = useState([]);
-  const [summary, setSummary]         = useState([]);
-  const [loading, setLoading]         = useState(false);
-  const [searched, setSearched]       = useState(false);
-  const [error, setError]             = useState("");
-  const [visibleKeys, setVisibleKeys] = useState(DEFAULT_KEYS);
+  const [filters, setFilters]           = useState(emptyFilters);
+  const [rows, setRows]                 = useState([]);
+  const [summary, setSummary]           = useState([]);
+  const [ageingSummary, setAgeingSummary] = useState([]);
+  const [loading, setLoading]           = useState(false);
+  const [searched, setSearched]         = useState(false);
+  const [error, setError]               = useState("");
+  const [visibleKeys, setVisibleKeys]   = useState(DEFAULT_KEYS);
 
   useEffect(() => { setVisibleKeys(loadSavedColumns()); }, []);
   useEffect(() => {
@@ -632,6 +765,7 @@ export default function MaterialStockPage() {
       const data = await res.json();
       setRows(data.rows || []);
       setSummary(data.summary || []);
+      setAgeingSummary(data.ageingSummary || []);
       setSearched(true);
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
@@ -688,6 +822,9 @@ export default function MaterialStockPage() {
 
         {/* ── Table 1: Summary ── */}
         <SummaryTable summary={summary} />
+
+        {/* ── Table 1b: Inventory Ageing ── */}
+        <AgeingSummary ageing={ageingSummary} />
 
         {/* ── Table 2: Stock Batches ── */}
         <StockTable
