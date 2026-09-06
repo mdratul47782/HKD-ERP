@@ -160,20 +160,31 @@ export default function MaterialDashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+
+    const load = async () => {
       try {
         const res = await fetch(`${API_URL}/material-rack-view`, { credentials: "include" });
         if (!res.ok) throw new Error("Failed to load dashboard data");
         const json = await res.json();
-        if (!cancelled) setData(json);
+        if (!cancelled) {
+          setData(json);
+          setError(""); // clear any stale error once a refresh succeeds
+        }
       } catch (err) {
         if (!cancelled) setError(err.message);
       }
-    })();
-    return () => { cancelled = true; };
+    };
+
+    load(); // initial fetch -- shows the loading spinner until this resolves
+    const intervalId = setInterval(load, 5000); // silent auto-refresh every 5s
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
   }, []);
 
-  if (error) {
+  if (error && !data) {
     return (
       <div style={{ height: "100vh", background: T.bg, color: T.brick, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: bodyFont }}>
         {error}

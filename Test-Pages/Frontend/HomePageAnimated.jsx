@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,21 +18,48 @@ import {
 // Numeric targets so the stat row can count up on load instead of
 // just appearing — decimals/suffix control how each one is formatted.
 const STAT_DEFS = [
-  { target: 500, decimals: 0, suffix: "+", label: "Factories" },
-  { target: 2, decimals: 0, suffix: "M+", label: "Orders / Yr" },
-  { target: 99.9, decimals: 1, suffix: "%", label: "Uptime" },
-  { target: 24, decimals: 0, suffix: "/7", label: "Support" },
+  { target: 36, decimals: 0, suffix: "+", label: "Years Legacy" },
+  { target: 10, decimals: 0, suffix: "K+", label: "Workforce" },
+  { target: 4, decimals: 0, suffix: "", label: "Product Lines" },
+  { target: 3, decimals: 0, suffix: "", label: "KEPZ Sectors" },
 ];
 
 const pillars = [
-  { icon: Factory, label: "Real-Time Production Tracking" },
-  { icon: Boxes, label: "Smart Inventory & Sourcing" },
-  { icon: ClipboardCheck, label: "Automated Quality Control" },
-  { icon: ShieldCheck, label: "Compliance & Audit Ready" },
+  { icon: Boxes, label: "Waterproof Rainwear" },
+  { icon: Factory, label: "Insulated Outerwear" },
+  { icon: ClipboardCheck, label: "Sportswear & Fleece" },
+  { icon: ShieldCheck, label: "Ski & Hunting Wear" },
+];
+
+const h1Lines = [
+  { text: "Engineered for", delay: "0.15s" },
+  { text: "Outdoor Apparel.", delay: "0.28s", emphasis: true },
+  { text: "Powering", delay: "0.41s" },
+  { text: "HKD Innovations.", delay: "0.54s" },
+];
+
+// Loose "thread" particles that drift up the screen ambiently —
+// fixed seeded values so server/client render match (no Math.random
+// directly in JSX).
+const PARTICLES = [
+  { left: "6%", size: 16, rot: 18, dur: 17, delay: 0 },
+  { left: "14%", size: 10, rot: -12, dur: 21, delay: 3 },
+  { left: "23%", size: 13, rot: 30, dur: 15, delay: 6 },
+  { left: "34%", size: 9, rot: -22, dur: 24, delay: 1.5 },
+  { left: "47%", size: 15, rot: 10, dur: 19, delay: 8 },
+  { left: "58%", size: 11, rot: -30, dur: 16, delay: 4.5 },
+  { left: "68%", size: 14, rot: 24, dur: 22, delay: 10 },
+  { left: "77%", size: 10, rot: -16, dur: 18, delay: 2 },
+  { left: "88%", size: 12, rot: 14, dur: 20, delay: 7 },
+  { left: "94%", size: 9, rot: -8, dur: 25, delay: 12 },
 ];
 
 function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
+}
+
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
 }
 
 function useCountUp(defs, { duration = 1400, delay = 500 } = {}) {
@@ -74,82 +101,135 @@ function useCountUp(defs, { duration = 1400, delay = 500 } = {}) {
   return values;
 }
 
+// Custom cursor: a small solid dot that tracks the mouse exactly, plus a
+// larger ring that eases toward it (classic "lag" cursor feel). Hovering
+// any link/button swaps it into a bigger "interactive" ring so the whole
+// page cursor visibly changes design, not just the hero image.
+function useCustomCursor() {
+  const dotRef = useRef(null);
+  const ringRef = useRef(null);
+  const target = useRef({ x: -100, y: -100 });
+  const ring = useRef({ x: -100, y: -100 });
+  const [active, setActive] = useState(false);
+  const [interactive, setInteractive] = useState(false);
+  const [pressed, setPressed] = useState(false);
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    const isCoarsePointer = window.matchMedia?.("(pointer: coarse)").matches;
+    if (prefersReducedMotion || isCoarsePointer) return; // leave native cursor on touch/reduced-motion
+
+    const handleMove = (e) => {
+      target.current = { x: e.clientX, y: e.clientY };
+      setActive(true);
+      if (dotRef.current) {
+        dotRef.current.style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%, -50%)`;
+      }
+      const el = e.target.closest?.("a, button, [role='button']");
+      setInteractive(Boolean(el));
+    };
+    const handleLeave = () => setActive(false);
+    const handleDown = () => setPressed(true);
+    const handleUp = () => setPressed(false);
+
+    window.addEventListener("mousemove", handleMove);
+    document.documentElement.addEventListener("mouseleave", handleLeave);
+    window.addEventListener("mousedown", handleDown);
+    window.addEventListener("mouseup", handleUp);
+
+    let raf;
+    const tick = () => {
+      ring.current.x += (target.current.x - ring.current.x) * 0.18;
+      ring.current.y += (target.current.y - ring.current.y) * 0.18;
+      if (ringRef.current) {
+        ringRef.current.style.transform = `translate(${ring.current.x}px, ${ring.current.y}px) translate(-50%, -50%)`;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      document.documentElement.removeEventListener("mouseleave", handleLeave);
+      window.removeEventListener("mousedown", handleDown);
+      window.removeEventListener("mouseup", handleUp);
+      cancelAnimationFrame(raf);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return { dotRef, ringRef, active, interactive, pressed };
+}
+
 export default function HomePage() {
   const { user } = useAuth();
   const counts = useCountUp(STAT_DEFS);
+  const cursor = useCustomCursor();
+
+  // magnetic pull for the primary CTA
+  const ctaRef = useRef(null);
+  const [magnet, setMagnet] = useState({ x: 0, y: -1 });
+  const handleCtaMove = (e) => {
+    const el = ctaRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const relX = e.clientX - rect.left - rect.width / 2;
+    const relY = e.clientY - rect.top - rect.height / 2;
+    setMagnet({ x: clamp(relX * 0.28, -9, 9), y: clamp(relY * 0.35, -7, 7) - 1 });
+  };
+  const resetMagnet = () => setMagnet({ x: 0, y: -1 });
+
+  const particles = useMemo(() => PARTICLES, []);
+
+  // ring sizing: bigger over links/buttons, slightly smaller while pressed
+  const ringSize = cursor.interactive ? 46 : cursor.pressed ? 22 : 28;
 
   return (
     <>
+      {/* Only what Tailwind genuinely can't express inline: the font
+         import and the @keyframes definitions referenced below via
+         Tailwind's animate-[...] arbitrary-value syntax. */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
 
-        .hkd-home {
-          font-family: 'DM Sans', sans-serif;
-          width: 100%;
-          height: 100vh;
-          overflow: hidden;
-          background: #f0ede6;
-          color: #2c2417;
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          position: relative;
+        @keyframes hkd-rise {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
-
-        .hkd-home::before {
-          content: '';
-          position: fixed;
-          inset: 0;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-          opacity: 0.45;
-          pointer-events: none;
-          z-index: 0;
+        @keyframes hkd-line-up {
+          from { opacity: 0; transform: translateY(100%); }
+          to   { opacity: 1; transform: translateY(0); }
         }
-
-        /* ── SIGNATURE: animated stitched seam as the column divider ── */
-        .hkd-stitch-divider {
-          position: absolute;
-          top: 0;
-          left: 50%;
-          width: 3px;
-          height: 100%;
-          transform: translateX(-50%);
-          z-index: 3;
-          pointer-events: none;
-          background-image: repeating-linear-gradient(
-            to bottom,
-            rgba(184, 122, 74, 0.55) 0px,
-            rgba(184, 122, 74, 0.55) 9px,
-            transparent 9px,
-            transparent 18px
-          );
-          background-size: 3px 18px;
-          animation: hkd-stitch-run 1.1s linear infinite;
-          opacity: 0;
-          animation: hkd-stitch-run 1.1s linear infinite,
-                     hkd-fade-in 0.6s ease 0.9s forwards;
+        @keyframes hkd-clip-reveal {
+          from { clip-path: inset(0 0 100% 0); }
+          to   { clip-path: inset(0 0 0% 0); }
         }
-
-        .hkd-stitch-needle {
-          position: absolute;
-          left: 50%;
-          top: 0;
-          width: 9px;
-          height: 9px;
-          transform: translate(-50%, -50%);
-          border-radius: 50%;
-          background: #b87a4a;
-          box-shadow: 0 0 0 4px rgba(184, 122, 74, 0.18);
-          z-index: 4;
-          opacity: 0;
-          animation: hkd-needle-shuttle 5.2s cubic-bezier(0.65, 0, 0.35, 1) 1.4s infinite,
-                     hkd-fade-in 0.5s ease 1.4s forwards;
+        @keyframes hkd-fade-in {
+          from { opacity: 0; }
+          to   { opacity: 1; }
         }
-
+        @keyframes hkd-glow-pulse {
+          0%, 100% { opacity: 0.7; transform: scale(1); }
+          50%      { opacity: 1;   transform: scale(1.08); }
+        }
+        @keyframes hkd-glow-pulse-2 {
+          0%, 100% { opacity: 0.5; transform: scale(1) translate(0, 0); }
+          50%      { opacity: 0.9; transform: scale(1.15) translate(10px, -10px); }
+        }
+        @keyframes hkd-pulse-ring {
+          0%, 100% { box-shadow: 0 0 0 3px rgba(92,160,104,0.22); }
+          50%      { box-shadow: 0 0 0 5px rgba(92,160,104,0.1); }
+        }
+        @keyframes hkd-bob {
+          0%, 100% { transform: translateY(0); }
+          50%      { transform: translateY(-2px); }
+        }
         @keyframes hkd-stitch-run {
           from { background-position-y: 0; }
-          to { background-position-y: -18px; }
+          to   { background-position-y: -18px; }
         }
-
         @keyframes hkd-needle-shuttle {
           0%   { top: 4%; }
           48%  { top: 96%; }
@@ -157,554 +237,314 @@ export default function HomePage() {
           98%  { top: 4%; }
           100% { top: 4%; }
         }
-
-        @keyframes hkd-fade-in {
-          to { opacity: 1; }
+        @keyframes hkd-float-up {
+          0%   { transform: translateY(0) rotate(var(--hkd-rot, 20deg)); opacity: 0; }
+          10%  { opacity: 0.35; }
+          90%  { opacity: 0.35; }
+          100% { transform: translateY(-115vh) rotate(var(--hkd-rot, 20deg)); opacity: 0; }
         }
-
-        /* ── entrance choreography ── */
-        @keyframes hkd-rise {
-          from { opacity: 0; transform: translateY(16px); }
-          to   { opacity: 1; transform: translateY(0); }
+        @keyframes hkd-weave-pan {
+          from { background-position: 0 0, 0 0; }
+          to   { background-position: 44px 44px, -44px 44px; }
         }
-
-        @keyframes hkd-clip-reveal {
-          from { clip-path: inset(0 0 100% 0); }
-          to   { clip-path: inset(0 0 0% 0); }
-        }
-
-        .hkd-anim {
-          opacity: 0;
-          animation: hkd-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-
-        .hkd-d1 { animation-delay: 0.05s; }
-        .hkd-d2 { animation-delay: 0.15s; }
-        .hkd-d3 { animation-delay: 0.28s; }
-        .hkd-d4 { animation-delay: 0.42s; }
-        .hkd-d5 { animation-delay: 0.55s; }
-        .hkd-d6 { animation-delay: 0.68s; }
-
-        /* ── LEFT ── */
-        .hkd-left {
-          position: relative;
-          z-index: 1;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          padding: 2.25rem 2.5rem 1.75rem;
-          overflow: hidden;
-        }
-
-        .hkd-left::after {
-          content: '';
-          position: absolute;
-          bottom: -100px;
-          left: -60px;
-          width: 340px;
-          height: 340px;
-          border-radius: 50%;
-          background: radial-gradient(circle, rgba(184,122,74,0.1) 0%, transparent 68%);
-          pointer-events: none;
-          animation: hkd-glow-pulse 6s ease-in-out infinite;
-        }
-
-        @keyframes hkd-glow-pulse {
-          0%, 100% { opacity: 0.7; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.08); }
-        }
-
-        .hkd-brand {
-          display: flex;
-          align-items: center;
-          gap: 9px;
-        }
-
-        .hkd-brand-name {
-          font-size: 12.5px;
-          font-weight: 500;
-          letter-spacing: 0.04em;
-          color: #7a6250;
-        }
-
-        .hkd-loc {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          font-size: 10.5px;
-          font-weight: 500;
-          letter-spacing: 0.13em;
-          text-transform: uppercase;
-          color: #b87a4a;
-          margin-bottom: 1.1rem;
-        }
-
-        .hkd-loc-icon {
-          animation: hkd-bob 2.4s ease-in-out infinite;
-        }
-
-        @keyframes hkd-bob {
+        @keyframes hkd-icon-idle {
           0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-2px); }
+          50%      { transform: translateY(-3px); }
+        }
+        @keyframes hkd-blink {
+          0%, 45% { opacity: 1; }
+          50%, 95% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        @keyframes hkd-breathe {
+          0%, 100% { transform: scale(1); }
+          50%      { transform: scale(1.06); }
+        }
+        @keyframes hkd-scan-sweep {
+          0%   { left: -20%; opacity: 0; }
+          6%   { opacity: 0.55; }
+          42%  { left: 108%; opacity: 0.55; }
+          50%  { opacity: 0; }
+          100% { opacity: 0; left: 108%; }
+        }
+        @keyframes hkd-underline-grow {
+          from { width: 0; }
+          to   { width: 100%; }
+        }
+        /* Ambient auto zoom-in / zoom-out on the hero image — smooth,
+           continuous "breathing" loop, always on. */
+        @keyframes hkd-auto-zoom {
+          0%, 100% { transform: scale(1.04); }
+          50%      { transform: scale(1.13); }
         }
 
-        .hkd-h1 {
-          font-family: 'Playfair Display', serif;
-          font-size: clamp(2.2rem, 4vw, 3.4rem);
-          font-weight: 400;
-          line-height: 1.07;
-          letter-spacing: -0.01em;
-          color: #1a1208;
-          margin-bottom: 1.1rem;
-        }
-
-        .hkd-h1 span { display: block; overflow: hidden; }
-        .hkd-h1 span > em,
-        .hkd-h1 span {
-          display: inline-block;
-        }
-
-        .hkd-h1-line {
-          display: block;
-          opacity: 0;
-          transform: translateY(100%);
-          animation: hkd-line-up 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-
-        @keyframes hkd-line-up {
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        .hkd-h1 em {
-          font-style: italic;
-          color: #b87a4a;
-          position: relative;
-        }
-
-        .hkd-desc {
-          font-size: 13.5px;
-          font-weight: 300;
-          line-height: 1.75;
-          color: #7a6250;
-          max-width: 360px;
-          margin-bottom: 1.75rem;
-        }
-
-        .hkd-cta-row {
-          display: flex;
-          align-items: center;
-          gap: 1.25rem;
-        }
-
-        .hkd-cta-primary {
-          position: relative;
-          overflow: hidden;
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          background: #2c2417;
-          color: #f0ede6;
-          font-family: 'DM Sans', sans-serif;
-          font-size: 12.5px;
-          font-weight: 500;
-          letter-spacing: 0.02em;
-          padding: 11px 20px;
-          border-radius: 100px;
-          text-decoration: none;
-          transition: background 0.2s, transform 0.15s, box-shadow 0.25s;
-        }
-
-        .hkd-cta-primary::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -60%;
-          width: 40%;
-          height: 100%;
-          background: linear-gradient(120deg, transparent, rgba(240,237,230,0.35), transparent);
-          transform: skewX(-20deg);
-          transition: left 0.6s ease;
-        }
-
-        .hkd-cta-primary:hover {
-          background: #b87a4a;
-          transform: translateY(-1px);
-          box-shadow: 0 8px 20px -6px rgba(184,122,74,0.55);
-        }
-
-        .hkd-cta-primary:hover::before {
-          left: 130%;
-        }
-
-        .hkd-cta-primary svg {
-          transition: transform 0.25s ease;
-        }
-
-        .hkd-cta-primary:hover svg {
-          transform: translate(2px, -2px);
-        }
-
-        .hkd-cta-ghost {
-          font-size: 12.5px;
-          font-weight: 400;
-          color: #9a7b63;
-          text-decoration: none;
-          padding-bottom: 2px;
-          border-bottom: 1px solid transparent;
-          transition: color 0.2s, border-color 0.2s;
-        }
-
-        .hkd-cta-ghost:hover {
-          color: #b87a4a;
-          border-color: #b87a4a;
-        }
-
-        .hkd-stats {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          border-top: 1px solid rgba(44,36,23,0.08);
-          padding-top: 1.1rem;
-        }
-
-        .hkd-stat {
-          text-align: center;
-          border-right: 1px solid rgba(44,36,23,0.07);
-          padding: 0 6px;
-          transition: transform 0.25s ease;
-        }
-
-        .hkd-stat:hover {
-          transform: translateY(-2px);
-        }
-
-        .hkd-stat:last-child { border-right: none; }
-
-        .hkd-stat-val {
-          font-family: 'Playfair Display', serif;
-          font-size: 1.35rem;
-          font-weight: 600;
-          color: #b87a4a;
-          line-height: 1;
-          margin-bottom: 4px;
-          display: block;
-          font-variant-numeric: tabular-nums;
-        }
-
-        .hkd-stat-lbl {
-          font-size: 9.5px;
-          font-weight: 500;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          color: #a08060;
-          display: block;
-        }
-
-        /* ── RIGHT ── */
-        .hkd-right {
-          position: relative;
-          z-index: 1;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-
-        .hkd-img-wrap {
-          position: relative;
-          flex: 1 1 0;
-          min-height: 0;
-          overflow: hidden;
-          animation: hkd-clip-reveal 1.1s cubic-bezier(0.65, 0, 0.35, 1) 0.1s both;
-        }
-
-        .hkd-img-wrap img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          object-position: center;
-          filter: sepia(15%) contrast(1.06) brightness(0.94);
-          transform: scale(1.08);
-          transition: transform 9s ease;
-        }
-
-        .hkd-img-wrap:hover img { transform: scale(1.14); }
-
-        .hkd-img-wrap::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(to bottom, transparent 55%, rgba(26,18,8,0.22) 100%);
-          pointer-events: none;
-        }
-
-        .hkd-badge {
-          position: absolute;
-          bottom: 14px;
-          left: 14px;
-          z-index: 2;
-          background: rgba(240,237,230,0.9);
-          backdrop-filter: blur(14px);
-          -webkit-backdrop-filter: blur(14px);
-          border: 1px solid rgba(44,36,23,0.09);
-          border-radius: 9px;
-          padding: 9px 13px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          opacity: 0;
-          animation: hkd-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 1.1s forwards;
-        }
-
-        .hkd-badge-dot {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: #5ca068;
-          box-shadow: 0 0 0 3px rgba(92,160,104,0.22);
-          flex-shrink: 0;
-          animation: hkd-pulse 2.5s ease infinite;
-        }
-
-        @keyframes hkd-pulse {
-          0%, 100% { box-shadow: 0 0 0 3px rgba(92,160,104,0.22); }
-          50% { box-shadow: 0 0 0 5px rgba(92,160,104,0.1); }
-        }
-
-        .hkd-badge-txt {
-          font-size: 10.5px;
-          font-weight: 500;
-          color: #2c2417;
-          letter-spacing: 0.01em;
-        }
-
-        .hkd-pillars {
-          flex: 0 0 auto;
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          background: #e6e0d4;
-          border-top: 1px solid rgba(44,36,23,0.08);
-        }
-
-        .hkd-pillar {
-          position: relative;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 1rem 1.1rem;
-          border-right: 1px solid rgba(44,36,23,0.07);
-          border-bottom: 1px solid rgba(44,36,23,0.07);
-          transition: background 0.18s;
-          cursor: default;
-          opacity: 0;
-          animation: hkd-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-
-        .hkd-pillar:nth-child(1) { animation-delay: 1.15s; }
-        .hkd-pillar:nth-child(2) { animation-delay: 1.25s; }
-        .hkd-pillar:nth-child(3) { animation-delay: 1.35s; }
-        .hkd-pillar:nth-child(4) { animation-delay: 1.45s; }
-
-        .hkd-pillar::before {
-          content: '';
-          position: absolute;
-          left: 1.1rem;
-          bottom: 8px;
-          width: 0;
-          height: 1px;
-          background-image: repeating-linear-gradient(
-            to right,
-            #b87a4a 0, #b87a4a 4px, transparent 4px, transparent 7px
-          );
-          transition: width 0.35s ease;
-        }
-
-        .hkd-pillar:nth-child(2n) { border-right: none; }
-        .hkd-pillar:nth-child(3), .hkd-pillar:nth-child(4) { border-bottom: none; }
-        .hkd-pillar:hover { background: rgba(184,122,74,0.07); }
-        .hkd-pillar:hover::before { width: calc(100% - 2.2rem); }
-
-        .hkd-pillar-icon {
-          width: 30px;
-          height: 30px;
-          border-radius: 7px;
-          background: rgba(184,122,74,0.13);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-          transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.25s;
-        }
-
-        .hkd-pillar:hover .hkd-pillar-icon {
-          transform: rotate(-8deg) scale(1.08);
-          background: rgba(184,122,74,0.22);
-        }
-
-        .hkd-pillar-lbl {
-          font-size: 11px;
-          font-weight: 500;
-          color: #4a3728;
-          line-height: 1.3;
-        }
-
-        /* ── DARK MODE ── */
-        .dark .hkd-home { background: #1b1712; color: #e8ddd0; }
-        .dark .hkd-brand-name { color: #a8917d; }
-        .dark .hkd-loc { color: #d4955e; }
-        .dark .hkd-h1 { color: #f0e8dc; }
-        .dark .hkd-h1 em { color: #d4955e; }
-        .dark .hkd-desc { color: #a8917d; }
-        .dark .hkd-cta-primary { background: #e8ddd0; color: #1b1712; }
-        .dark .hkd-cta-primary:hover { background: #d4955e; }
-        .dark .hkd-cta-ghost { color: #a8917d; }
-        .dark .hkd-cta-ghost:hover { color: #d4955e; border-color: #d4955e; }
-        .dark .hkd-stats { border-color: rgba(232,221,208,0.07); }
-        .dark .hkd-stat { border-color: rgba(232,221,208,0.06); }
-        .dark .hkd-stat-val { color: #d4955e; }
-        .dark .hkd-stat-lbl { color: #8a7060; }
-        .dark .hkd-img-wrap img { filter: sepia(20%) contrast(0.95) brightness(0.78); }
-        .dark .hkd-img-wrap::after { background: linear-gradient(to bottom, transparent 55%, rgba(20,14,8,0.4) 100%); }
-        .dark .hkd-badge { background: rgba(27,23,18,0.9); border-color: rgba(232,221,208,0.1); }
-        .dark .hkd-badge-txt { color: #e8ddd0; }
-        .dark .hkd-pillars { background: #141009; border-color: rgba(232,221,208,0.06); }
-        .dark .hkd-pillar { border-color: rgba(232,221,208,0.05); }
-        .dark .hkd-pillar:hover { background: rgba(212,149,94,0.06); }
-        .dark .hkd-pillar-icon { background: rgba(212,149,94,0.1); }
-        .dark .hkd-pillar-lbl { color: #c8b49e; }
-        .dark .hkd-stitch-divider {
-          background-image: repeating-linear-gradient(
-            to bottom,
-            rgba(212, 149, 94, 0.55) 0px,
-            rgba(212, 149, 94, 0.55) 9px,
-            transparent 9px,
-            transparent 18px
-          );
-        }
-        .dark .hkd-stitch-needle { background: #d4955e; box-shadow: 0 0 0 4px rgba(212,149,94,0.18); }
-
-        /* ── MOBILE ── */
-        @media (max-width: 768px) {
-          .hkd-home {
-            grid-template-columns: 1fr;
-            grid-template-rows: 1fr auto;
-            height: 100dvh;
-          }
-          .hkd-stitch-divider,
-          .hkd-stitch-needle {
-            display: none;
-          }
-          .hkd-left {
-            border-bottom: 1px solid rgba(44,36,23,0.09);
-            padding: 1.5rem;
-            justify-content: center;
-            gap: 0;
-          }
-          .dark .hkd-left { border-color: rgba(232,221,208,0.07); }
-          .hkd-h1 { font-size: 2.1rem; margin-bottom: 0.8rem; }
-          .hkd-desc { font-size: 13px; margin-bottom: 1.2rem; }
-          .hkd-stats { padding-top: 0.85rem; margin-top: 1rem; }
-          .hkd-right { max-height: 45vh; }
-          .hkd-pillars { grid-template-columns: 1fr 1fr; }
-          .hkd-pillar { padding: 0.75rem 0.9rem; }
-        }
-
-        /* ── ACCESSIBILITY: respect reduced motion ── */
-        @media (prefers-reduced-motion: reduce) {
-          .hkd-home *,
-          .hkd-home *::before,
-          .hkd-home *::after {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            transition-duration: 0.01ms !important;
-          }
-          .hkd-anim, .hkd-h1-line, .hkd-badge, .hkd-pillar, .hkd-img-wrap {
-            opacity: 1 !important;
-            transform: none !important;
-            clip-path: none !important;
-          }
-          .hkd-stitch-needle { display: none; }
+        /* Custom homepage cursor: hide the native cursor everywhere on
+           this page — our own dot + ring stand in for it instead. */
+        .hkd-cursor-zone, .hkd-cursor-zone * {
+          cursor: none !important;
         }
       `}</style>
 
-      <div className="hkd-home">
-        <div className="hkd-stitch-divider" aria-hidden="true" />
-        <div className="hkd-stitch-needle" aria-hidden="true" />
+      <div className="hkd-cursor-zone relative grid h-dvh w-full grid-cols-1 grid-rows-[1fr_auto] overflow-hidden bg-[#f0ede6] text-[#2c2417] [font-family:'DM_Sans',sans-serif] dark:bg-[#1b1712] dark:text-[#e8ddd0] md:h-screen md:grid-cols-2 md:grid-rows-1">
+
+        {/* custom cursor: small solid dot, exact position, hides once
+           the ring grows for interactive elements */}
+        <div
+          ref={cursor.dotRef}
+          aria-hidden="true"
+          className="pointer-events-none fixed left-0 top-0 z-[9999] rounded-full bg-[#2c2417] transition-[opacity,width,height] duration-150 ease-out dark:bg-[#f0ede6]"
+          style={{
+            width: cursor.interactive ? 0 : 6,
+            height: cursor.interactive ? 0 : 6,
+            opacity: cursor.active ? 1 : 0,
+          }}
+        />
+        {/* custom cursor: larger ring that eases/lags behind the dot,
+           swelling and changing color+icon over links/buttons */}
+        <div
+          ref={cursor.ringRef}
+          aria-hidden="true"
+          className="pointer-events-none fixed left-0 top-0 z-[9998] flex items-center justify-center rounded-full border transition-[width,height,border-color,background-color,opacity] duration-200 ease-out"
+          style={{
+            width: ringSize,
+            height: ringSize,
+            borderColor: cursor.interactive ? "#b87a4a" : "rgba(184,122,74,0.55)",
+            backgroundColor: cursor.interactive ? "rgba(184,122,74,0.14)" : "transparent",
+            opacity: cursor.active ? 1 : 0,
+          }}
+        >
+          {cursor.interactive && (
+            <ArrowUpRight
+              size={15}
+              strokeWidth={2}
+              className="text-[#b87a4a] [animation:hkd-fade-in_0.15s_ease_both]"
+            />
+          )}
+        </div>
+
+        {/* film-grain overlay — kept as an inline style since the encoded
+           SVG data URI isn't safe to embed inside a Tailwind arbitrary value */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 z-0 opacity-45"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E\")",
+          }}
+        />
+
+        {/* ambient drifting thread particles across the whole page */}
+        <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[1] overflow-hidden motion-reduce:hidden">
+          {particles.map((p, i) => (
+            <span
+              key={i}
+              className="absolute bottom-[-40px] rounded-full bg-[#b87a4a] [animation-name:hkd-float-up] [animation-timing-function:linear] [animation-iteration-count:infinite]"
+              style={{
+                left: p.left,
+                width: p.size,
+                height: 2,
+                "--hkd-rot": `${p.rot}deg`,
+                animationDuration: `${p.dur}s`,
+                animationDelay: `${p.delay}s`,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* signature: stitched-seam divider, desktop only */}
+        <div
+          aria-hidden="true"
+          className="absolute left-1/2 top-0 z-[3] hidden h-full w-[3px] -translate-x-1/2 opacity-0 [animation:hkd-stitch-run_1.1s_linear_infinite,hkd-fade-in_0.6s_ease_0.9s_forwards] [background-image:repeating-linear-gradient(to_bottom,rgba(184,122,74,0.55)_0px,rgba(184,122,74,0.55)_9px,transparent_9px,transparent_18px)] [background-size:3px_18px] motion-reduce:hidden dark:[background-image:repeating-linear-gradient(to_bottom,rgba(212,149,94,0.55)_0px,rgba(212,149,94,0.55)_9px,transparent_9px,transparent_18px)] md:block"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute left-1/2 top-0 z-[4] hidden h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#b87a4a] opacity-0 shadow-[0_0_0_4px_rgba(184,122,74,0.18)] [animation:hkd-needle-shuttle_5.2s_cubic-bezier(0.65,0,0.35,1)_1.4s_infinite,hkd-fade-in_0.5s_ease_1.4s_forwards] motion-reduce:hidden dark:bg-[#d4955e] dark:shadow-[0_0_0_4px_rgba(212,149,94,0.18)] md:block"
+        />
 
         {/* LEFT */}
-        <div className="hkd-left">
-          <div className="hkd-brand hkd-anim hkd-d1">
-            <Image src="/HKD_LOGO.png" alt="StitchFlow" width={26} height={26} style={{ objectFit: "contain", opacity: 0.85 }} priority />
-            <span className="hkd-brand-name">StitchFlow Garments ERP</span>
+        <div className="relative z-[2] flex flex-col justify-between overflow-hidden border-b border-[rgba(44,36,23,0.09)] p-6 dark:border-[rgba(232,221,208,0.07)] md:border-b-0 md:px-10 md:pb-7 md:pt-9">
+
+          {/* woven fabric-weave texture, slowly panning */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 opacity-[0.05] [animation:hkd-weave-pan_9s_linear_infinite] motion-reduce:animate-none"
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(45deg, rgba(44,36,23,0.6) 0, rgba(44,36,23,0.6) 1px, transparent 1px, transparent 12px), repeating-linear-gradient(-45deg, rgba(44,36,23,0.6) 0, rgba(44,36,23,0.6) 1px, transparent 1px, transparent 12px)",
+              backgroundSize: "44px 44px, 44px 44px",
+            }}
+          />
+
+          {/* ambient glow blobs */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-[100px] -left-[60px] h-[340px] w-[340px] rounded-full [animation:hkd-glow-pulse_6s_ease-in-out_infinite] [background:radial-gradient(circle,rgba(184,122,74,0.1)_0%,transparent_68%)] motion-reduce:animate-none"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-[40px] -top-[60px] h-[260px] w-[260px] rounded-full [animation:hkd-glow-pulse-2_8s_ease-in-out_infinite] [background:radial-gradient(circle,rgba(184,122,74,0.08)_0%,transparent_70%)] motion-reduce:animate-none"
+          />
+
+          <div
+            className="relative flex items-center gap-[9px] opacity-0 [animation:hkd-rise_0.7s_cubic-bezier(0.22,1,0.36,1)_0.05s_forwards] motion-reduce:opacity-100 motion-reduce:[animation:none]"
+          >
+            <div className="[animation:hkd-breathe_4s_ease-in-out_infinite] motion-reduce:animate-none">
+              <Image src="/HKD_LOGO.png" alt="StitchFlow" width={26} height={26} className="object-contain opacity-85" priority />
+            </div>
+            <span className="text-[12.5px] font-medium tracking-[0.04em] text-[#7a6250] dark:text-[#a8917d]">
+              StitchFlow Garments ERP
+            </span>
           </div>
 
-          <div>
-            <span className="hkd-loc hkd-anim hkd-d2">
-              <MapPin className="hkd-loc-icon" size={10} strokeWidth={2.5} />
-              Built in Bangladesh · For the RMG Industry
+          <div className="relative">
+            <span
+              className="mb-[1.1rem] inline-flex items-center gap-[5px] text-[10.5px] font-medium uppercase tracking-[0.13em] text-[#b87a4a] opacity-0 [animation:hkd-rise_0.7s_cubic-bezier(0.22,1,0.36,1)_0.15s_forwards] motion-reduce:opacity-100 motion-reduce:[animation:none] dark:text-[#d4955e]"
+            >
+              <MapPin size={10} strokeWidth={2.5} className="[animation:hkd-bob_2.4s_ease-in-out_infinite] motion-reduce:animate-none" />
+              KEPZ, Chattogram · Since 1990
             </span>
 
-            <h1 className="hkd-h1">
-              <span className="hkd-h1-line" style={{ animationDelay: "0.15s" }}>Engineered for the</span>
-              <span className="hkd-h1-line" style={{ animationDelay: "0.28s" }}><em>Factory Floor.</em></span>
-              <span className="hkd-h1-line" style={{ animationDelay: "0.41s" }}>Trusted by</span>
-              <span className="hkd-h1-line" style={{ animationDelay: "0.54s" }}>RMG Leaders.</span>
+            <h1 className="mb-[1.1rem] [font-family:'Playfair_Display',serif] text-[clamp(2.1rem,5vw,3.4rem)] font-normal leading-[1.07] tracking-[-0.01em] text-[#1a1208] dark:text-[#f0e8dc]">
+              {h1Lines.map((line) => (
+                <span
+                  key={line.text}
+                  className="block overflow-hidden opacity-0 [animation:hkd-line-up_0.75s_cubic-bezier(0.22,1,0.36,1)_forwards] motion-reduce:opacity-100 motion-reduce:[animation:none]"
+                  style={{ animationDelay: line.delay }}
+                >
+                  {line.emphasis ? (
+                    <em className="relative italic text-[#b87a4a] dark:text-[#d4955e]">
+                      {line.text}
+                      <span
+                        aria-hidden="true"
+                        className="absolute -bottom-1 left-0 h-[2px] w-full [animation:hkd-underline-grow_0.6s_cubic-bezier(0.22,1,0.36,1)_1.1s_both] [background-image:repeating-linear-gradient(to_right,currentColor_0,currentColor_5px,transparent_5px,transparent_9px)] opacity-70 motion-reduce:hidden"
+                      />
+                    </em>
+                  ) : (
+                    line.text
+                  )}
+                </span>
+              ))}
             </h1>
 
-            <p className="hkd-desc hkd-anim hkd-d5">
-              One ERP for garment manufacturing — production planning, inventory,
-              quality control &amp; compliance, unified on a single factory floor
-              across 60+ countries.
+            <p
+              className="mb-7 max-w-[360px] text-[13.5px] font-light leading-[1.75] text-[#7a6250] opacity-0 [animation:hkd-rise_0.7s_cubic-bezier(0.22,1,0.36,1)_0.55s_forwards] motion-reduce:opacity-100 motion-reduce:[animation:none] dark:text-[#a8917d]"
+            >
+              Built for HKD Outdoor Innovations Ltd. — a venture of South
+              Korea&apos;s HKD Group, manufacturing premium waterproof
+              rainwear, insulated outerwear, sportswear and ski &amp; hunting
+              apparel from its Karnaphuli EPZ campus.
             </p>
 
-            <div className="hkd-cta-row hkd-anim hkd-d6">
-              {user ? (
-                <Link href="/dashboard" className="hkd-cta-primary">
-                  Open Dashboard <ArrowUpRight size={13} strokeWidth={2} />
-                </Link>
-              ) : (
-                <Link href="/login" className="hkd-cta-primary">
-                  Get Started <ArrowUpRight size={13} strokeWidth={2} />
-                </Link>
-              )}
-              <Link href="/dashboard" className="hkd-cta-ghost">See the Platform</Link>
+            <div
+              className="flex items-center gap-5 opacity-0 [animation:hkd-rise_0.7s_cubic-bezier(0.22,1,0.36,1)_0.68s_forwards] motion-reduce:opacity-100 motion-reduce:[animation:none]"
+            >
+              <Link
+                ref={ctaRef}
+                href={user ? "/dashboard" : "/login"}
+                onMouseMove={handleCtaMove}
+                onMouseLeave={resetMagnet}
+                className="group relative inline-flex items-center gap-[5px] overflow-hidden rounded-full bg-[#2c2417] px-5 py-[11px] text-[12.5px] font-medium tracking-[0.02em] text-[#f0ede6] shadow-[0_0_0_0_rgba(184,122,74,0)] transition-[background-color,box-shadow] duration-200 hover:bg-[#b87a4a] hover:shadow-[0_8px_20px_-6px_rgba(184,122,74,0.55)] dark:bg-[#e8ddd0] dark:text-[#1b1712] dark:hover:bg-[#d4955e]"
+                style={{
+                  transform: `translate(${magnet.x}px, ${magnet.y}px)`,
+                  transition: "transform 0.3s cubic-bezier(0.34,1.56,0.64,1), background-color 0.2s, box-shadow 0.25s",
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-y-0 -left-[60%] w-2/5 -skew-x-[20deg] [background:linear-gradient(120deg,transparent,rgba(240,237,230,0.35),transparent)] transition-[left] duration-500 ease-out group-hover:left-[130%]"
+                />
+                {user ? "Open Dashboard" : "Get Started"}
+                <ArrowUpRight size={13} strokeWidth={2} className="transition-transform duration-200 group-hover:translate-x-[2px] group-hover:-translate-y-[2px]" />
+              </Link>
+              <Link
+                href="/dashboard"
+                className="border-b border-transparent pb-[2px] text-[12.5px] text-[#9a7b63] transition-colors duration-200 hover:border-[#b87a4a] hover:text-[#b87a4a] dark:text-[#a8917d] dark:hover:border-[#d4955e] dark:hover:text-[#d4955e]"
+              >
+                See the Platform
+              </Link>
             </div>
           </div>
 
-          <div className="hkd-stats hkd-anim hkd-d6">
+          <div
+            className="relative grid grid-cols-4 overflow-hidden border-t border-[rgba(44,36,23,0.08)] pt-[1.1rem] opacity-0 [animation:hkd-rise_0.7s_cubic-bezier(0.22,1,0.36,1)_0.68s_forwards] motion-reduce:opacity-100 motion-reduce:[animation:none] dark:border-[rgba(232,221,208,0.07)]"
+          >
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute top-0 h-full w-[18%] [background:linear-gradient(100deg,transparent,rgba(184,122,74,0.18),transparent)] [animation:hkd-scan-sweep_6s_ease-in-out_2.4s_infinite] motion-reduce:hidden"
+            />
             {STAT_DEFS.map((s, i) => (
-              <div key={s.label} className="hkd-stat">
-                <span className="hkd-stat-val">
+              <div
+                key={s.label}
+                className="border-r border-[rgba(44,36,23,0.07)] px-[6px] text-center transition-transform duration-200 last:border-r-0 hover:-translate-y-[2px] dark:border-[rgba(232,221,208,0.06)]"
+              >
+                <span className="mb-1 block [font-family:'Playfair_Display',serif] text-[1.35rem] font-semibold tabular-nums leading-none text-[#b87a4a] dark:text-[#d4955e]">
                   {counts[i].toFixed(s.decimals)}{s.suffix}
                 </span>
-                <span className="hkd-stat-lbl">{s.label}</span>
+                <span className="block text-[9.5px] font-medium uppercase tracking-[0.1em] text-[#a08060] dark:text-[#8a7060]">
+                  {s.label}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
         {/* RIGHT */}
-        <div className="hkd-right">
-          <div className="hkd-img-wrap">
-            <Image
-              src="/HKD_Building_image.jpeg"
-              alt="Garment factory production floor running on StitchFlow ERP"
-              fill
-              sizes="50vw"
-              style={{ objectFit: "cover" }}
-              priority
+        <div className="relative z-[2] flex max-h-[45vh] flex-col overflow-hidden md:max-h-none">
+          <div
+            style={{ perspective: "900px" }}
+            className="relative min-h-0 flex-1 overflow-hidden [animation:hkd-clip-reveal_1.1s_cubic-bezier(0.65,0,0.35,1)_0.1s_both] motion-reduce:[animation:none] motion-reduce:[clip-path:none]"
+          >
+            {/* hero image: always slowly zooms in and out, smooth loop */}
+            <div className="h-full w-full [animation:hkd-auto-zoom_9s_ease-in-out_infinite] motion-reduce:animate-none motion-reduce:[transform:scale(1.06)]">
+              <Image
+                src="/HKD_Building_image.jpeg"
+                alt="Garment factory production floor running on StitchFlow ERP"
+                fill
+                sizes="50vw"
+                className="object-cover object-center [filter:sepia(15%)_contrast(1.06)_brightness(0.94)] dark:[filter:sepia(20%)_contrast(0.95)_brightness(0.78)]"
+                priority
+              />
+            </div>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 [background:linear-gradient(to_bottom,transparent_55%,rgba(26,18,8,0.22)_100%)] dark:[background:linear-gradient(to_bottom,transparent_55%,rgba(20,14,8,0.4)_100%)]"
             />
-            <div className="hkd-badge">
-              <div className="hkd-badge-dot" />
-              <span className="hkd-badge-txt">Live Production · 500+ Factories</span>
+            <div
+              className="absolute bottom-[14px] left-[14px] z-[2] flex items-center gap-2 rounded-[9px] border border-[rgba(44,36,23,0.09)] bg-[rgba(240,237,230,0.9)] px-[13px] py-[9px] opacity-0 backdrop-blur-[14px] [animation:hkd-rise_0.7s_cubic-bezier(0.22,1,0.36,1)_1.1s_forwards] motion-reduce:opacity-100 motion-reduce:[animation:none] dark:border-[rgba(232,221,208,0.1)] dark:bg-[rgba(27,23,18,0.9)]"
+            >
+              <div
+                aria-hidden="true"
+                className="h-[6px] w-[6px] flex-shrink-0 rounded-full bg-[#5ca068] shadow-[0_0_0_3px_rgba(92,160,104,0.22)] [animation:hkd-pulse-ring_2.5s_ease_infinite] motion-reduce:animate-none"
+              />
+              <span className="text-[10.5px] font-medium tracking-[0.01em] text-[#2c2417] dark:text-[#e8ddd0]">
+                Live Production · KEPZ, Chattogram
+                <span aria-hidden="true" className="ml-[1px] [animation:hkd-blink_1.1s_step-end_infinite] motion-reduce:hidden">|</span>
+              </span>
             </div>
           </div>
 
-          <div className="hkd-pillars">
-            {pillars.map(({ icon: Icon, label }) => (
-              <div key={label} className="hkd-pillar">
-                <div className="hkd-pillar-icon">
-                  <Icon size={14} strokeWidth={1.8} color="#b87a4a" />
+          <div className="grid flex-none grid-cols-2 border-t border-[rgba(44,36,23,0.08)] bg-[#e6e0d4] dark:border-[rgba(232,221,208,0.06)] dark:bg-[#141009]">
+            {pillars.map(({ icon: Icon, label }, i) => (
+              <div
+                key={label}
+                className="group relative flex items-center gap-[10px] border-b border-r border-[rgba(44,36,23,0.07)] p-4 opacity-0 transition-colors duration-150 [animation:hkd-rise_0.6s_cubic-bezier(0.22,1,0.36,1)_forwards] hover:bg-[rgba(184,122,74,0.07)] motion-reduce:opacity-100 motion-reduce:[animation:none] even:border-r-0 last:border-b-0 [&:nth-child(3)]:border-b-0 dark:border-[rgba(232,221,208,0.05)] dark:hover:bg-[rgba(212,149,94,0.06)]"
+                style={{ animationDelay: `${1.15 + i * 0.1}s` }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="absolute bottom-2 left-4 h-px w-0 [background-image:repeating-linear-gradient(to_right,#b87a4a_0,#b87a4a_4px,transparent_4px,transparent_7px)] transition-[width] duration-300 group-hover:w-[calc(100%-2.2rem)]"
+                />
+                <div className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-[7px] bg-[rgba(184,122,74,0.13)] transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:-rotate-[8deg] group-hover:scale-[1.08] group-hover:bg-[rgba(184,122,74,0.22)] dark:bg-[rgba(212,149,94,0.1)]">
+                  <span
+                    className="flex items-center justify-center [animation:hkd-icon-idle_3s_ease-in-out_infinite] motion-reduce:animate-none"
+                    style={{ animationDelay: `${i * 0.4}s` }}
+                  >
+                    <Icon size={14} strokeWidth={1.8} color="#b87a4a" />
+                  </span>
                 </div>
-                <span className="hkd-pillar-lbl">{label}</span>
+                <span className="text-[11px] font-medium leading-[1.3] text-[#4a3728] dark:text-[#c8b49e]">
+                  {label}
+                </span>
               </div>
             ))}
           </div>
