@@ -22,6 +22,21 @@ async function attachReceiveInfo(items) {
 }
 
 /**
+ * Normalizes whatever the frontend sent for "defects" into a clean array
+ * of trimmed, non-empty, de-duplicated strings -- or null if there's
+ * nothing worth storing. Accepts a single string too (defensive: in case
+ * a caller ever sends one defect as a bare string instead of a 1-item
+ * array), so both a "Single" defect and "Multiple" defects end up in the
+ * exact same shape in the DB (a JSON array, or null).
+ */
+function normalizeDefects(defects) {
+  if (defects == null) return null;
+  const arr = Array.isArray(defects) ? defects : [defects];
+  const cleaned = [...new Set(arr.map((d) => String(d).trim()).filter(Boolean))];
+  return cleaned.length ? cleaned : null;
+}
+
+/**
  * GET /material-inspection/notifications
  * Returns { unreadCount, notifications: [...] } -- unread first, then
  * newest first. Drives the bell icon + dropdown.
@@ -88,7 +103,8 @@ export const getWorklist = async (req, res) => {
 /**
  * GET /material-inspection/history
  * Every batch that has already been inspected (passed and/or rejected),
- * newest inspected first.
+ * newest inspected first. Each row includes `defects` -- the array of
+ * defect names recorded at inspection time (or null if none).
  */
 export const getHistory = async (req, res) => {
   try {
@@ -125,7 +141,7 @@ export const getItemById = async (req, res) => {
 
 /**
  * POST /material-inspection/:itemId
- * Body: { passedRoll, passedYds, note }
+ * Body: { passedRoll, passedYds, note, defects }
  *
  * Records the inspection decision for one batch. passedRoll/passedYds
  * must each be between 0 and the batch's received rollQty/yds. Whatever
@@ -134,15 +150,23 @@ export const getItemById = async (req, res) => {
  * re-inspecting an already-inspected batch is not supported here (that
  * would risk clobbering rack assignments already made against it).
  *
+ * `defects` is optional -- an array of defect-name strings found during
+ * inspection (Single = one entry, Multiple = several). It's normalized
+ * (trimmed, de-duplicated, blanks dropped) and stored as-is in the
+ * `defects` JSON column; no separate table is needed since a defect list
+ * only ever belongs to exactly one batch/inspection. Left null when
+ * nothing was recorded (e.g. the batch passed clean).
+ *
  * On success: unassignedRoll/Yds are set to the PASSED amount (this is
  * what makes it available on Location Assignment), status becomes
  * "rejected" if nothing passed, otherwise "pending" (ready to be racked).
- * A "inspection" row is written to stock_history either way.
+ * A "inspection" row is written to stock_history either way, with the
+ * defect names folded into its note when present.
  */
 export const inspectItem = async (req, res) => {
   try {
     const { itemId } = req.params;
-    const { passedRoll, passedYds, note } = req.body;
+    const { passedRoll, passedYds, note, defects } = req.body;
 
     const [item] = await db.select().from(materialReceiveItems).where(eq(materialReceiveItems.id, itemId));
     if (!item) return res.status(404).json({ message: "Batch not found" });
@@ -160,11 +184,15 @@ export const inspectItem = async (req, res) => {
         message: `Passed quantity can't exceed the received amount (${item.rollQty} Roll / ${item.yds} Yds)`,
       });
     }
+    if (defects !== undefined && defects !== null && !Array.isArray(defects) && typeof defects !== "string") {
+      return res.status(400).json({ message: "Defects must be a list of defect names" });
+    }
 
     const rejectRoll = Number(item.rollQty) - passRoll;
     const rejectYds = Number(item.yds) - passYds;
     const fullyRejected = passRoll === 0 && passYds === 0;
     const newStatus = fullyRejected ? "rejected" : "pending";
+    const normalizedDefects = normalizeDefects(defects);
 
     const [receive] = await db.select().from(materialReceives).where(eq(materialReceives.id, item.materialReceiveId));
 
@@ -181,9 +209,15 @@ export const inspectItem = async (req, res) => {
           status: newStatus,
           inspectedAt: new Date(),
           inspectionNote: note?.trim() || null,
+          defects: normalizedDefects,
           isRead: true,
         })
         .where(eq(materialReceiveItems.id, itemId));
+
+      const baseNote = fullyRejected
+        ? `Inspection rejected all ${item.rollQty} Roll / ${item.yds} Yds (invoice ${receive?.invoiceNo ?? ""})`
+        : `Inspection passed ${passRoll} Roll / ${passYds} Yds, rejected ${rejectRoll} Roll / ${rejectYds} Yds (invoice ${receive?.invoiceNo ?? ""})`;
+      const defectsSuffix = normalizedDefects ? ` -- Defects: ${normalizedDefects.join(", ")}` : "";
 
       await tx.insert(stockHistory).values({
         batchId: Number(itemId),
@@ -193,9 +227,7 @@ export const inspectItem = async (req, res) => {
         location: null,
         rollQty: passRoll,
         yds: passYds,
-        note: fullyRejected
-          ? `Inspection rejected all ${item.rollQty} Roll / ${item.yds} Yds (invoice ${receive?.invoiceNo ?? ""})`
-          : `Inspection passed ${passRoll} Roll / ${passYds} Yds, rejected ${rejectRoll} Roll / ${rejectYds} Yds (invoice ${receive?.invoiceNo ?? ""})`,
+        note: `${baseNote}${defectsSuffix}`,
       });
     });
 

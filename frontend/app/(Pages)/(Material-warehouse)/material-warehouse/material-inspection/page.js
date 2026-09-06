@@ -1,10 +1,18 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/material-inspection/page.js
 
+//
+// UPDATE: Inspection can now also record what DEFECTS were found on a
+// batch -- zero, one ("Single"), or several ("Multiple") -- via a
+// checkbox picker plus a free-text "Other" option, stored as a simple
+// list against the batch's own row (no separate defects table needed,
+// since a defect list only ever belongs to exactly one
+// batch/inspection). Recorded defects show up in the History tab.
+
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Bell, ChevronDown, ChevronUp, History as HistoryIcon, ClipboardCheck, PackageSearch,
+  Bell, ChevronDown, ChevronUp, History as HistoryIcon, ClipboardCheck, PackageSearch, AlertOctagon, X,
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -24,12 +32,30 @@ const chipPartial = "inline-flex items-center px-2 py-0.5 rounded-full text-[11p
 const chipApproved = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#5ca068]/15 text-[#3d7a4a] dark:bg-[#8fca9c]/15 dark:text-[#8fca9c]";
 const chipRejected = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#a04a3a]/15 text-[#7a3325] dark:bg-[#e08a78]/15 dark:text-[#e08a78]";
 const chipAwaiting = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#7a4a8a]/15 text-[#5c3468] dark:bg-[#c68fd4]/15 dark:text-[#c68fd4]";
+// Small chip used to display/pick an individual defect name.
+const chipDefect = "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#a04a3a]/12 text-[#7a3325] dark:bg-[#e08a78]/15 dark:text-[#e08a78]";
 
 const scrollThin =
   "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent " +
   "[&::-webkit-scrollbar-thumb]:bg-[#7a4a8a]/30 [&::-webkit-scrollbar-thumb]:rounded-full " +
   "[&::-webkit-scrollbar-thumb:hover]:bg-[#7a4a8a]/50 " +
   "[scrollbar-width:thin] [scrollbar-color:#7a4a8a4d_transparent]";
+
+// Common fabric-defect vocabulary shown as quick-pick checkboxes. The user
+// can also type any custom defect name via the "Other" input below these
+// -- the two lists get merged into one array on submit, so picking one
+// box ("Single") or several boxes/entries ("Multiple") both just add
+// strings to the same list.
+const DEFECT_OPTIONS = [
+  "Shade Variation",
+  "Fabric Fault",
+  "Width Shortage",
+  "Weaving Defect",
+  "Color Bleeding",
+  "Stain / Dirty Mark",
+  "Hole / Tear",
+  "Uneven GSM",
+];
 
 function statusChip(status) {
   if (status === "approved") return <span className={chipApproved}>Approved</span>;
@@ -106,6 +132,7 @@ function NotificationBell({ notifications, unreadCount, onRefresh, onSelect }) {
 
 /* ============================================================
    InspectionForm -- Passed Roll/Yds inputs, auto-computed Rejected,
+   optional Defects Found (Single/Multiple via checkboxes + custom),
    optional note, Save + Reject All.
    ============================================================ */
 
@@ -113,6 +140,13 @@ function InspectionForm({ item, onDone }) {
   const [passedRoll, setPassedRoll] = useState(String(item.rollQty));
   const [passedYds, setPassedYds] = useState(String(item.yds));
   const [note, setNote] = useState("");
+  // Defects picked from the quick-pick checkbox list above.
+  const [checkedDefects, setCheckedDefects] = useState([]);
+  // Defects typed in manually via the "Other" input (kept separate from
+  // checkedDefects so each has its own remove control, then merged with
+  // checkedDefects into one array right before submit).
+  const [customDefects, setCustomDefects] = useState([]);
+  const [customDefectInput, setCustomDefectInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -121,6 +155,21 @@ function InspectionForm({ item, onDone }) {
   const rejRoll = Math.max(0, Number(item.rollQty) - pr);
   const rejYds = Math.max(0, Number(item.yds) - py);
   const isPartialPass = pr < Number(item.rollQty) || py < Number(item.yds);
+
+  const toggleDefect = (name) => {
+    setCheckedDefects((cur) => (cur.includes(name) ? cur.filter((d) => d !== name) : [...cur, name]));
+  };
+
+  const addCustomDefect = () => {
+    const v = customDefectInput.trim();
+    if (!v) return;
+    setCustomDefects((cur) => (cur.includes(v) ? cur : [...cur, v]));
+    setCustomDefectInput("");
+  };
+
+  const removeCustomDefect = (name) => setCustomDefects((cur) => cur.filter((d) => d !== name));
+
+  const allDefects = [...checkedDefects, ...customDefects];
 
   const submit = async (finalRoll, finalYds, confirmMsg) => {
     setErr("");
@@ -134,7 +183,7 @@ function InspectionForm({ item, onDone }) {
       const res = await fetch(`${API_URL}/material-inspection/${item.id}`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passedRoll: finalRoll, passedYds: finalYds, note }),
+        body: JSON.stringify({ passedRoll: finalRoll, passedYds: finalYds, note, defects: allDefects }),
       });
       if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.message || "Failed to save inspection"); }
       onDone?.();
@@ -164,6 +213,59 @@ function InspectionForm({ item, onDone }) {
       <div className="text-[11px] text-[#a08060]">
         Rejected (auto-calculated): <b className="text-[#a04a3a]">{rejRoll} Roll / {rejYds} Yds</b>
         <span className="block">Received was {item.rollQty} Roll / {item.yds} Yds.</span>
+      </div>
+
+      {/* Defects Found -- optional, Single (one box/entry) or Multiple
+         (several) both just add to the same list. Not required to save
+         an inspection (a clean full pass has none), but especially
+         useful to fill in whenever something is being rejected. */}
+      <div className="rounded-lg border border-[#a04a3a]/25 dark:border-[#e08a78]/25 bg-[#a04a3a]/5 dark:bg-[#e08a78]/5 p-2.5 space-y-2">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[#7a3325] dark:text-[#e08a78]">
+          <AlertOctagon size={12} /> Defects Found (optional)
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+          {DEFECT_OPTIONS.map((name) => (
+            <label key={name} className="inline-flex items-center gap-1.5 text-[11px] text-[#2c2417] dark:text-[#e8ddd0] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={checkedDefects.includes(name)}
+                onChange={() => toggleDefect(name)}
+                className="h-3.5 w-3.5 accent-[#a04a3a]"
+              />
+              {name}
+            </label>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="text"
+            value={customDefectInput}
+            onChange={(e) => setCustomDefectInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomDefect(); } }}
+            placeholder="Other defect (type and press Enter)"
+            className={`${inputCls} flex-1`}
+          />
+          <button type="button" onClick={addCustomDefect} className={btnSecondary}>
+            Add
+          </button>
+        </div>
+        {customDefects.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {customDefects.map((d) => (
+              <span key={d} className={chipDefect}>
+                {d}
+                <button type="button" onClick={() => removeCustomDefect(d)} className="hover:text-[#a04a3a]">
+                  <X size={10} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        {allDefects.length > 0 && (
+          <div className="text-[10px] text-[#7a6250] dark:text-[#a8917d]">
+            {allDefects.length === 1 ? "1 defect" : `${allDefects.length} defects`} will be recorded with this inspection.
+          </div>
+        )}
       </div>
 
       <label className="block text-xs">
@@ -291,25 +393,40 @@ function HistoryTab() {
                 <th className="px-3 py-2 text-left font-semibold">Received</th>
                 <th className="px-3 py-2 text-left font-semibold">Passed</th>
                 <th className="px-3 py-2 text-left font-semibold">Rejected</th>
+                <th className="px-3 py-2 text-left font-semibold">Defects</th>
                 <th className="px-3 py-2 text-left font-semibold">Status</th>
                 <th className="px-3 py-2 text-left font-semibold">Note</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#7a4a8a]/5">
-                  <td className="px-3 py-2 whitespace-nowrap">{r.inspectedAt?.slice(0, 10) || "-"}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{r.receive?.invoiceNo}</td>
-                  <td className="px-3 py-2 font-semibold whitespace-nowrap">{r.receive?.buyer}</td>
-                  <td className="px-3 py-2 text-[#8a4a24] dark:text-[#d4955e] font-semibold whitespace-nowrap">{r.itemCodePdm}</td>
-                  <td className="px-3 py-2 font-semibold whitespace-nowrap">{r.color}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{r.rollQty} Roll / {r.yds} Yds</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-[#3d7a4a] dark:text-[#8fca9c] font-medium">{r.passedRoll} Roll / {r.passedYds} Yds</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-[#a04a3a] font-medium">{r.rejectedRoll} Roll / {r.rejectedYds} Yds</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{statusChip(r.status)}</td>
-                  <td className="px-3 py-2 max-w-[180px] truncate" title={r.inspectionNote || undefined}>{r.inspectionNote || "-"}</td>
-                </tr>
-              ))}
+              {rows.map((r) => {
+                const defects = Array.isArray(r.defects) ? r.defects : [];
+                return (
+                  <tr key={r.id} className="border-t border-[#2c2417]/8 dark:border-[#e8ddd0]/8 hover:bg-[#7a4a8a]/5">
+                    <td className="px-3 py-2 whitespace-nowrap">{r.inspectedAt?.slice(0, 10) || "-"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{r.receive?.invoiceNo}</td>
+                    <td className="px-3 py-2 font-semibold whitespace-nowrap">{r.receive?.buyer}</td>
+                    <td className="px-3 py-2 text-[#8a4a24] dark:text-[#d4955e] font-semibold whitespace-nowrap">{r.itemCodePdm}</td>
+                    <td className="px-3 py-2 font-semibold whitespace-nowrap">{r.color}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{r.rollQty} Roll / {r.yds} Yds</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-[#3d7a4a] dark:text-[#8fca9c] font-medium">{r.passedRoll} Roll / {r.passedYds} Yds</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-[#a04a3a] font-medium">{r.rejectedRoll} Roll / {r.rejectedYds} Yds</td>
+                    <td className="px-3 py-2 max-w-[220px]">
+                      {defects.length === 0 ? (
+                        <span className="text-[#a08060] italic">None</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {defects.map((d) => (
+                            <span key={d} className={chipDefect}>{d}</span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">{statusChip(r.status)}</td>
+                    <td className="px-3 py-2 max-w-[180px] truncate" title={r.inspectionNote || undefined}>{r.inspectionNote || "-"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -374,7 +491,8 @@ export default function MaterialInspectionPage() {
               </h1>
               <p className="text-xs text-[#7a6250] dark:text-[#a8917d]">
                 Review newly received batches and approve how much actually passed QC. Only the Passed Roll/Yds
-                becomes available for rack assignment; the rest is recorded as Rejected.
+                becomes available for rack assignment; the rest is recorded as Rejected. Defects found (single or
+                multiple) can be recorded alongside the result.
               </p>
             </div>
           </div>

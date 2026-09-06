@@ -22,6 +22,15 @@
 // can now leave EITHER one at 0 (e.g. Roll=0, Yds=50, or Roll=50, Yds=0)
 // and the row still goes through. Only BOTH being 0 (or missing) is
 // rejected, since that isn't an issue action at all.
+//
+// UPDATE 4: Issuing now only requires an ITEM CODE/PDM match between the
+// requisition item and the rack being issued from -- Color is
+// intentionally NOT checked anymore. A rack holding a different Color of
+// the same Item Code/PDM can be issued against a requisition item that
+// asked for a different Color. (The frontend's "Check stock" panel also
+// no longer filters by Color for this reason -- it shows every Color for
+// the requested Item Code/PDM, visually flagging Color/Season mismatches,
+// and lets the user pick freely.)
 
 import { db, schema } from "../db/db.js";
 import { eq, desc, ne, inArray } from "drizzle-orm";
@@ -87,9 +96,9 @@ export const markRequisitionRead = async (req, res) => {
  * Main worklist for the Cutting Issue page: every requisition that isn't
  * fully fulfilled yet, newest first, with its item rows (requested /
  * issued / remaining Yds). Rack-wise available stock for a given Item
- * Code/PDM + Color is fetched separately by the frontend via the existing
- * GET /material-stock?itemCodePdm=...&color=... endpoint, so this
- * controller doesn't duplicate that lookup.
+ * Code/PDM is fetched separately by the frontend via the existing
+ * GET /material-stock?itemCodePdm=... endpoint, so this controller
+ * doesn't duplicate that lookup.
  */
 export const getWorklist = async (req, res) => {
   try {
@@ -253,11 +262,13 @@ export const issueStock = async (req, res) => {
       });
     }
 
-    // Sanity check: the rack must actually hold the same Item Code/PDM +
-    // Color the requisition item is asking for.
+    // Sanity check: the rack must actually hold the same Item Code/PDM the
+    // requisition item is asking for. Color is intentionally NOT checked
+    // here anymore -- a rack of a different Color but the same Item
+    // Code/PDM is still valid to issue against this requisition item.
     const [batch] = await db.select().from(materialReceiveItems).where(eq(materialReceiveItems.id, allocation.itemId));
-    if (!batch || batch.itemCodePdm !== reqItem.itemCodePdm || batch.color !== reqItem.color) {
-      return res.status(400).json({ message: "Selected rack does not hold this Item Code/PDM + Color" });
+    if (!batch || batch.itemCodePdm !== reqItem.itemCodePdm) {
+      return res.status(400).json({ message: "Selected rack does not hold this Item Code/PDM" });
     }
 
     const [requisition] = await db
@@ -329,9 +340,10 @@ export const issueStock = async (req, res) => {
  * requestedYds -- the warehouse can issue more than requested (the
  * frontend confirms this with the user before calling). Each row still
  * can't exceed its own rack's availableRoll/Yds, the rack must hold the
- * same Item Code/PDM + Color as the requisition item, and the same rack
- * can't be picked twice in one batch (combine it into a single row
- * instead -- otherwise which row "wins" is ambiguous).
+ * same Item Code/PDM as the requisition item (Color is NOT checked -- see
+ * below), and the same rack can't be picked twice in one batch (combine
+ * it into a single row instead -- otherwise which row "wins" is
+ * ambiguous).
  *
  * Roll and Yds do NOT both have to be > 0 on a row -- either one can be
  * left at 0. Only rejected when BOTH are 0 on a given row.
@@ -389,7 +401,9 @@ export const issueStockBatch = async (req, res) => {
       }
     }
 
-    // Sanity check every picked rack actually holds this Item Code/PDM + Color.
+    // Sanity check every picked rack actually holds this Item Code/PDM.
+    // Color is intentionally NOT checked here -- a rack of a different
+    // Color but the same Item Code/PDM is still valid to issue from.
     const itemIds = [...new Set(allocs.map((a) => a.itemId))];
     const batches = itemIds.length
       ? await db.select().from(materialReceiveItems).where(inArray(materialReceiveItems.id, itemIds))
@@ -397,8 +411,8 @@ export const issueStockBatch = async (req, res) => {
     const batchById = new Map(batches.map((b) => [b.id, b]));
     for (const alloc of allocs) {
       const batch = batchById.get(alloc.itemId);
-      if (!batch || batch.itemCodePdm !== reqItem.itemCodePdm || batch.color !== reqItem.color) {
-        return res.status(400).json({ message: `Rack ${alloc.location} does not hold this Item Code/PDM + Color` });
+      if (!batch || batch.itemCodePdm !== reqItem.itemCodePdm) {
+        return res.status(400).json({ message: `Rack ${alloc.location} does not hold this Item Code/PDM` });
       }
     }
 

@@ -7,6 +7,7 @@ import {
   decimal,
   foreignKey,
   int,
+  json,
   mysqlEnum,
   mysqlTable,
   serial,
@@ -100,6 +101,13 @@ export const materialReceiveStyles = mysqlTable(
 //   passedRoll/passedYds     -> how much of this batch QC approved
 //   rejectedRoll/rejectedYds -> received - passed (auto-computed)
 //   inspectedAt/inspectionNote/isRead -> inspection metadata + bell state
+//   defects                  -> JSON array of defect names found during
+//                                inspection (e.g. ["Shade Variation",
+//                                "Fabric Fault"]). Zero, one, or many
+//                                strings -- no separate table needed since
+//                                this is a simple list that only ever
+//                                belongs to exactly one batch/inspection.
+//                                Stays null when nothing was recorded.
 //
 // unassignedRoll/unassignedYds = how much of the batch has PASSED
 // inspection but NOT yet been put on a rack. They stay 0 until
@@ -136,6 +144,11 @@ export const materialReceiveItems = mysqlTable(
     rejectedYds: decimal("rejected_yds", { precision: 10, scale: 2 }).notNull().default("0"),
     inspectedAt: timestamp("inspected_at"),
     inspectionNote: varchar("inspection_note", { length: 255 }),
+    // Defects found during inspection -- JSON array of strings, e.g.
+    // ["Shade Variation"] (single) or ["Shade Variation", "Fabric Fault"]
+    // (multiple). Nullable/optional -- a batch that passed clean has no
+    // defects recorded.
+    defects: json("defects"),
     isRead: boolean("is_read").notNull().default(false), // Material Inspection notification bell
 
     unassignedRoll: int("unassigned_roll").notNull(), // still needs a rack -- 0 until inspected

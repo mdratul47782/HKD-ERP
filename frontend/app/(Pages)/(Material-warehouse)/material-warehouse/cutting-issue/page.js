@@ -1,45 +1,5 @@
 // frontend/app/(Pages)/(Material-warehouse)/material-warehouse/cutting-issue/page.js
 
-//
-// Material Warehouse side: incoming Requisitions from Cutting show up
-// here as bell-icon notifications (read/unread). Expanding a requisition
-// shows its requested Item Code/PDM + Color rows (Requested Yds only --
-// Cutting never sends a Roll, that's decided here); "Check stock" pulls
-// the same rack-wise/date-wise breakdown used elsewhere (GET
-// /material-stock) so the user can see exactly which rack + date to pull
-// from, then enters how much Roll/Yds to issue from a chosen rack.
-// Issuing decrements that rack's available stock immediately. A History
-// tab lists every issue action ever made.
-//
-// There is no PO on a Cutting Requisition -- everything is tracked by
-// Buyer/Floor/Season/Style/Model instead. There is also no hard cap
-// stopping the warehouse from issuing MORE than the requested Yds (Roll
-// was never requested by Cutting to begin with, and Consumption-based Yds
-// estimates can be off) -- the frontend just confirms with the user
-// before an over-issue goes through.
-//
-// UPDATE 2: "What Cutting requested" and "What's available in stock" are
-// now two clearly separated, distinctly labeled blocks instead of being
-// visually blended together in small print.
-//
-// UPDATE 3: Issuing no longer requires BOTH Roll and Yds to be filled in
-// on a picked rack row, and a picked rack row is visually colorized
-// (green) in the stock table.
-//
-// UPDATE 4:
-//   - The "Cutting Requested" card now shows Requested Yds, Issued So Far,
-//     AND Remaining Yds as three clearly labeled figures side by side --
-//     previously "how much is still needed" had to be worked out by hand
-//     from Requested minus Issued. Remaining is highlighted (amber if
-//     something's still needed, green once nothing is).
-//   - Every picked-rack row in the issue cart now shows a "Need: X Yds"
-//     badge right next to it (not just once, buried in the footer note),
-//     so the exact remaining requirement is visible right where the user
-//     is typing the amount to issue.
-//   - Any error message (issue failed, validation failed, etc.) is now
-//     shown as a large, bold, red, boxed banner instead of small grey
-//     text, so it can't be missed.
-
 "use client";
 
 import { useCallback, useEffect, useState, Fragment } from "react";
@@ -164,11 +124,15 @@ function NotificationBell({ notifications, unreadCount, onRefresh, onSelect }) {
 /* ============================================================
    IssueForm -- for one requisition item: "Check stock" shows a
    FULL-CONTEXT breakdown of every rack allocation that matches this
-   Item Code/PDM + Color -- Date, Buyer, Season, Item, Item Code/PDM,
-   Color, Style/Model, Rack, Available -- so the warehouse user can
-   visually confirm they're pulling the right batch (right Season /
-   right Buyer / right Style) before picking a rack, not just the
-   right Item Code/PDM + Color.
+   Item Code/PDM -- Date, Buyer, Season, Item, Item Code/PDM, Color,
+   Style/Model, Rack, Available -- so the warehouse user can visually
+   confirm they're pulling the right batch (right Season / right Buyer /
+   right Style / right Color if it matters) before picking a rack. Only
+   the Item Code/PDM is required to match -- Color is NOT filtered on and
+   NOT enforced, since a rack of a different Color but the same Item
+   Code/PDM is a valid issue source. Rows whose Color or Season differs
+   from what was requested are visually flagged in red so the user
+   notices, without blocking the pick.
 
    Clicking "Pick" on a rack row ADDS it to a picked-racks list below
    (instead of immediately issuing) -- so the user can pick several
@@ -209,7 +173,10 @@ function IssueForm({ item, requisition, onIssued }) {
     setStockOpen(true);
     setLoadingStock(true);
     try {
-      const params = new URLSearchParams({ itemCodePdm: item.itemCodePdm, color: item.color });
+      // Color intentionally NOT sent -- issuing now only requires an
+      // Item Code/PDM match, so "Check stock" shows racks across every
+      // Color for this Item Code/PDM, letting the user pick any of them.
+      const params = new URLSearchParams({ itemCodePdm: item.itemCodePdm });
       const res = await fetch(`${API_URL}/material-stock?${params.toString()}`, { credentials: "include" });
       const data = await res.json();
       setStockRows(data.rows || []);
@@ -287,20 +254,21 @@ function IssueForm({ item, requisition, onIssued }) {
         loadingStock ? (
           <div className="text-xs text-[#a08060] italic">Checking...</div>
         ) : stockRows.length === 0 ? (
-          <div className="text-xs italic text-[#a08060]">No available stock found for this Item Code/PDM + Color.</div>
+          <div className="text-xs italic text-[#a08060]">No available stock found for this Item Code/PDM.</div>
         ) : (
           <div className="space-y-2">
             {/* Everything about what Cutting requested (Buyer/Season/Style/
                Model/Item Code/Color) already lives in the "Cutting
                Requested" card above -- no need to restate it here. This
-               panel is purely "what's on the shelf". Blue theme, matches
-               the rest of the app's "stock" styling elsewhere. */}
+               panel is purely "what's on the shelf" for this Item
+               Code/PDM, across every Color. Blue theme, matches the rest
+               of the app's "stock" styling elsewhere. */}
             <div className="rounded-lg border-2 border-[#3d6a8a]/25 dark:border-[#6fa8d0]/25 overflow-hidden">
               <div className="flex items-center justify-between gap-2 flex-wrap px-3 py-2 bg-[#2c4a63]/10 dark:bg-[#6fa8d0]/10">
                 <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[#2c4a63] dark:text-[#6fa8d0]">
                   <Boxes size={12} /> Available Stock ({stockRows.length} rack{stockRows.length > 1 ? "s" : ""})
                 </div>
-                <div className="text-[10px] text-[#a04a3a]">Rows with a different Season than requested are highlighted in red. Picked racks are highlighted in green.</div>
+                <div className="text-[10px] text-[#a04a3a]">Rows with a different Season or Color than requested are highlighted in red. Picked racks are highlighted in green.</div>
               </div>
               <table className="w-full text-xs table-fixed">
                 <colgroup>
@@ -333,15 +301,21 @@ function IssueForm({ item, requisition, onIssued }) {
                   {stockRows.map((r) => {
                     const alreadyPicked = pickedIds.has(r.itemId);
                     const seasonMismatch = requisition?.season && r.season && r.season !== requisition.season;
+                    // Color is no longer required to match for issuing,
+                    // but a different Color than what Cutting requested
+                    // is still worth flagging visually so the user makes
+                    // an informed choice before picking that rack.
+                    const colorMismatch = item?.color && r.color && r.color !== item.color;
                     const styleLabel = (r.styles || [])
                       .map((s) => (s.model ? `${s.style} | ${s.model}` : s.style))
                       .join(", ");
-                    // Picked takes visual priority over the season-mismatch
-                    // highlight -- "this row is already queued up" is the
-                    // more important thing to notice at a glance.
+                    // Picked takes visual priority over the
+                    // season/color-mismatch highlight -- "this row is
+                    // already queued up" is the more important thing to
+                    // notice at a glance.
                     const rowClass = alreadyPicked
                       ? "bg-[#5ca068]/12 dark:bg-[#5ca068]/15"
-                      : seasonMismatch
+                      : seasonMismatch || colorMismatch
                       ? "bg-[#a04a3a]/8 dark:bg-[#a04a3a]/10"
                       : "";
                     return (
@@ -356,7 +330,9 @@ function IssueForm({ item, requisition, onIssued }) {
                         </td>
                         <td className="px-3 py-2 break-words">{r.item}</td>
                         <td className="px-3 py-2 break-words font-semibold text-[#8a4a24] dark:text-[#d4955e]">{r.itemCodePdm}</td>
-                        <td className="px-3 py-2 break-words">{r.color}</td>
+                        <td className={`px-3 py-2 break-words ${colorMismatch && !alreadyPicked ? "text-[#a04a3a] font-semibold" : ""}`}>
+                          {r.color}
+                        </td>
                         <td className="px-3 py-2 break-words">{styleLabel || "-"}</td>
                         <td className="px-3 py-2 break-words"><MapPin size={11} className="inline mr-0.5 text-[#3d6a8a] dark:text-[#6fa8d0]" />{r.location}</td>
                         <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{r.availableRoll} Roll / {r.availableYds} Yds</td>
@@ -447,8 +423,9 @@ function IssueForm({ item, requisition, onIssued }) {
         <div className="text-[10px] text-[#a08060]">
           Up to {remainingYds} Yds remaining against the {item.requestedYds} Yds requested. Roll is entirely your
           call -- Cutting didn't request a Roll count. Either Roll or Yds can be left at 0 on a picked rack (e.g.
-          Yds-only or Roll-only issues are fine). You can also issue more than requested if needed (you'll be
-          asked to confirm).
+          Yds-only or Roll-only issues are fine). Only the Item Code/PDM has to match -- Color is not enforced, so
+          racks of a different Color can be picked too (they're highlighted above). You can also issue more than
+          requested if needed (you'll be asked to confirm).
           {isDone && <span className="text-[#3d7a4a] dark:text-[#8fca9c] font-medium"> This item is already marked Fulfilled.</span>}
         </div>
         <ErrorBanner message={err} />
