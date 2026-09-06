@@ -31,6 +31,18 @@
 // no longer filters by Color for this reason -- it shows every Color for
 // the requested Item Code/PDM, visually flagging Color/Season mismatches,
 // and lets the user pick freely.)
+//
+// UPDATE 5 (bugfix): the Item Code/PDM match check used to be a plain
+// `batch.itemCodePdm !== reqItem.itemCodePdm` strict string compare. Real
+// data can have identical-looking codes that differ only by leading/
+// trailing whitespace or letter case (e.g. "4137688 " vs "4137688", or
+// "ABC123" vs "abc123") -- these are the SAME item code for all practical
+// purposes but fail a strict `!==` check, incorrectly blocking a valid
+// issue with "Selected rack does not hold this Item Code/PDM" even though
+// both rows visibly show the same code on screen. The match is now done
+// via `normalizeCode()` (trim + lowercase) on both sides, same normalization
+// style already used for search/filter matching in
+// materialStock.controllers.js.
 
 import { db, schema } from "../db/db.js";
 import { eq, desc, ne, inArray } from "drizzle-orm";
@@ -44,6 +56,14 @@ const {
   materialReceives,
   stockHistory,
 } = schema;
+
+// Normalizes an Item Code/PDM for comparison: trims surrounding
+// whitespace and lowercases it, so "4137688 ", "4137688", and "4137688"
+// (or differing letter case on alphanumeric codes) are all treated as the
+// same code. Never used for display -- only for equality checks.
+function normalizeCode(v) {
+  return (v ?? "").toString().trim().toLowerCase();
+}
 
 async function attachItems(requisitions) {
   const ids = requisitions.map((r) => r.id);
@@ -266,8 +286,11 @@ export const issueStock = async (req, res) => {
     // requisition item is asking for. Color is intentionally NOT checked
     // here anymore -- a rack of a different Color but the same Item
     // Code/PDM is still valid to issue against this requisition item.
+    // Compared via normalizeCode() (trim + lowercase) rather than a strict
+    // `!==` string compare, so identical-looking codes that only differ by
+    // whitespace or letter case aren't wrongly treated as a mismatch.
     const [batch] = await db.select().from(materialReceiveItems).where(eq(materialReceiveItems.id, allocation.itemId));
-    if (!batch || batch.itemCodePdm !== reqItem.itemCodePdm) {
+    if (!batch || normalizeCode(batch.itemCodePdm) !== normalizeCode(reqItem.itemCodePdm)) {
       return res.status(400).json({ message: "Selected rack does not hold this Item Code/PDM" });
     }
 
@@ -404,14 +427,17 @@ export const issueStockBatch = async (req, res) => {
     // Sanity check every picked rack actually holds this Item Code/PDM.
     // Color is intentionally NOT checked here -- a rack of a different
     // Color but the same Item Code/PDM is still valid to issue from.
+    // Compared via normalizeCode() (trim + lowercase) so identical-looking
+    // codes that only differ by whitespace/case aren't wrongly rejected.
     const itemIds = [...new Set(allocs.map((a) => a.itemId))];
     const batches = itemIds.length
       ? await db.select().from(materialReceiveItems).where(inArray(materialReceiveItems.id, itemIds))
       : [];
     const batchById = new Map(batches.map((b) => [b.id, b]));
+    const reqItemCodeNorm = normalizeCode(reqItem.itemCodePdm);
     for (const alloc of allocs) {
       const batch = batchById.get(alloc.itemId);
-      if (!batch || batch.itemCodePdm !== reqItem.itemCodePdm) {
+      if (!batch || normalizeCode(batch.itemCodePdm) !== reqItemCodeNorm) {
         return res.status(400).json({ message: `Rack ${alloc.location} does not hold this Item Code/PDM` });
       }
     }
